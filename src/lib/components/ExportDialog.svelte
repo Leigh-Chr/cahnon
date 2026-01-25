@@ -525,7 +525,7 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.5);
+		background-color: var(--overlay-backdrop);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -535,9 +535,7 @@
 	.dialog {
 		background-color: var(--color-bg-primary);
 		border-radius: var(--border-radius-lg);
-		box-shadow:
-			0 20px 25px -5px rgba(0, 0, 0, 0.1),
-			0 10px 10px -5px rgba(0, 0, 0, 0.04);
+		box-shadow: var(--shadow-lg);
 		width: 90%;
 		max-width: 500px;
 		max-height: 80vh;
@@ -633,8 +631,8 @@
 	.error-message {
 		margin-top: var(--spacing-md);
 		padding: var(--spacing-sm) var(--spacing-md);
-		background-color: rgba(239, 68, 68, 0.1);
-		border: 1px solid rgba(239, 68, 68, 0.3);
+		background-color: var(--danger-subtle);
+		border: 1px solid var(--danger-border);
 		border-radius: var(--border-radius-sm);
 		color: var(--color-error);
 		font-size: var(--font-size-sm);
@@ -679,7 +677,7 @@
 		gap: var(--spacing-xs);
 		padding: var(--spacing-sm) var(--spacing-lg);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-md);
 		font-weight: 500;
 	}

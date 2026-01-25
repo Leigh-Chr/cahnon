@@ -333,6 +333,6 @@
 
 	.restore-btn:hover {
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 	}
 </style>

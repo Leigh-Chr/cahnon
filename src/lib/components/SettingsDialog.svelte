@@ -88,8 +88,14 @@
 		}
 	}
 
-	function handleDarkModeChange() {
-		appState.isDarkMode = !appState.isDarkMode;
+	function handleColorModeChange(event: Event) {
+		const value = (event.target as HTMLSelectElement).value as 'light' | 'dark' | 'system';
+		appState.setColorMode(value);
+	}
+
+	function handleThemePaletteChange(event: Event) {
+		const value = (event.target as HTMLSelectElement).value as 'cool' | 'warm';
+		appState.setThemePalette(value);
 	}
 
 	function handleWordTargetBlur() {
@@ -187,14 +193,26 @@
 					<h3>Appearance</h3>
 
 					<div class="form-group">
-						<label class="checkbox-label">
-							<input
-								type="checkbox"
-								checked={appState.isDarkMode}
-								onchange={handleDarkModeChange}
-							/>
-							<span>Dark Mode</span>
-						</label>
+						<label for="color-mode">Color Mode</label>
+						<select id="color-mode" value={appState.colorMode} onchange={handleColorModeChange}>
+							<option value="system">System (Auto)</option>
+							<option value="light">Light</option>
+							<option value="dark">Dark</option>
+						</select>
+						<span class="hint">Choose light, dark, or follow your system preference</span>
+					</div>
+
+					<div class="form-group">
+						<label for="theme-palette">Theme Palette</label>
+						<select
+							id="theme-palette"
+							value={appState.themePalette}
+							onchange={handleThemePaletteChange}
+						>
+							<option value="cool">Encre (Cool Blue)</option>
+							<option value="warm">Ambre (Warm Terracotta)</option>
+						</select>
+						<span class="hint">Cool blue tones or warm earthy tones</span>
 					</div>
 				</section>
 
@@ -241,7 +259,7 @@
 	.dialog-overlay {
 		position: fixed;
 		inset: 0;
-		background-color: rgba(0, 0, 0, 0.5);
+		background-color: var(--overlay-backdrop);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -349,19 +367,6 @@
 		margin-top: var(--spacing-xs);
 	}
 
-	.checkbox-label {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-sm);
-		cursor: pointer;
-	}
-
-	.checkbox-label input {
-		width: 18px;
-		height: 18px;
-		accent-color: var(--color-accent);
-	}
-
 	.preview {
 		padding: var(--spacing-md);
 		background-color: var(--color-bg-secondary);
@@ -398,7 +403,7 @@
 		border-radius: var(--border-radius-sm);
 		font-size: var(--font-size-sm);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 	}
 
 	.done-btn:hover {

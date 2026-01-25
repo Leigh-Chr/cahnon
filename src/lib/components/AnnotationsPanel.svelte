@@ -302,7 +302,7 @@
 		padding: var(--spacing-xs) var(--spacing-md);
 		font-size: var(--font-size-xs);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-sm);
 	}
 

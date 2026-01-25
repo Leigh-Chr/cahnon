@@ -293,7 +293,7 @@
 		gap: var(--spacing-xs);
 		padding: var(--spacing-xs) var(--spacing-md);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-md);
 		font-size: var(--font-size-sm);
 		font-weight: 500;
@@ -330,7 +330,7 @@
 		margin-top: var(--spacing-lg);
 		padding: var(--spacing-sm) var(--spacing-lg);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-md);
 		font-weight: 500;
 	}
@@ -473,7 +473,7 @@
 	.save-btn {
 		padding: var(--spacing-xs) var(--spacing-md);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-sm);
 		font-weight: 500;
 	}

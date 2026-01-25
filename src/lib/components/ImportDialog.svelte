@@ -369,7 +369,7 @@
 	.dialog-overlay {
 		position: fixed;
 		inset: 0;
-		background-color: rgba(0, 0, 0, 0.5);
+		background-color: var(--overlay-backdrop);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -527,7 +527,7 @@
 
 	.error-message {
 		padding: var(--spacing-sm);
-		background-color: rgba(239, 68, 68, 0.1);
+		background-color: var(--danger-subtle);
 		color: var(--color-error);
 		border-radius: var(--border-radius-sm);
 		font-size: var(--font-size-sm);
@@ -579,7 +579,7 @@
 		border-radius: var(--border-radius-sm);
 		font-size: var(--font-size-sm);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 	}
 
 	.primary-btn:hover:not(:disabled) {

@@ -80,7 +80,6 @@ class AppState {
 	// -------------------------------------------------------------------------
 	// UI State - Dialogs
 	// -------------------------------------------------------------------------
-	isDarkMode = $state(false);
 	isExportDialogOpen = $state(false);
 	isTrashViewOpen = $state(false);
 	isCutLibraryOpen = $state(false);
@@ -92,6 +91,10 @@ class AppState {
 	editorSettings = $state<EditorSettings>({ ...defaultEditorSettings });
 	focusSettings = $state<FocusSettings>({ ...defaultFocusSettings });
 	isFocusMode = $state(false);
+
+	// Theme settings
+	colorMode = $state<'light' | 'dark' | 'system'>('system');
+	themePalette = $state<'cool' | 'warm'>('cool');
 
 	// -------------------------------------------------------------------------
 	// Derived State (Getters)
@@ -132,14 +135,19 @@ class AppState {
 	}
 
 	private initializeFromLocalStorage() {
-		// Dark mode
-		const savedDarkMode = localStorage.getItem('darkMode');
-		if (savedDarkMode !== null) {
-			this.isDarkMode = savedDarkMode === 'true';
-		} else {
-			this.isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+		// Color mode (light/dark/system)
+		const savedColorMode = localStorage.getItem('colorMode') as 'light' | 'dark' | 'system' | null;
+		if (savedColorMode && ['light', 'dark', 'system'].includes(savedColorMode)) {
+			this.colorMode = savedColorMode;
 		}
-		this.applyDarkMode();
+		this.applyColorMode();
+
+		// Theme palette (cool/warm)
+		const savedThemePalette = localStorage.getItem('themePalette') as 'cool' | 'warm' | null;
+		if (savedThemePalette && ['cool', 'warm'].includes(savedThemePalette)) {
+			this.themePalette = savedThemePalette;
+		}
+		this.applyThemePalette();
 
 		// Editor settings
 		const savedEditorSettings = localStorage.getItem('editorSettings');
@@ -166,12 +174,18 @@ class AppState {
 	private setupStorageSync() {
 		// Use $effect.root for effects outside components
 		$effect.root(() => {
-			// Sync dark mode
+			// Sync color mode
 			$effect(() => {
-				const darkMode = this.isDarkMode;
-				localStorage.setItem('darkMode', String(darkMode));
-				// Use untrack to avoid creating additional dependencies
-				untrack(() => this.applyDarkMode());
+				const mode = this.colorMode;
+				localStorage.setItem('colorMode', mode);
+				untrack(() => this.applyColorMode());
+			});
+
+			// Sync theme palette
+			$effect(() => {
+				const palette = this.themePalette;
+				localStorage.setItem('themePalette', palette);
+				untrack(() => this.applyThemePalette());
 			});
 
 			// Sync editor settings
@@ -192,22 +206,35 @@ class AppState {
 
 	private setupSystemColorSchemeListener() {
 		const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-		mediaQuery.addEventListener('change', (e) => {
-			// Only auto-update if user hasn't manually set a preference
-			const savedDarkMode = localStorage.getItem('darkMode');
-			if (savedDarkMode === null) {
-				this.isDarkMode = e.matches;
+		mediaQuery.addEventListener('change', () => {
+			// Re-apply if using system mode
+			if (this.colorMode === 'system') {
+				this.applyColorMode();
 			}
 		});
 	}
 
-	private applyDarkMode() {
+	private applyColorMode() {
 		if (typeof document !== 'undefined') {
-			if (this.isDarkMode) {
-				document.documentElement.classList.add('dark');
+			const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+			let effectiveMode: 'light' | 'dark';
+
+			if (this.colorMode === 'system') {
+				effectiveMode = prefersDark ? 'dark' : 'light';
 			} else {
-				document.documentElement.classList.remove('dark');
+				effectiveMode = this.colorMode;
 			}
+
+			// Set color-scheme property (used by light-dark() CSS function)
+			document.documentElement.style.colorScheme = effectiveMode;
+			// Set data attribute for potential CSS selectors
+			document.documentElement.dataset.colorMode = this.colorMode;
+		}
+	}
+
+	private applyThemePalette() {
+		if (typeof document !== 'undefined') {
+			document.documentElement.dataset.theme = this.themePalette;
 		}
 	}
 
@@ -474,8 +501,33 @@ class AppState {
 		this.workMode = this.workMode === 'writing' ? 'revision' : 'writing';
 	}
 
+	setColorMode(mode: 'light' | 'dark' | 'system') {
+		this.colorMode = mode;
+	}
+
+	setThemePalette(palette: 'cool' | 'warm') {
+		this.themePalette = palette;
+	}
+
+	/** @deprecated Use setColorMode instead */
 	toggleDarkMode() {
-		this.isDarkMode = !this.isDarkMode;
+		// Legacy support: cycle through light -> dark -> system
+		if (this.colorMode === 'light') {
+			this.colorMode = 'dark';
+		} else if (this.colorMode === 'dark') {
+			this.colorMode = 'system';
+		} else {
+			this.colorMode = 'light';
+		}
+	}
+
+	/** Helper to check if currently in dark mode (resolved) */
+	get isDarkMode(): boolean {
+		if (typeof window === 'undefined') return false;
+		if (this.colorMode === 'system') {
+			return window.matchMedia('(prefers-color-scheme: dark)').matches;
+		}
+		return this.colorMode === 'dark';
 	}
 
 	openExportDialog() {

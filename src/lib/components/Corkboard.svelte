@@ -682,7 +682,7 @@
 	}
 
 	.bulk-delete-btn:hover {
-		background-color: rgba(239, 68, 68, 0.1);
+		background-color: var(--danger-subtle);
 	}
 
 	.filter-badge {
@@ -853,7 +853,7 @@
 	.select-checkbox.checked {
 		background-color: var(--color-accent);
 		border-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 	}
 
 	.drag-handle {
@@ -891,7 +891,7 @@
 		font-size: var(--font-size-xs);
 		padding: 2px var(--spacing-xs);
 		background-color: var(--status-color);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-sm);
 		white-space: nowrap;
 	}

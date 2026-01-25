@@ -701,7 +701,7 @@
 
 	.btn-create {
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 	}
 
 	.btn-create:hover {
@@ -819,7 +819,7 @@
 
 	.delete-btn:hover {
 		background-color: var(--color-error);
-		color: white;
+		color: var(--text-on-accent);
 	}
 
 	.entry-fields {

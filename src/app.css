@@ -1,8 +1,9 @@
 /*
- * Cahnon Design System - Theme "Sépia"
+ * Cahnon Design System
  *
  * Philosophie : "L'outil invisible"
- * L'interface doit disparaître au profit du contenu.
+ * L'interface doit disparaître au profit du contenu,
+ * mais les éléments importants guident l'œil.
  *
  * Architecture:
  * 1. @property definitions (typed custom properties)
@@ -10,7 +11,11 @@
  * 3. Semantic tokens (light-dark() for theming)
  * 4. Component tokens (backward compatibility)
  *
- * Palette: Warm (hue 90) with Sépia accent (hue 60)
+ * Themes disponibles (data-theme attribute):
+ * - "cool" (default): Surfaces gris bleuté + accent bleu encre
+ * - "warm": Surfaces crème subtil + accent terracotta
+ *
+ * Light/dark mode: automatique via light-dark() et color-scheme
  */
 
 /* ==========================================================================
@@ -20,19 +25,19 @@
 @property --surface-primary {
 	syntax: '<color>';
 	inherits: true;
-	initial-value: oklch(98.5% 0.004 90);
+	initial-value: oklch(99% 0.004 260);
 }
 
 @property --text-primary {
 	syntax: '<color>';
 	inherits: true;
-	initial-value: oklch(20% 0.01 90);
+	initial-value: oklch(18% 0.01 260);
 }
 
 @property --accent-default {
 	syntax: '<color>';
 	inherits: true;
-	initial-value: oklch(50% 0.08 60);
+	initial-value: oklch(45% 0.18 250);
 }
 
 /* ==========================================================================
@@ -105,66 +110,113 @@
 }
 
 /* ==========================================================================
-   Semantic Tokens - Theme "Sépia"
-   Using light-dark() for automatic theme switching
+   Semantic Color Tokens
+   Using light-dark() for automatic light/dark mode switching
+   Theme selection via data-theme attribute on <html>
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Theme "Encre" (Cool) - DEFAULT
+   Surfaces: cool gray with subtle blue tint
+   Accent: rich blue ink
+   -------------------------------------------------------------------------- */
+:root,
+[data-theme='cool'] {
+	--surface-primary: light-dark(oklch(99% 0.004 260), oklch(16% 0.012 260));
+	--surface-secondary: light-dark(oklch(96% 0.006 260), oklch(19% 0.015 260));
+	--surface-tertiary: light-dark(oklch(92% 0.008 260), oklch(23% 0.018 260));
+	--surface-elevated: light-dark(oklch(100% 0 0), oklch(21% 0.015 260));
+
+	--surface-hover: light-dark(oklch(94% 0.01 260), oklch(22% 0.02 260));
+	--surface-active: light-dark(oklch(90% 0.015 255), oklch(26% 0.025 255));
+	--surface-selected: light-dark(oklch(94% 0.05 250), oklch(25% 0.06 250));
+
+	--text-primary: light-dark(oklch(18% 0.01 260), oklch(94% 0.006 260));
+	--text-secondary: light-dark(oklch(40% 0.008 260), oklch(70% 0.008 260));
+	--text-muted: light-dark(oklch(55% 0.006 260), oklch(52% 0.006 260));
+	--text-disabled: light-dark(oklch(72% 0.004 260), oklch(38% 0.008 260));
+	--text-inverse: light-dark(oklch(99% 0.004 260), oklch(16% 0.012 260));
+
+	--border-default: light-dark(oklch(88% 0.008 260), oklch(28% 0.018 260));
+	--border-subtle: light-dark(oklch(92% 0.005 260), oklch(22% 0.012 260));
+	--border-strong: light-dark(oklch(80% 0.012 260), oklch(35% 0.022 260));
+
+	--accent-default: light-dark(oklch(45% 0.18 250), oklch(72% 0.15 250));
+	--accent-hover: light-dark(oklch(38% 0.21 250), oklch(78% 0.17 250));
+	--accent-subtle: light-dark(oklch(95% 0.05 250), oklch(25% 0.07 250));
+
+	--border-focus: light-dark(oklch(45% 0.2 250), oklch(75% 0.18 250));
+
+	--status-planned: light-dark(oklch(62% 0.05 265), oklch(48% 0.05 265));
+	--status-to-write: light-dark(oklch(55% 0.08 260), oklch(55% 0.08 260));
+	--status-draft: light-dark(oklch(48% 0.12 255), oklch(62% 0.12 255));
+	--status-in-revision: light-dark(oklch(42% 0.15 250), oklch(70% 0.15 250));
+	--status-done: light-dark(oklch(35% 0.18 245), oklch(78% 0.18 245));
+	--status-to-cut: light-dark(oklch(60% 0.03 265 / 50%), oklch(45% 0.03 265 / 50%));
+
+	/* Overlay/backdrop for modals */
+	--overlay-backdrop: oklch(20% 0.02 260 / 50%);
+
+	/* Danger/error color (red) */
+	--danger-default: light-dark(oklch(55% 0.2 25), oklch(70% 0.18 25));
+	--danger-subtle: light-dark(oklch(95% 0.04 25), oklch(25% 0.06 25));
+	--danger-border: light-dark(oklch(75% 0.12 25), oklch(45% 0.1 25));
+}
+
+/* --------------------------------------------------------------------------
+   Theme "Ambre" (Warm)
+   Surfaces: subtle warm cream (not too yellow)
+   Accent: terracotta/rust (warm but not brown)
+   -------------------------------------------------------------------------- */
+[data-theme='warm'] {
+	--surface-primary: light-dark(oklch(99% 0.006 70), oklch(16% 0.012 50));
+	--surface-secondary: light-dark(oklch(96% 0.01 70), oklch(19% 0.015 50));
+	--surface-tertiary: light-dark(oklch(92% 0.015 70), oklch(23% 0.02 50));
+	--surface-elevated: light-dark(oklch(100% 0 0), oklch(21% 0.015 50));
+
+	--surface-hover: light-dark(oklch(94% 0.018 65), oklch(22% 0.022 50));
+	--surface-active: light-dark(oklch(90% 0.025 55), oklch(26% 0.028 45));
+	--surface-selected: light-dark(oklch(94% 0.06 35), oklch(25% 0.07 35));
+
+	--text-primary: light-dark(oklch(18% 0.012 60), oklch(94% 0.008 70));
+	--text-secondary: light-dark(oklch(40% 0.01 60), oklch(70% 0.01 70));
+	--text-muted: light-dark(oklch(55% 0.008 65), oklch(52% 0.008 60));
+	--text-disabled: light-dark(oklch(72% 0.006 70), oklch(38% 0.01 50));
+	--text-inverse: light-dark(oklch(99% 0.006 70), oklch(16% 0.012 50));
+
+	--border-default: light-dark(oklch(88% 0.012 70), oklch(28% 0.02 50));
+	--border-subtle: light-dark(oklch(92% 0.008 70), oklch(22% 0.015 50));
+	--border-strong: light-dark(oklch(80% 0.018 65), oklch(35% 0.025 50));
+
+	/* Terracotta/rust accent (hue 30) - warm earthy orange-red */
+	--accent-default: light-dark(oklch(52% 0.16 30), oklch(72% 0.14 30));
+	--accent-hover: light-dark(oklch(45% 0.19 30), oklch(78% 0.16 30));
+	--accent-subtle: light-dark(oklch(95% 0.05 35), oklch(25% 0.07 35));
+
+	--border-focus: light-dark(oklch(52% 0.18 30), oklch(75% 0.16 30));
+
+	/* Warm progression: light amber → deep rust */
+	--status-planned: light-dark(oklch(65% 0.05 80), oklch(45% 0.05 80));
+	--status-to-write: light-dark(oklch(58% 0.08 60), oklch(52% 0.08 60));
+	--status-draft: light-dark(oklch(52% 0.12 45), oklch(60% 0.12 45));
+	--status-in-revision: light-dark(oklch(46% 0.15 35), oklch(68% 0.15 35));
+	--status-done: light-dark(oklch(40% 0.18 25), oklch(76% 0.18 25));
+	--status-to-cut: light-dark(oklch(60% 0.03 70 / 50%), oklch(45% 0.03 60 / 50%));
+
+	/* Overlay/backdrop for modals */
+	--overlay-backdrop: oklch(20% 0.02 50 / 50%);
+
+	/* Danger/error color (red-orange for warm theme) */
+	--danger-default: light-dark(oklch(55% 0.2 25), oklch(70% 0.18 25));
+	--danger-subtle: light-dark(oklch(95% 0.04 25), oklch(25% 0.06 25));
+	--danger-border: light-dark(oklch(75% 0.12 25), oklch(45% 0.1 25));
+}
+
+/* ==========================================================================
+   Non-color Semantic Tokens (shared by all themes)
    ========================================================================== */
 
 :root {
-	/* -------------------------------------------------------------------------
-	   Surfaces (hue 90 = warm ivory/cream)
-	   ------------------------------------------------------------------------- */
-	--surface-primary: light-dark(oklch(98.5% 0.004 90), oklch(15% 0.008 90));
-	--surface-secondary: light-dark(oklch(96% 0.006 90), oklch(18% 0.01 90));
-	--surface-tertiary: light-dark(oklch(93% 0.008 90), oklch(22% 0.012 90));
-	--surface-elevated: light-dark(oklch(99% 0.003 90), oklch(20% 0.01 90));
-
-	/* -------------------------------------------------------------------------
-	   Interactive States
-	   ------------------------------------------------------------------------- */
-	--surface-hover: light-dark(oklch(94% 0.007 90), oklch(20% 0.01 90));
-	--surface-active: light-dark(oklch(91% 0.009 90), oklch(24% 0.012 90));
-	--surface-selected: light-dark(oklch(94% 0.02 60), oklch(22% 0.03 60));
-
-	/* -------------------------------------------------------------------------
-	   Text (hue 90 = warm brown, not pure black)
-	   ------------------------------------------------------------------------- */
-	--text-primary: light-dark(oklch(20% 0.01 90), oklch(92% 0.006 90));
-	--text-secondary: light-dark(oklch(40% 0.01 90), oklch(70% 0.008 90));
-	--text-muted: light-dark(oklch(55% 0.008 90), oklch(50% 0.006 90));
-	--text-disabled: light-dark(oklch(70% 0.006 90), oklch(35% 0.004 90));
-	--text-inverse: light-dark(oklch(98% 0.004 90), oklch(15% 0.008 90));
-
-	/* -------------------------------------------------------------------------
-	   Borders
-	   ------------------------------------------------------------------------- */
-	--border-default: light-dark(oklch(88% 0.01 90), oklch(25% 0.01 90));
-	--border-subtle: light-dark(oklch(92% 0.008 90), oklch(20% 0.008 90));
-	--border-strong: light-dark(oklch(80% 0.012 90), oklch(32% 0.012 90));
-
-	/* -------------------------------------------------------------------------
-	   Accent (hue 60 = sépia/brown)
-	   ------------------------------------------------------------------------- */
-	--accent-default: light-dark(oklch(50% 0.08 60), oklch(65% 0.08 60));
-	--accent-hover: light-dark(oklch(45% 0.09 60), oklch(70% 0.09 60));
-	--accent-subtle: light-dark(oklch(94% 0.02 60), oklch(22% 0.03 60));
-
-	/* -------------------------------------------------------------------------
-	   Focus (uses accent for visibility)
-	   ------------------------------------------------------------------------- */
-	--border-focus: light-dark(oklch(50% 0.08 60), oklch(65% 0.08 60));
-
-	/* -------------------------------------------------------------------------
-	   Status Colors (lightness progression - accessible)
-	   Light: darker = more complete
-	   Dark: lighter = more complete
-	   ------------------------------------------------------------------------- */
-	--status-planned: light-dark(oklch(70% 0.01 90), oklch(40% 0.01 90));
-	--status-to-write: light-dark(oklch(60% 0.01 90), oklch(50% 0.01 90));
-	--status-draft: light-dark(oklch(50% 0.01 90), oklch(60% 0.01 90));
-	--status-in-revision: light-dark(oklch(40% 0.01 90), oklch(70% 0.01 90));
-	--status-done: light-dark(oklch(30% 0.01 90), oklch(80% 0.01 90));
-	--status-to-cut: light-dark(oklch(75% 0.01 90 / 60%), oklch(35% 0.01 90 / 60%));
-
 	/* -------------------------------------------------------------------------
 	   Semantic Spacing
 	   ------------------------------------------------------------------------- */
@@ -184,6 +236,7 @@
 	--font-size-xs: var(--text-xs);
 	--font-size-sm: var(--text-sm);
 	--font-size-md: var(--text-base);
+	--font-size-base: var(--text-base); /* Alias for components using this name */
 	--font-size-lg: var(--text-lg);
 	--font-size-xl: var(--text-xl);
 	--font-size-2xl: var(--text-2xl);
@@ -223,6 +276,24 @@
 	--context-panel-width: var(--width-panel);
 	--toolbar-height: var(--height-toolbar);
 	--statusbar-height: var(--height-statusbar);
+
+	/* -------------------------------------------------------------------------
+	   Editor-specific
+	   ------------------------------------------------------------------------- */
+	--editor-text-width: 700px;
+
+	/* -------------------------------------------------------------------------
+	   Dynamic color defaults (set inline but need fallbacks)
+	   ------------------------------------------------------------------------- */
+	--arc-color: var(--accent-default);
+	--entry-color: var(--accent-default);
+	--status-color: var(--accent-default);
+	--step-color: var(--accent-default);
+
+	/* -------------------------------------------------------------------------
+	   Text on colored backgrounds
+	   ------------------------------------------------------------------------- */
+	--text-on-accent: white;
 }
 
 /* ==========================================================================
@@ -250,10 +321,15 @@
 	--color-accent-hover: var(--accent-hover);
 	--color-accent-light: var(--accent-subtle);
 
-	/* Legacy semantic colors (all use accent for neutral theme) */
+	/* Legacy semantic colors */
 	--color-success: var(--accent-default);
 	--color-warning: var(--accent-default);
-	--color-error: var(--accent-default);
+	--color-error: var(--danger-default);
+	--color-danger: var(--danger-default);
+	--color-danger-light: var(--danger-subtle);
+
+	/* Overlay */
+	--color-overlay: var(--overlay-backdrop);
 
 	/* Legacy status (numbered) */
 	--status-1: var(--status-planned);
@@ -530,8 +606,28 @@ textarea::placeholder {
 /* High contrast mode */
 @media (prefers-contrast: more) {
 	:root {
-		--border-default: light-dark(oklch(70% 0.015 90), oklch(40% 0.015 90));
-		--border-focus: light-dark(oklch(30% 0.02 60), oklch(80% 0.02 60));
-		--text-secondary: light-dark(oklch(30% 0.012 90), oklch(80% 0.008 90));
+		/* Enhanced borders */
+		--border-default: light-dark(oklch(65% 0.02 260), oklch(45% 0.03 260));
+		--border-subtle: light-dark(oklch(75% 0.015 260), oklch(35% 0.02 260));
+		--border-strong: light-dark(oklch(50% 0.025 260), oklch(55% 0.03 260));
+		--border-focus: light-dark(oklch(35% 0.25 250), oklch(80% 0.22 250));
+
+		/* Enhanced text */
+		--text-secondary: light-dark(oklch(28% 0.015 260), oklch(85% 0.012 260));
+		--text-muted: light-dark(oklch(40% 0.012 260), oklch(70% 0.01 260));
+
+		/* Enhanced accents */
+		--accent-subtle: light-dark(oklch(90% 0.08 250), oklch(30% 0.1 250));
+
+		/* Enhanced status colors for visibility */
+		--status-planned: light-dark(oklch(55% 0.08 265), oklch(55% 0.08 265));
+		--status-to-write: light-dark(oklch(48% 0.12 260), oklch(62% 0.12 260));
+		--status-draft: light-dark(oklch(42% 0.16 255), oklch(68% 0.16 255));
+		--status-in-revision: light-dark(oklch(36% 0.2 250), oklch(75% 0.2 250));
+		--status-done: light-dark(oklch(30% 0.22 245), oklch(82% 0.22 245));
+
+		/* Enhanced danger */
+		--danger-default: light-dark(oklch(48% 0.25 25), oklch(75% 0.22 25));
+		--danger-subtle: light-dark(oklch(92% 0.08 25), oklch(28% 0.1 25));
 	}
 }

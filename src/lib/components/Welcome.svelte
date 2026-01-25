@@ -267,7 +267,7 @@
 
 	.error-message {
 		background-color: var(--color-error);
-		color: white;
+		color: var(--text-on-accent);
 		padding: var(--spacing-md);
 		border-radius: var(--border-radius-md);
 		margin-bottom: var(--spacing-lg);
@@ -277,7 +277,7 @@
 	}
 
 	.error-message button {
-		color: white;
+		color: var(--text-on-accent);
 		text-decoration: underline;
 	}
 
@@ -400,7 +400,7 @@
 
 	.btn-primary {
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 	}
 
 	.btn-primary:hover {

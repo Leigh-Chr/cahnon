@@ -580,7 +580,7 @@
 		font-size: var(--font-size-xs);
 		padding: 2px 6px;
 		background-color: var(--color-success);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-sm);
 		font-weight: 500;
 	}
@@ -611,7 +611,7 @@
 	.activate-btn {
 		padding: var(--spacing-xs) var(--spacing-md);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-sm);
 		font-size: var(--font-size-sm);
 		font-weight: 500;
@@ -801,7 +801,7 @@
 		padding: var(--spacing-xs) var(--spacing-md);
 		font-size: var(--font-size-sm);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-sm);
 	}
 
@@ -838,7 +838,7 @@
 	}
 
 	.delete-btn:hover {
-		background-color: rgba(239, 68, 68, 0.1);
+		background-color: var(--danger-subtle);
 		color: var(--color-error);
 	}
 
@@ -866,7 +866,7 @@
 	}
 
 	.step-delete-btn:hover {
-		background-color: rgba(239, 68, 68, 0.1);
+		background-color: var(--danger-subtle);
 		color: var(--color-error);
 	}
 

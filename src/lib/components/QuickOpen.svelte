@@ -282,7 +282,7 @@
 	.quick-open-overlay {
 		position: fixed;
 		inset: 0;
-		background-color: rgba(0, 0, 0, 0.3);
+		background-color: var(--overlay-backdrop);
 		display: flex;
 		justify-content: center;
 		padding-top: 100px;

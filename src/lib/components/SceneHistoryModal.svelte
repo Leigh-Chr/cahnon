@@ -221,7 +221,7 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.5);
+		background-color: var(--overlay-backdrop);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -231,9 +231,7 @@
 	.modal {
 		background-color: var(--color-bg-primary);
 		border-radius: var(--border-radius-lg);
-		box-shadow:
-			0 20px 25px -5px rgba(0, 0, 0, 0.1),
-			0 10px 10px -5px rgba(0, 0, 0, 0.04);
+		box-shadow: var(--shadow-lg);
 		width: 90%;
 		max-width: 900px;
 		height: 80vh;
@@ -448,7 +446,7 @@
 		gap: var(--spacing-xs);
 		padding: var(--spacing-sm) var(--spacing-lg);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-md);
 		font-weight: 500;
 	}

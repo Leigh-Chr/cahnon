@@ -745,7 +745,7 @@
 
 	.remove-btn:hover {
 		background-color: var(--color-error);
-		color: white;
+		color: var(--text-on-accent);
 	}
 
 	.empty-message {
@@ -825,7 +825,7 @@
 
 	.save-btn {
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 	}
 
 	.save-btn:hover {

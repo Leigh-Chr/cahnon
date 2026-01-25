@@ -383,7 +383,7 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.3);
+		background-color: var(--overlay-backdrop);
 		display: flex;
 		justify-content: flex-end;
 		z-index: 1000;
@@ -396,7 +396,7 @@
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+		box-shadow: -4px 0 20px oklch(0% 0 0 / 10%);
 	}
 
 	.panel-header {
@@ -424,7 +424,7 @@
 		gap: var(--spacing-xs);
 		padding: var(--spacing-xs) var(--spacing-md);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-md);
 		font-size: var(--font-size-sm);
 		font-weight: 500;
@@ -477,7 +477,7 @@
 		margin-top: var(--spacing-lg);
 		padding: var(--spacing-sm) var(--spacing-lg);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-md);
 		font-weight: 500;
 	}
@@ -540,7 +540,7 @@
 	.save-btn {
 		padding: var(--spacing-xs) var(--spacing-md);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-sm);
 		font-weight: 500;
 	}
@@ -721,7 +721,7 @@
 		gap: var(--spacing-xs);
 		padding: var(--spacing-sm) var(--spacing-lg);
 		background-color: var(--color-accent);
-		color: white;
+		color: var(--text-on-accent);
 		border-radius: var(--border-radius-md);
 		font-weight: 500;
 	}

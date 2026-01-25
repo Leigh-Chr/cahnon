@@ -207,7 +207,7 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.3);
+		background-color: var(--overlay-backdrop);
 		display: flex;
 		justify-content: flex-end;
 		z-index: 1000;
@@ -220,7 +220,7 @@
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+		box-shadow: -4px 0 20px oklch(0% 0 0 / 10%);
 	}
 
 	.panel-header {
