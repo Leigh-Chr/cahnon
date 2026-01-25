@@ -1,148 +1,50 @@
 /*
- * Cahnon Design System
- * Modern CSS with Design Tokens (2024-2025 Best Practices)
+ * Cahnon Design System - Theme "Sépia"
+ *
+ * Philosophie : "L'outil invisible"
+ * L'interface doit disparaître au profit du contenu.
  *
  * Architecture:
  * 1. @property definitions (typed custom properties)
  * 2. Primitive tokens (raw values)
- * 3. Semantic tokens (meaning-based aliases)
- * 4. Component tokens (component-specific)
+ * 3. Semantic tokens (light-dark() for theming)
+ * 4. Component tokens (backward compatibility)
  *
- * References:
- * - https://moderncss.dev/providing-type-definitions-for-css-with-at-property/
- * - https://evilmartians.com/chronicles/oklch-in-css-why-quit-rgb-hsl
- * - https://css-tricks.com/come-to-the-light-dark-side/
+ * Palette: Warm (hue 90) with Sépia accent (hue 60)
  */
 
 /* ==========================================================================
    @property Definitions - Typed Custom Properties
    ========================================================================== */
 
-/* Color properties with type safety */
-@property --color-neutral-0 {
+@property --surface-primary {
 	syntax: '<color>';
 	inherits: true;
-	initial-value: oklch(100% 0 0);
+	initial-value: oklch(98.5% 0.004 90);
 }
 
-@property --color-neutral-50 {
+@property --text-primary {
 	syntax: '<color>';
 	inherits: true;
-	initial-value: oklch(98% 0 0);
+	initial-value: oklch(20% 0.01 90);
 }
 
-@property --color-neutral-100 {
+@property --accent-default {
 	syntax: '<color>';
 	inherits: true;
-	initial-value: oklch(96% 0 0);
-}
-
-@property --color-neutral-200 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(92% 0 0);
-}
-
-@property --color-neutral-300 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(87% 0 0);
-}
-
-@property --color-neutral-400 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(70% 0 0);
-}
-
-@property --color-neutral-500 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(55% 0 0);
-}
-
-@property --color-neutral-600 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(45% 0 0);
-}
-
-@property --color-neutral-700 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(35% 0 0);
-}
-
-@property --color-neutral-800 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(25% 0 0);
-}
-
-@property --color-neutral-900 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(15% 0 0);
-}
-
-@property --color-neutral-950 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(10% 0 0);
-}
-
-@property --color-neutral-1000 {
-	syntax: '<color>';
-	inherits: true;
-	initial-value: oklch(0% 0 0);
-}
-
-/* Spacing with type safety (minimal set) */
-@property --space-4 {
-	syntax: '<length>';
-	inherits: true;
-	initial-value: 16px;
-}
-
-/* Radius with type safety */
-@property --radius-sm {
-	syntax: '<length>';
-	inherits: true;
-	initial-value: 4px;
+	initial-value: oklch(50% 0.08 60);
 }
 
 /* ==========================================================================
-   Primitive Tokens - Raw Design Values (OKLCH for perceptual uniformity)
+   Primitive Tokens - Raw Design Values
    ========================================================================== */
 
 :root {
-	/* Enable color-scheme for native dark mode support on form controls */
+	/* Enable color-scheme for native dark mode support */
 	color-scheme: light dark;
 
 	/* -------------------------------------------------------------------------
-	   Primitive Colors (Neutral Grayscale in OKLCH)
-	   OKLCH provides perceptually uniform lightness steps
-	   ------------------------------------------------------------------------- */
-	--color-neutral-0: oklch(100% 0 0); /* white */
-	--color-neutral-50: oklch(98% 0 0);
-	--color-neutral-100: oklch(96% 0 0);
-	--color-neutral-200: oklch(92% 0 0);
-	--color-neutral-300: oklch(87% 0 0);
-	--color-neutral-400: oklch(70% 0 0);
-	--color-neutral-500: oklch(55% 0 0);
-	--color-neutral-600: oklch(45% 0 0);
-	--color-neutral-700: oklch(35% 0 0);
-	--color-neutral-800: oklch(25% 0 0);
-	--color-neutral-900: oklch(15% 0 0);
-	--color-neutral-950: oklch(10% 0 0);
-	--color-neutral-1000: oklch(0% 0 0); /* black */
-
-	/* Transparent variants for overlays */
-	--color-overlay-light: oklch(100% 0 0 / 80%);
-	--color-overlay-dark: oklch(0% 0 0 / 50%);
-
-	/* -------------------------------------------------------------------------
-	   Primitive Spacing (simple 4px base, minimal set)
+	   Primitive Spacing (4px base)
 	   ------------------------------------------------------------------------- */
 	--space-1: 4px;
 	--space-2: 8px;
@@ -152,13 +54,12 @@
 	--space-8: 32px;
 
 	/* -------------------------------------------------------------------------
-	   Primitive Typography (basic system fonts)
+	   Primitive Typography
 	   ------------------------------------------------------------------------- */
-	--font-sans: system-ui, sans-serif;
-	--font-serif: serif;
-	--font-mono: monospace;
+	--font-ui: system-ui, sans-serif;
+	--font-editor: Charter, Georgia, serif;
+	--font-mono: ui-monospace, monospace;
 
-	/* Standard rem scale */
 	--text-xs: 0.75rem;
 	--text-sm: 0.875rem;
 	--text-base: 1rem;
@@ -166,37 +67,33 @@
 	--text-xl: 1.5rem;
 	--text-2xl: 2rem;
 
-	/* Single standard line-height */
+	--leading-tight: 1.25;
 	--leading-normal: 1.5;
+	--leading-relaxed: 1.75;
 
-	/* Basic font weights */
-	--font-weight-normal: 400;
-	--font-weight-medium: 500;
+	--font-normal: 400;
+	--font-medium: 500;
+	--font-semibold: 600;
 
 	/* -------------------------------------------------------------------------
-	   Primitive Radius (single simple value)
+	   Primitive Radius
 	   ------------------------------------------------------------------------- */
-	--radius-sm: 4px;
-	--radius-md: 4px;
-	--radius-lg: 4px;
+	--radius: 4px;
 	--radius-full: 9999px;
 
 	/* -------------------------------------------------------------------------
-	   Primitive Shadows (minimal, subtle)
+	   Primitive Shadows
 	   ------------------------------------------------------------------------- */
 	--shadow-sm: 0 1px 2px oklch(0% 0 0 / 5%);
-	--shadow-md: 0 2px 4px oklch(0% 0 0 / 5%);
-	--shadow-lg: 0 4px 8px oklch(0% 0 0 / 5%);
+	--shadow-md: 0 2px 8px oklch(0% 0 0 / 8%);
+	--shadow-lg: 0 4px 16px oklch(0% 0 0 / 10%);
 
 	/* -------------------------------------------------------------------------
-	   Primitive Transitions (minimal, functional only)
+	   Primitive Transitions
 	   ------------------------------------------------------------------------- */
 	--duration-fast: 100ms;
 	--duration-normal: 150ms;
-	--duration-slow: 200ms;
-
-	/* Simple ease - neutral, not decorative */
-	--ease-default: ease-out;
+	--ease: ease-out;
 
 	/* -------------------------------------------------------------------------
 	   Primitive Layout
@@ -208,63 +105,68 @@
 }
 
 /* ==========================================================================
-   Semantic Tokens - Meaning-Based Aliases
+   Semantic Tokens - Theme "Sépia"
    Using light-dark() for automatic theme switching
    ========================================================================== */
 
 :root {
 	/* -------------------------------------------------------------------------
-	   Semantic Colors - Surfaces
+	   Surfaces (hue 90 = warm ivory/cream)
 	   ------------------------------------------------------------------------- */
-	--surface-primary: light-dark(var(--color-neutral-0), var(--color-neutral-950));
-	--surface-secondary: light-dark(var(--color-neutral-50), var(--color-neutral-900));
-	--surface-tertiary: light-dark(var(--color-neutral-100), var(--color-neutral-800));
-	--surface-elevated: light-dark(var(--color-neutral-0), var(--color-neutral-900));
-	--surface-overlay: light-dark(var(--color-overlay-dark), var(--color-overlay-dark));
+	--surface-primary: light-dark(oklch(98.5% 0.004 90), oklch(15% 0.008 90));
+	--surface-secondary: light-dark(oklch(96% 0.006 90), oklch(18% 0.01 90));
+	--surface-tertiary: light-dark(oklch(93% 0.008 90), oklch(22% 0.012 90));
+	--surface-elevated: light-dark(oklch(99% 0.003 90), oklch(20% 0.01 90));
 
 	/* -------------------------------------------------------------------------
-	   Semantic Colors - Interactive States
+	   Interactive States
 	   ------------------------------------------------------------------------- */
-	--surface-hover: light-dark(var(--color-neutral-100), var(--color-neutral-800));
-	--surface-active: light-dark(var(--color-neutral-200), var(--color-neutral-700));
-	--surface-selected: light-dark(var(--color-neutral-100), var(--color-neutral-800));
+	--surface-hover: light-dark(oklch(94% 0.007 90), oklch(20% 0.01 90));
+	--surface-active: light-dark(oklch(91% 0.009 90), oklch(24% 0.012 90));
+	--surface-selected: light-dark(oklch(94% 0.02 60), oklch(22% 0.03 60));
 
 	/* -------------------------------------------------------------------------
-	   Semantic Colors - Text
+	   Text (hue 90 = warm brown, not pure black)
 	   ------------------------------------------------------------------------- */
-	--text-primary: light-dark(var(--color-neutral-900), var(--color-neutral-50));
-	--text-secondary: light-dark(var(--color-neutral-600), var(--color-neutral-400));
-	--text-muted: light-dark(var(--color-neutral-500), var(--color-neutral-500));
-	--text-disabled: light-dark(var(--color-neutral-400), var(--color-neutral-600));
-	--text-inverse: light-dark(var(--color-neutral-0), var(--color-neutral-950));
+	--text-primary: light-dark(oklch(20% 0.01 90), oklch(92% 0.006 90));
+	--text-secondary: light-dark(oklch(40% 0.01 90), oklch(70% 0.008 90));
+	--text-muted: light-dark(oklch(55% 0.008 90), oklch(50% 0.006 90));
+	--text-disabled: light-dark(oklch(70% 0.006 90), oklch(35% 0.004 90));
+	--text-inverse: light-dark(oklch(98% 0.004 90), oklch(15% 0.008 90));
 
 	/* -------------------------------------------------------------------------
-	   Semantic Colors - Borders
+	   Borders
 	   ------------------------------------------------------------------------- */
-	--border-default: light-dark(var(--color-neutral-200), var(--color-neutral-800));
-	--border-subtle: light-dark(var(--color-neutral-100), var(--color-neutral-900));
-	--border-strong: light-dark(var(--color-neutral-300), var(--color-neutral-700));
-	--border-focus: light-dark(var(--color-neutral-900), var(--color-neutral-100));
+	--border-default: light-dark(oklch(88% 0.01 90), oklch(25% 0.01 90));
+	--border-subtle: light-dark(oklch(92% 0.008 90), oklch(20% 0.008 90));
+	--border-strong: light-dark(oklch(80% 0.012 90), oklch(32% 0.012 90));
 
 	/* -------------------------------------------------------------------------
-	   Semantic Colors - Accent (neutral, customizable)
+	   Accent (hue 60 = sépia/brown)
 	   ------------------------------------------------------------------------- */
-	--accent-default: light-dark(var(--color-neutral-700), var(--color-neutral-300));
-	--accent-hover: light-dark(var(--color-neutral-800), var(--color-neutral-200));
-	--accent-subtle: light-dark(var(--color-neutral-100), var(--color-neutral-800));
+	--accent-default: light-dark(oklch(50% 0.08 60), oklch(65% 0.08 60));
+	--accent-hover: light-dark(oklch(45% 0.09 60), oklch(70% 0.09 60));
+	--accent-subtle: light-dark(oklch(94% 0.02 60), oklch(22% 0.03 60));
 
 	/* -------------------------------------------------------------------------
-	   Semantic Colors - Status (neutral grayscale)
+	   Focus (uses accent for visibility)
 	   ------------------------------------------------------------------------- */
-	--status-1: light-dark(var(--color-neutral-400), var(--color-neutral-600)); /* planned */
-	--status-2: light-dark(var(--color-neutral-500), var(--color-neutral-500)); /* to write */
-	--status-3: light-dark(var(--color-neutral-600), var(--color-neutral-400)); /* draft */
-	--status-4: light-dark(var(--color-neutral-700), var(--color-neutral-300)); /* in revision */
-	--status-5: light-dark(var(--color-neutral-800), var(--color-neutral-200)); /* done */
-	--status-6: light-dark(var(--color-neutral-300), var(--color-neutral-700)); /* to cut */
+	--border-focus: light-dark(oklch(50% 0.08 60), oklch(65% 0.08 60));
 
 	/* -------------------------------------------------------------------------
-	   Semantic Spacing (aliased for context)
+	   Status Colors (lightness progression - accessible)
+	   Light: darker = more complete
+	   Dark: lighter = more complete
+	   ------------------------------------------------------------------------- */
+	--status-planned: light-dark(oklch(70% 0.01 90), oklch(40% 0.01 90));
+	--status-to-write: light-dark(oklch(60% 0.01 90), oklch(50% 0.01 90));
+	--status-draft: light-dark(oklch(50% 0.01 90), oklch(60% 0.01 90));
+	--status-in-revision: light-dark(oklch(40% 0.01 90), oklch(70% 0.01 90));
+	--status-done: light-dark(oklch(30% 0.01 90), oklch(80% 0.01 90));
+	--status-to-cut: light-dark(oklch(75% 0.01 90 / 60%), oklch(35% 0.01 90 / 60%));
+
+	/* -------------------------------------------------------------------------
+	   Semantic Spacing
 	   ------------------------------------------------------------------------- */
 	--spacing-xs: var(--space-1);
 	--spacing-sm: var(--space-2);
@@ -275,8 +177,8 @@
 	/* -------------------------------------------------------------------------
 	   Semantic Typography
 	   ------------------------------------------------------------------------- */
-	--font-family-ui: var(--font-sans);
-	--font-family-editor: var(--font-serif);
+	--font-family-ui: var(--font-ui);
+	--font-family-editor: var(--font-editor);
 	--font-family-mono: var(--font-mono);
 
 	--font-size-xs: var(--text-xs);
@@ -286,16 +188,20 @@
 	--font-size-xl: var(--text-xl);
 	--font-size-2xl: var(--text-2xl);
 
-	--line-height-tight: 1.25;
+	--line-height-tight: var(--leading-tight);
 	--line-height-normal: var(--leading-normal);
-	--line-height-relaxed: 1.75;
+	--line-height-relaxed: var(--leading-relaxed);
+
+	--font-weight-normal: var(--font-normal);
+	--font-weight-medium: var(--font-medium);
+	--font-weight-semibold: var(--font-semibold);
 
 	/* -------------------------------------------------------------------------
-	   Semantic Borders & Radius
+	   Semantic Radius
 	   ------------------------------------------------------------------------- */
-	--border-radius-sm: var(--radius-sm);
-	--border-radius-md: var(--radius-md);
-	--border-radius-lg: var(--radius-lg);
+	--border-radius-sm: var(--radius);
+	--border-radius-md: var(--radius);
+	--border-radius-lg: var(--radius);
 
 	/* -------------------------------------------------------------------------
 	   Semantic Shadows
@@ -307,9 +213,8 @@
 	/* -------------------------------------------------------------------------
 	   Semantic Transitions
 	   ------------------------------------------------------------------------- */
-	--transition-fast: var(--duration-fast) var(--ease-default);
-	--transition-normal: var(--duration-normal) var(--ease-default);
-	--transition-slow: var(--duration-slow) var(--ease-default);
+	--transition-fast: var(--duration-fast) var(--ease);
+	--transition-normal: var(--duration-normal) var(--ease);
 
 	/* -------------------------------------------------------------------------
 	   Semantic Layout
@@ -321,40 +226,42 @@
 }
 
 /* ==========================================================================
-   Component Tokens - Backward Compatibility Layer
-   Maps old variable names to new semantic tokens
+   Component Tokens - Backward Compatibility
    ========================================================================== */
 
 :root {
-	/* Legacy color mappings */
+	/* Legacy surface mappings */
 	--color-bg-primary: var(--surface-primary);
 	--color-bg-secondary: var(--surface-secondary);
 	--color-bg-tertiary: var(--surface-tertiary);
 	--color-bg-hover: var(--surface-hover);
 
+	/* Legacy text mappings */
 	--color-text-primary: var(--text-primary);
 	--color-text-secondary: var(--text-secondary);
 	--color-text-muted: var(--text-muted);
 
+	/* Legacy border mappings */
 	--color-border: var(--border-default);
 	--color-border-light: var(--border-subtle);
 
+	/* Legacy accent mappings */
 	--color-accent: var(--accent-default);
 	--color-accent-hover: var(--accent-hover);
 	--color-accent-light: var(--accent-subtle);
 
-	/* Legacy semantic colors (neutral) */
+	/* Legacy semantic colors (all use accent for neutral theme) */
 	--color-success: var(--accent-default);
 	--color-warning: var(--accent-default);
 	--color-error: var(--accent-default);
 
-	/* Legacy status colors */
-	--status-planned: var(--status-1);
-	--status-to-write: var(--status-2);
-	--status-draft: var(--status-3);
-	--status-in-revision: var(--status-4);
-	--status-done: var(--status-5);
-	--status-to-cut: var(--status-6);
+	/* Legacy status (numbered) */
+	--status-1: var(--status-planned);
+	--status-2: var(--status-to-write);
+	--status-3: var(--status-draft);
+	--status-4: var(--status-in-revision);
+	--status-5: var(--status-done);
+	--status-6: var(--status-to-cut);
 }
 
 /* ==========================================================================
@@ -370,7 +277,7 @@
 }
 
 /* ==========================================================================
-   CSS Reset - Modern Minimal Reset
+   CSS Reset
    ========================================================================== */
 
 *,
@@ -382,11 +289,9 @@
 }
 
 html {
-	/* Prevent font size inflation on mobile */
 	-moz-text-size-adjust: none;
 	-webkit-text-size-adjust: none;
 	text-size-adjust: none;
-	/* Smooth scrolling for anchor links */
 	scroll-behavior: smooth;
 }
 
@@ -399,6 +304,7 @@ body {
 	font-family: var(--font-family-ui);
 	font-size: var(--font-size-md);
 	line-height: var(--line-height-normal);
+	font-weight: var(--font-weight-normal);
 	color: var(--text-primary);
 	background-color: var(--surface-primary);
 	-webkit-font-smoothing: antialiased;
@@ -407,13 +313,11 @@ body {
 	overflow: hidden;
 }
 
-/* Remove list styles */
 ul,
 ol {
 	list-style: none;
 }
 
-/* Balance text wrapping on headings */
 h1,
 h2,
 h3,
@@ -421,14 +325,13 @@ h4,
 h5,
 h6 {
 	text-wrap: balance;
+	font-weight: var(--font-weight-semibold);
 }
 
-/* Avoid text overflow on paragraphs */
 p {
 	text-wrap: pretty;
 }
 
-/* Media elements */
 img,
 picture,
 video,
@@ -438,7 +341,6 @@ svg {
 	max-width: 100%;
 }
 
-/* Inherit fonts for form elements */
 input,
 button,
 textarea,
@@ -447,28 +349,30 @@ select {
 	color: inherit;
 }
 
-/* Remove default textarea resize */
 textarea {
 	resize: vertical;
 }
 
-/* Anchor styling */
+/* ==========================================================================
+   Links
+   ========================================================================== */
+
 a {
-	color: var(--text-primary);
+	color: var(--accent-default);
 	text-decoration: underline;
 	text-decoration-thickness: 1px;
 	text-underline-offset: 0.2em;
 }
 
 a:hover {
+	color: var(--accent-hover);
 	text-decoration: none;
 }
 
 /* ==========================================================================
-   Interactive Elements
+   Buttons
    ========================================================================== */
 
-/* Buttons */
 button {
 	cursor: pointer;
 	border: none;
@@ -482,7 +386,10 @@ button:disabled {
 	opacity: 0.5;
 }
 
-/* Form controls */
+/* ==========================================================================
+   Form Controls
+   ========================================================================== */
+
 input,
 textarea,
 select {
@@ -499,17 +406,20 @@ select:focus {
 	outline: none;
 }
 
+input::placeholder,
+textarea::placeholder {
+	color: var(--text-muted);
+}
+
 /* ==========================================================================
    Focus Management - Accessibility
    ========================================================================== */
 
-/* Focus visible for keyboard navigation */
 :focus-visible {
-	outline: 2px solid var(--border-focus);
+	outline: 2px solid var(--accent-default);
 	outline-offset: 2px;
 }
 
-/* Remove focus outline for mouse users */
 :focus:not(:focus-visible) {
 	outline: none;
 }
@@ -536,7 +446,6 @@ select:focus {
 	background: var(--text-muted);
 }
 
-/* Firefox scrollbar */
 * {
 	scrollbar-width: thin;
 	scrollbar-color: var(--border-default) transparent;
@@ -590,7 +499,6 @@ select:focus {
 	border: 0;
 }
 
-/* Visually hidden but focusable */
 .sr-only-focusable:focus,
 .sr-only-focusable:focus-within {
 	position: static;
@@ -603,7 +511,11 @@ select:focus {
 	white-space: normal;
 }
 
-/* Reduced motion preference */
+/* ==========================================================================
+   Accessibility Media Queries
+   ========================================================================== */
+
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
@@ -615,10 +527,11 @@ select:focus {
 	}
 }
 
-/* High contrast mode support */
+/* High contrast mode */
 @media (prefers-contrast: more) {
 	:root {
-		--border-default: light-dark(var(--color-neutral-400), var(--color-neutral-500));
-		--border-focus: light-dark(var(--color-neutral-1000), var(--color-neutral-0));
+		--border-default: light-dark(oklch(70% 0.015 90), oklch(40% 0.015 90));
+		--border-focus: light-dark(oklch(30% 0.02 60), oklch(80% 0.02 60));
+		--text-secondary: light-dark(oklch(30% 0.012 90), oklch(80% 0.008 90));
 	}
 }
