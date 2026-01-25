@@ -112,9 +112,9 @@
 
 	function getStatusColor(status: string): string {
 		const colors: Record<string, string> = {
-			open: 'var(--color-text-primary)',
-			in_progress: 'var(--color-text-secondary)',
-			resolved: 'var(--color-text-muted)',
+			open: 'var(--color-warning)',
+			in_progress: 'var(--color-info)',
+			resolved: 'var(--color-success)',
 		};
 		return colors[status] || 'var(--color-text-muted)';
 	}

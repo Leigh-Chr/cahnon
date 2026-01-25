@@ -78,19 +78,19 @@
 	}
 
 	.toast-info {
-		border-left-color: var(--color-accent);
+		border-left-color: var(--color-info);
 	}
 
 	.toast-success {
-		border-left-color: var(--color-text-primary);
+		border-left-color: var(--color-success);
 	}
 
 	.toast-warning {
-		border-left-color: var(--color-text-secondary);
+		border-left-color: var(--color-warning);
 	}
 
 	.toast-error {
-		border-left-color: var(--color-text-muted);
+		border-left-color: var(--color-error);
 	}
 
 	.toast-icon {
@@ -99,19 +99,19 @@
 	}
 
 	.toast-info .toast-icon {
-		color: var(--color-accent);
+		color: var(--color-info);
 	}
 
 	.toast-success .toast-icon {
-		color: var(--color-text-primary);
+		color: var(--color-success);
 	}
 
 	.toast-warning .toast-icon {
-		color: var(--color-text-secondary);
+		color: var(--color-warning);
 	}
 
 	.toast-error .toast-icon {
-		color: var(--color-text-muted);
+		color: var(--color-error);
 	}
 
 	.toast-message {

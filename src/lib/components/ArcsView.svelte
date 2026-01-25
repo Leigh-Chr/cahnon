@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { arcApi, type Arc } from '$lib/api';
+	import { DEFAULT_CUSTOM_COLOR } from '$lib/utils';
 
 	let arcs = $state<Arc[]>([]);
 	let isLoading = $state(true);
@@ -10,7 +11,7 @@
 	let newArcName = $state('');
 	let newArcDescription = $state('');
 	let newArcStakes = $state('');
-	let newArcColor = $state('#525252');
+	let newArcColor = $state(DEFAULT_CUSTOM_COLOR);
 
 	// Use onMount for one-time initialization instead of $effect
 	onMount(() => {
@@ -48,7 +49,7 @@
 		newArcName = '';
 		newArcDescription = '';
 		newArcStakes = '';
-		newArcColor = '#525252';
+		newArcColor = DEFAULT_CUSTOM_COLOR;
 	}
 
 	async function updateArc(arc: Arc) {
@@ -79,10 +80,10 @@
 
 	function getStatusColor(status: string): string {
 		const colors: Record<string, string> = {
-			active: 'var(--color-text-primary)',
+			active: 'var(--color-info)',
 			planned: 'var(--color-text-muted)',
-			completed: 'var(--color-text-secondary)',
-			abandoned: 'var(--color-border)',
+			completed: 'var(--color-success)',
+			abandoned: 'var(--color-text-disabled)',
 		};
 		return colors[status] || 'var(--color-text-muted)';
 	}
@@ -177,7 +178,7 @@
 			{/if}
 
 			{#each arcs as arc (arc.id)}
-				<div class="arc-card" style="--arc-color: {arc.color || '#525252'}">
+				<div class="arc-card" style="--arc-color: {arc.color || 'var(--color-neutral)'}">
 					{#if editingArc?.id === arc.id}
 						<div class="form-group">
 							<label for="edit-arc-name">Name</label>

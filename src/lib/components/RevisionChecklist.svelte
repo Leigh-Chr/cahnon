@@ -166,7 +166,7 @@
 
 	.progress-fill {
 		height: 100%;
-		background-color: var(--color-text-primary);
+		background-color: var(--color-success);
 		transition: width var(--transition-fast);
 	}
 
@@ -236,9 +236,9 @@
 	}
 
 	.checklist-item.checked .checkmark {
-		background-color: var(--color-text-primary);
-		border-color: var(--color-text-primary);
-		color: var(--color-bg-primary);
+		background-color: var(--color-success);
+		border-color: var(--color-success);
+		color: var(--text-on-accent);
 	}
 
 	.completion-message {

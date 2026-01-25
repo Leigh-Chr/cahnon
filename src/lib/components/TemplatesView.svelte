@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { templateApi, type Template, type TemplateStep } from '$lib/api';
 	import { showSuccess, showError } from '$lib/toast';
+	import { DEFAULT_CUSTOM_COLOR } from '$lib/utils';
 
 	let templates = $state<Template[]>([]);
 	let selectedTemplate = $state<Template | null>(null);
@@ -17,12 +18,12 @@
 	let newStepName = $state('');
 	let newStepDescription = $state('');
 	let newStepPosition = $state(50);
-	let newStepColor = $state('#525252');
+	let newStepColor = $state(DEFAULT_CUSTOM_COLOR);
 	let editingStepId = $state<string | null>(null);
 	let editStepName = $state('');
 	let editStepDescription = $state('');
 	let editStepPosition = $state(50);
-	let editStepColor = $state('#525252');
+	let editStepColor = $state(DEFAULT_CUSTOM_COLOR);
 
 	// Use onMount for one-time initialization
 	onMount(() => {
@@ -131,7 +132,7 @@
 			newStepName = '';
 			newStepDescription = '';
 			newStepPosition = 50;
-			newStepColor = '#525252';
+			newStepColor = DEFAULT_CUSTOM_COLOR;
 			isAddingStep = false;
 			showSuccess('Step added');
 		} catch (e) {
@@ -145,7 +146,7 @@
 		editStepName = step.name;
 		editStepDescription = step.description || '';
 		editStepPosition = step.typical_position;
-		editStepColor = step.color || '#525252';
+		editStepColor = step.color || DEFAULT_CUSTOM_COLOR;
 	}
 
 	async function updateStep() {
@@ -179,7 +180,7 @@
 	}
 
 	function getStepColor(step: TemplateStep): string {
-		return step.color || '#525252';
+		return step.color || 'var(--color-neutral)';
 	}
 
 	function formatPosition(position: number): string {

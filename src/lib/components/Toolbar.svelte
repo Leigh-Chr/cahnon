@@ -257,7 +257,7 @@
 	}
 
 	.unsaved-indicator {
-		color: var(--color-accent);
+		color: var(--color-warning);
 		font-size: var(--font-size-lg);
 		vertical-align: middle;
 	}

@@ -70,20 +70,20 @@
 
 	function getSeverityColor(severity: string): string {
 		const colors: Record<string, string> = {
-			low: 'var(--color-text-muted)',
-			medium: 'var(--color-text-secondary)',
-			high: 'var(--color-text-primary)',
-			critical: 'var(--color-text-primary)',
+			low: 'var(--color-info)',
+			medium: 'var(--color-warning)',
+			high: 'var(--color-error)',
+			critical: 'var(--color-error)',
 		};
 		return colors[severity] || 'var(--color-text-muted)';
 	}
 
 	function getStatusColor(status: string): string {
 		const colors: Record<string, string> = {
-			open: 'var(--color-text-primary)',
-			in_progress: 'var(--color-text-secondary)',
-			resolved: 'var(--color-text-muted)',
-			wont_fix: 'var(--color-border)',
+			open: 'var(--color-warning)',
+			in_progress: 'var(--color-info)',
+			resolved: 'var(--color-success)',
+			wont_fix: 'var(--color-text-muted)',
 		};
 		return colors[status] || 'var(--color-text-muted)';
 	}

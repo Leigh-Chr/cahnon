@@ -161,6 +161,20 @@
 	--danger-default: light-dark(oklch(55% 0.2 25), oklch(70% 0.18 25));
 	--danger-subtle: light-dark(oklch(95% 0.04 25), oklch(25% 0.06 25));
 	--danger-border: light-dark(oklch(75% 0.12 25), oklch(45% 0.1 25));
+
+	/* Success color (green) */
+	--success-default: light-dark(oklch(52% 0.17 145), oklch(72% 0.15 145));
+	--success-subtle: light-dark(oklch(95% 0.04 145), oklch(25% 0.06 145));
+	--success-border: light-dark(oklch(75% 0.1 145), oklch(45% 0.08 145));
+
+	/* Warning color (orange) */
+	--warning-default: light-dark(oklch(62% 0.16 65), oklch(78% 0.14 65));
+	--warning-subtle: light-dark(oklch(95% 0.04 65), oklch(25% 0.06 65));
+	--warning-border: light-dark(oklch(80% 0.1 65), oklch(50% 0.08 65));
+
+	/* Info color (blue - same as accent for cool theme) */
+	--info-default: var(--accent-default);
+	--info-subtle: var(--accent-subtle);
 }
 
 /* --------------------------------------------------------------------------
@@ -210,6 +224,20 @@
 	--danger-default: light-dark(oklch(55% 0.2 25), oklch(70% 0.18 25));
 	--danger-subtle: light-dark(oklch(95% 0.04 25), oklch(25% 0.06 25));
 	--danger-border: light-dark(oklch(75% 0.12 25), oklch(45% 0.1 25));
+
+	/* Success color (green - same for warm theme) */
+	--success-default: light-dark(oklch(52% 0.17 145), oklch(72% 0.15 145));
+	--success-subtle: light-dark(oklch(95% 0.04 145), oklch(25% 0.06 145));
+	--success-border: light-dark(oklch(75% 0.1 145), oklch(45% 0.08 145));
+
+	/* Warning color (amber for warm theme) */
+	--warning-default: light-dark(oklch(62% 0.16 55), oklch(78% 0.14 55));
+	--warning-subtle: light-dark(oklch(95% 0.04 55), oklch(25% 0.06 55));
+	--warning-border: light-dark(oklch(80% 0.1 55), oklch(50% 0.08 55));
+
+	/* Info color (same as accent for warm theme) */
+	--info-default: var(--accent-default);
+	--info-subtle: var(--accent-subtle);
 }
 
 /* ==========================================================================
@@ -290,6 +318,9 @@
 	--status-color: var(--accent-default);
 	--step-color: var(--accent-default);
 
+	/* Neutral color for unassigned custom colors (arcs, steps, etc.) */
+	--color-neutral: var(--text-muted);
+
 	/* -------------------------------------------------------------------------
 	   Text on colored backgrounds
 	   ------------------------------------------------------------------------- */
@@ -322,11 +353,12 @@
 	--color-accent-light: var(--accent-subtle);
 
 	/* Legacy semantic colors */
-	--color-success: var(--accent-default);
-	--color-warning: var(--accent-default);
+	--color-success: var(--success-default);
+	--color-warning: var(--warning-default);
 	--color-error: var(--danger-default);
 	--color-danger: var(--danger-default);
 	--color-danger-light: var(--danger-subtle);
+	--color-info: var(--info-default);
 
 	/* Overlay */
 	--color-overlay: var(--overlay-backdrop);
@@ -629,5 +661,13 @@ textarea::placeholder {
 		/* Enhanced danger */
 		--danger-default: light-dark(oklch(48% 0.25 25), oklch(75% 0.22 25));
 		--danger-subtle: light-dark(oklch(92% 0.08 25), oklch(28% 0.1 25));
+
+		/* Enhanced success */
+		--success-default: light-dark(oklch(45% 0.22 145), oklch(78% 0.2 145));
+		--success-subtle: light-dark(oklch(92% 0.08 145), oklch(28% 0.1 145));
+
+		/* Enhanced warning */
+		--warning-default: light-dark(oklch(55% 0.2 65), oklch(82% 0.18 65));
+		--warning-subtle: light-dark(oklch(92% 0.08 65), oklch(28% 0.1 65));
 	}
 }
