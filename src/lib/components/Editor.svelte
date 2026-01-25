@@ -14,7 +14,7 @@
   - Configurable typography (font, size, line height, width)
 -->
 <script lang="ts">
-	import { onMount, onDestroy, untrack } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { Editor } from '@tiptap/core';
 	import StarterKit from '@tiptap/starter-kit';
 	import Placeholder from '@tiptap/extension-placeholder';

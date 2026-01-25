@@ -156,6 +156,7 @@
 	class="icon {className}"
 	aria-hidden="true"
 >
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- icons[name] contains pre-defined SVG paths, not user input -->
 	{@html icons[name]}
 </svg>
 
