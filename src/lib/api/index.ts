@@ -40,10 +40,12 @@ export type {
 	TimelineEvent,
 	TimelineConflict,
 	// Content
+	Template,
 	TemplateStep,
 	Annotation,
 	Snapshot,
 	Cut,
+	Issue,
 	// Search & Stats
 	SearchResult,
 	WordCounts,
@@ -58,6 +60,6 @@ export { chapterApi, sceneApi, historyApi } from './manuscript';
 export { bibleApi, associationApi, relationshipApi } from './bible';
 export { arcApi, eventApi, timelineApi } from './timeline';
 export { templateApi, annotationApi, snapshotApi, cutApi, trashApi } from './content';
+export { issueApi } from './issue';
 export { searchApi, statsApi } from './search';
 export { exportApi, importApi } from './export';
-

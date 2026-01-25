@@ -21,6 +21,7 @@
 		{ id: 'corkboard', label: 'Corkboard', shortcut: '2' },
 		{ id: 'timeline', label: 'Timeline', shortcut: '3' },
 		{ id: 'bible', label: 'Bible', shortcut: '4' },
+		{ id: 'issues', label: 'Issues', shortcut: '5' },
 	] as const;
 
 	interface Props {

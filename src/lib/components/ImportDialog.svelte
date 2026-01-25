@@ -331,11 +331,13 @@
 							/>
 							<Icon name="upload" size={20} />
 							<span>Choose file</span>
-							<small>{importMode === 'docx'
-								? '.docx'
-								: importMode === 'json-backup'
-									? '.json'
-									: '.md, .markdown, .txt, .docx, .json'}</small>
+							<small
+								>{importMode === 'docx'
+									? '.docx'
+									: importMode === 'json-backup'
+										? '.json'
+										: '.md, .markdown, .txt, .docx, .json'}</small
+							>
 						</label>
 					</div>
 

@@ -243,6 +243,27 @@ export interface Cut {
 	created_at: string;
 }
 
+/**
+ * A consistency issue or problem in the manuscript.
+ *
+ * Issues can be auto-detected (timeline conflicts, TBD in done scenes)
+ * or manually created (bible contradictions, continuity errors).
+ */
+export interface Issue {
+	id: string;
+	/** Type: timeline_conflict, tbd_in_done, orphan_mention, bible_contradiction, continuity_error */
+	issue_type: string;
+	title: string;
+	description: string | null;
+	/** Severity: info, warning, error */
+	severity: string;
+	/** Status: open, resolved, ignored */
+	status: string;
+	resolution_note: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
 // =============================================================================
 // Search & Stats Types
 // =============================================================================

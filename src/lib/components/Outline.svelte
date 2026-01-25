@@ -12,10 +12,15 @@
 -->
 <script lang="ts">
 	import { appState } from '$lib/stores';
-	import { chapterApi, sceneApi } from '$lib/api';
+	import { chapterApi, sceneApi, trashApi } from '$lib/api';
 	import { statusColors, countWords, formatWordCount } from '$lib/utils';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { Icon, Button } from './ui';
+
+	// Context menu state
+	let contextMenu = $state<{ x: number; y: number; sceneId: string; chapterId: string } | null>(
+		null
+	);
 
 	let expandedChapters = new SvelteSet<string>();
 
@@ -181,6 +186,43 @@
 	function isDropTarget(type: string, id: string): boolean {
 		return dropTarget?.type === type && dropTarget?.id === id;
 	}
+
+	function handleContextMenu(event: MouseEvent, sceneId: string, chapterId: string) {
+		event.preventDefault();
+		contextMenu = { x: event.clientX, y: event.clientY, sceneId, chapterId };
+	}
+
+	function closeContextMenu() {
+		contextMenu = null;
+	}
+
+	async function handleDuplicateScene(sceneId: string, structureOnly: boolean = false) {
+		try {
+			const duplicated = await trashApi.duplicateScene(sceneId, structureOnly);
+			await appState.loadChapters();
+			// Select the duplicated scene
+			appState.selectedSceneId = duplicated.id;
+		} catch (e) {
+			console.error('Failed to duplicate scene:', e);
+		}
+		closeContextMenu();
+	}
+
+	async function handleDeleteScene(sceneId: string) {
+		if (confirm('Delete this scene?')) {
+			await appState.deleteScene(sceneId);
+		}
+		closeContextMenu();
+	}
+
+	// Close context menu when clicking elsewhere
+	$effect(() => {
+		const handleClick = () => closeContextMenu();
+		if (contextMenu) {
+			document.addEventListener('click', handleClick);
+			return () => document.removeEventListener('click', handleClick);
+		}
+	});
 </script>
 
 <div class="outline">
@@ -260,6 +302,7 @@
 								class:dragging={draggedItem?.type === 'scene' && draggedItem?.id === scene.id}
 								draggable="true"
 								onclick={() => selectScene(scene.id, chapter.id)}
+								oncontextmenu={(e) => handleContextMenu(e, scene.id, chapter.id)}
 								ondragstart={(e) => handleDragStart(e, 'scene', scene.id, chapter.id)}
 								ondragend={handleDragEnd}
 								ondragover={(e) => handleDragOver(e, 'scene', scene.id)}
@@ -311,6 +354,36 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if contextMenu}
+		<div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px" role="menu">
+			<button
+				class="context-menu-item"
+				onclick={() => handleDuplicateScene(contextMenu!.sceneId, false)}
+				role="menuitem"
+			>
+				<Icon name="copy" size={14} />
+				Duplicate
+			</button>
+			<button
+				class="context-menu-item"
+				onclick={() => handleDuplicateScene(contextMenu!.sceneId, true)}
+				role="menuitem"
+			>
+				<Icon name="file" size={14} />
+				Duplicate (structure only)
+			</button>
+			<div class="context-menu-separator"></div>
+			<button
+				class="context-menu-item danger"
+				onclick={() => handleDeleteScene(contextMenu!.sceneId)}
+				role="menuitem"
+			>
+				<Icon name="trash" size={14} />
+				Delete
+			</button>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -518,5 +591,49 @@
 
 	[draggable='true']:active {
 		cursor: grabbing;
+	}
+
+	/* Context Menu */
+	.context-menu {
+		position: fixed;
+		z-index: 1000;
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--spacing-xs);
+		min-width: 180px;
+	}
+
+	.context-menu-item {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		width: 100%;
+		padding: var(--spacing-sm) var(--spacing-md);
+		font-size: var(--font-size-sm);
+		text-align: left;
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-primary);
+		transition: background-color var(--transition-fast);
+	}
+
+	.context-menu-item:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.context-menu-item.danger {
+		color: var(--color-error);
+	}
+
+	.context-menu-item.danger:hover {
+		background-color: var(--color-error);
+		color: white;
+	}
+
+	.context-menu-separator {
+		height: 1px;
+		background-color: var(--color-border);
+		margin: var(--spacing-xs) 0;
 	}
 </style>

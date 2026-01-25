@@ -18,17 +18,22 @@
 	import Corkboard from './Corkboard.svelte';
 	import BibleView from './BibleView.svelte';
 	import TimelineView from './TimelineView.svelte';
+	import IssuesView from './IssuesView.svelte';
 	import ExportDialog from './ExportDialog.svelte';
 	import TrashView from './TrashView.svelte';
 	import SnapshotsView from './SnapshotsView.svelte';
 	import ReviewGrid from './ReviewGrid.svelte';
 	import ImportDialog from './ImportDialog.svelte';
 	import SettingsDialog from './SettingsDialog.svelte';
+	import ArcsManager from './ArcsManager.svelte';
+	import TemplatesManager from './TemplatesManager.svelte';
 	import ToastNotifications from './ToastNotifications.svelte';
 
 	let showReviewGrid = $state(false);
 	let showImportDialog = $state(false);
 	let showSettingsDialog = $state(false);
+	let showArcsManager = $state(false);
+	let showTemplatesManager = $state(false);
 	import { appState } from '$lib/stores';
 	import type { Scene } from '$lib/api';
 	import { isModKey } from '$lib/utils';
@@ -52,10 +57,10 @@
 			return;
 		}
 
-		// View switching: Cmd/Ctrl + 1-4
-		if (isModKey(event) && ['1', '2', '3', '4'].includes(event.key)) {
+		// View switching: Cmd/Ctrl + 1-5
+		if (isModKey(event) && ['1', '2', '3', '4', '5'].includes(event.key)) {
 			event.preventDefault();
-			const modes = ['editor', 'corkboard', 'timeline', 'bible'] as const;
+			const modes = ['editor', 'corkboard', 'timeline', 'bible', 'issues'] as const;
 			appState.setViewMode(modes[parseInt(event.key) - 1]);
 			return;
 		}
@@ -106,6 +111,20 @@
 		if (isModKey(event) && event.key === 'i') {
 			event.preventDefault();
 			showImportDialog = !showImportDialog;
+			return;
+		}
+
+		// Arcs Manager: Cmd/Ctrl + A
+		if (isModKey(event) && event.key === 'a' && !event.shiftKey) {
+			event.preventDefault();
+			showArcsManager = !showArcsManager;
+			return;
+		}
+
+		// Templates Manager: Cmd/Ctrl + T
+		if (isModKey(event) && event.key === 't') {
+			event.preventDefault();
+			showTemplatesManager = !showTemplatesManager;
 			return;
 		}
 
@@ -204,6 +223,8 @@
 				<BibleView />
 			{:else if appState.viewMode === 'timeline'}
 				<TimelineView />
+			{:else if appState.viewMode === 'issues'}
+				<IssuesView />
 			{/if}
 		</main>
 
@@ -279,6 +300,8 @@
 	<ReviewGrid bind:isOpen={showReviewGrid} />
 	<ImportDialog bind:isOpen={showImportDialog} />
 	<SettingsDialog bind:isOpen={showSettingsDialog} />
+	<ArcsManager isOpen={showArcsManager} onclose={() => (showArcsManager = false)} />
+	<TemplatesManager isOpen={showTemplatesManager} onclose={() => (showTemplatesManager = false)} />
 	<ToastNotifications />
 
 	<SnapshotsView

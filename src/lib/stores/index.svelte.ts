@@ -20,4 +20,3 @@ export { appState } from './app-state.svelte';
 // Recovery utilities
 export type { RecoveryDraft } from './recovery';
 export { saveRecoveryDraft, getRecoveryDraft, clearRecoveryDraft } from './recovery';
-

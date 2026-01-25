@@ -93,13 +93,23 @@
 
 	// State for arcs, template step, and linked events
 	let sceneArcs = $state<Arc[]>([]);
+	let allArcs = $state<Arc[]>([]);
+	let isAddingArc = $state(false);
+	let selectedArcToAdd = $state('');
 	let templateStep = $state<TemplateStep | null>(null);
+	let allTemplateSteps = $state<TemplateStep[]>([]);
+	let isSelectingStep = $state(false);
+	let selectedStepToAssign = $state('');
 	let linkedEvents = $state<TimelineEvent[]>([]);
+
+	// Derived: arcs not already linked to the scene
+	let availableArcs = $derived(allArcs.filter((arc) => !sceneArcs.some((sa) => sa.id === arc.id)));
 
 	$effect(() => {
 		if (selectedSceneId) {
 			loadAssociations();
 			loadSceneArcs();
+			loadAllArcs();
 			loadTemplateStep();
 			loadLinkedEvents();
 		}
@@ -132,14 +142,66 @@
 		}
 	}
 
+	async function loadAllArcs() {
+		try {
+			allArcs = await arcApi.getAll();
+		} catch (e) {
+			console.error('Failed to load all arcs:', e);
+			allArcs = [];
+		}
+	}
+
+	async function addArcToScene() {
+		if (!selectedSceneId || !selectedArcToAdd) return;
+		try {
+			await arcApi.linkScene(selectedSceneId, selectedArcToAdd);
+			await loadSceneArcs();
+			selectedArcToAdd = '';
+			isAddingArc = false;
+		} catch (e) {
+			console.error('Failed to link scene to arc:', e);
+		}
+	}
+
+	async function removeArcFromScene(arcId: string) {
+		if (!selectedSceneId) return;
+		try {
+			await arcApi.unlinkScene(selectedSceneId, arcId);
+			await loadSceneArcs();
+		} catch (e) {
+			console.error('Failed to unlink scene from arc:', e);
+		}
+	}
+
 	async function loadTemplateStep() {
 		if (selectedSceneId) {
 			try {
 				templateStep = await templateApi.getSceneStep(selectedSceneId);
+				// Also load all available steps from active template
+				const templates = await templateApi.getAll();
+				const activeTemplate = templates.find((t) => t.is_active);
+				if (activeTemplate) {
+					allTemplateSteps = await templateApi.getSteps(activeTemplate.id);
+				} else {
+					allTemplateSteps = [];
+				}
 			} catch (e) {
 				console.error('Failed to load template step:', e);
 				templateStep = null;
+				allTemplateSteps = [];
 			}
+		}
+	}
+
+	async function assignSceneToStep() {
+		if (!selectedSceneId || !selectedStepToAssign) return;
+		try {
+			await templateApi.assignSceneToStep(selectedSceneId, selectedStepToAssign);
+			await loadTemplateStep();
+			selectedStepToAssign = '';
+			isSelectingStep = false;
+		} catch (e) {
+			console.error('Failed to assign scene to step:', e);
 		}
 	}
 
@@ -306,37 +368,90 @@
 		</section>
 
 		<!-- Linked Arcs Section -->
-		{#if sceneArcs.length > 0}
-			<section class="panel-section">
+		<section class="panel-section">
+			<div class="section-header">
 				<h3>Arcs</h3>
-				<div class="arcs-list">
-					{#each sceneArcs as arc (arc.id)}
-						<div class="arc-item" style="--arc-color: {arc.color || 'var(--color-accent)'}">
-							<span class="arc-color-dot"></span>
-							<span class="arc-name">{arc.name}</span>
-							<span class="arc-status">{arc.status}</span>
-						</div>
-					{/each}
+				<Button variant="icon" size="sm" onclick={() => (isAddingArc = !isAddingArc)}>
+					{#if isAddingArc}
+						<Icon name="close" size={16} />
+					{:else}
+						<Icon name="plus" size={16} />
+					{/if}
+				</Button>
+			</div>
+
+			{#if isAddingArc}
+				<div class="arc-search">
+					<select bind:value={selectedArcToAdd} onchange={addArcToScene}>
+						<option value="">Select an arc...</option>
+						{#each availableArcs as arc (arc.id)}
+							<option value={arc.id}>{arc.name}</option>
+						{/each}
+					</select>
 				</div>
-			</section>
-		{/if}
+			{/if}
+
+			<div class="arcs-list">
+				{#each sceneArcs as arc (arc.id)}
+					<div class="arc-item" style="--arc-color: {arc.color || 'var(--color-accent)'}">
+						<span class="arc-color-dot"></span>
+						<span class="arc-name">{arc.name}</span>
+						<span class="arc-status">{arc.status}</span>
+						<button
+							class="remove-btn"
+							onclick={() => removeArcFromScene(arc.id)}
+							title="Remove from arc"
+						>
+							&times;
+						</button>
+					</div>
+				{:else}
+					<p class="empty-message">No arcs linked to this scene.</p>
+				{/each}
+			</div>
+		</section>
 
 		<!-- Template Step Section -->
-		{#if templateStep}
+		{#if allTemplateSteps.length > 0 || templateStep}
 			<section class="panel-section">
-				<h3>Template Step</h3>
-				<div
-					class="template-step"
-					style="--step-color: {templateStep.color || 'var(--color-accent)'}"
-				>
-					<span class="step-color-dot"></span>
-					<div class="step-info">
-						<span class="step-name">{templateStep.name}</span>
-						{#if templateStep.description}
-							<span class="step-description">{templateStep.description}</span>
+				<div class="section-header">
+					<h3>Template Step</h3>
+					<Button variant="icon" size="sm" onclick={() => (isSelectingStep = !isSelectingStep)}>
+						{#if isSelectingStep}
+							<Icon name="close" size={16} />
+						{:else}
+							<Icon name="edit" size={16} />
 						{/if}
-					</div>
+					</Button>
 				</div>
+
+				{#if isSelectingStep}
+					<div class="step-search">
+						<select bind:value={selectedStepToAssign} onchange={assignSceneToStep}>
+							<option value="">Select a step...</option>
+							{#each allTemplateSteps as step (step.id)}
+								<option value={step.id}>{step.name} ({step.typical_position}%)</option>
+							{/each}
+						</select>
+					</div>
+				{/if}
+
+				{#if templateStep && !isSelectingStep}
+					<div
+						class="template-step"
+						style="--step-color: {templateStep.color || 'var(--color-accent)'}"
+					>
+						<span class="step-color-dot"></span>
+						<div class="step-info">
+							<span class="step-name">{templateStep.name}</span>
+							{#if templateStep.description}
+								<span class="step-description">{templateStep.description}</span>
+							{/if}
+						</div>
+					</div>
+				{:else if !isSelectingStep}
+					<p class="empty-message">No template step assigned.</p>
+				{/if}
 			</section>
 		{/if}
 
@@ -774,6 +889,32 @@
 	}
 
 	/* Arcs styles */
+	.arc-search {
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.arc-search select {
+		width: 100%;
+		padding: var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-primary);
+	}
+
+	.step-search {
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.step-search select {
+		width: 100%;
+		padding: var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-primary);
+	}
+
 	.arcs-list {
 		display: flex;
 		flex-direction: column;
@@ -788,6 +929,28 @@
 		background-color: var(--color-bg-primary);
 		border-radius: var(--border-radius-sm);
 		font-size: var(--font-size-sm);
+	}
+
+	.arc-item .remove-btn {
+		width: 20px;
+		height: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-size-md);
+		color: var(--color-text-muted);
+		opacity: 0;
+		transition: all var(--transition-fast);
+	}
+
+	.arc-item:hover .remove-btn {
+		opacity: 1;
+	}
+
+	.arc-item .remove-btn:hover {
+		background-color: var(--color-error);
+		color: var(--text-on-accent);
 	}
 
 	.arc-color-dot {

@@ -10,8 +10,9 @@
  * - `corkboard`: Card-based scene organization
  * - `timeline`: Chronological event view
  * - `bible`: Knowledge base browser
+ * - `issues`: Consistency problems and issues view
  */
-export type ViewMode = 'editor' | 'corkboard' | 'timeline' | 'bible';
+export type ViewMode = 'editor' | 'corkboard' | 'timeline' | 'bible' | 'issues';
 
 /**
  * Current work mode affecting UI presentation.
