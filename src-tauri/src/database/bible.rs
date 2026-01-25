@@ -143,7 +143,12 @@ impl Database {
 
     fn map_bible_entry_media(
         row: &rusqlite::Row,
-    ) -> rusqlite::Result<(Option<String>, Option<String>, Option<String>, Option<String>)> {
+    ) -> rusqlite::Result<(
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    )> {
         Ok((row.get(8)?, row.get(9)?, row.get(10)?, row.get(11)?))
     }
 

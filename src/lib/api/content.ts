@@ -7,7 +7,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Template, TemplateStep, Annotation, Issue, Snapshot, Cut, Scene, Chapter } from './types';
+import type { Template, TemplateStep, Annotation, Snapshot, Cut, Scene, Chapter } from './types';
 
 /**
  * API for writing template operations.
@@ -76,46 +76,6 @@ export const annotationApi = {
 };
 
 /**
- * API for issue tracking operations.
- */
-export const issueApi = {
-	create: (request: {
-		issue_type: string;
-		title: string;
-		description?: string;
-		severity?: string;
-	}) => invoke<Issue>('create_issue', { request }),
-
-	getAll: (status?: string) => invoke<Issue[]>('get_issues', { status }),
-
-	get: (id: string) => invoke<Issue>('get_issue', { id }),
-
-	update: (id: string, request: Partial<Pick<Issue, 'status' | 'resolution_note'>>) =>
-		invoke<Issue>('update_issue', { id, request }),
-
-	// Issue-Scene linking
-	linkScene: (sceneId: string, issueId: string) =>
-		invoke<void>('link_scene_to_issue', { sceneId, issueId }),
-
-	unlinkScene: (sceneId: string, issueId: string) =>
-		invoke<void>('unlink_scene_from_issue', { sceneId, issueId }),
-
-	getIssueScenes: (issueId: string) => invoke<string[]>('get_issue_scenes', { issueId }),
-
-	getSceneIssues: (sceneId: string) => invoke<Issue[]>('get_scene_issues', { sceneId }),
-
-	// Issue-Bible linking
-	linkBibleEntry: (bibleEntryId: string, issueId: string) =>
-		invoke<void>('link_bible_entry_to_issue', { bibleEntryId, issueId }),
-
-	unlinkBibleEntry: (bibleEntryId: string, issueId: string) =>
-		invoke<void>('unlink_bible_entry_from_issue', { bibleEntryId, issueId }),
-
-	getIssueBibleEntries: (issueId: string) =>
-		invoke<string[]>('get_issue_bible_entries', { issueId }),
-};
-
-/**
  * API for project snapshot operations.
  */
 export const snapshotApi = {
@@ -125,6 +85,10 @@ export const snapshotApi = {
 	getAll: () => invoke<Snapshot[]>('get_snapshots'),
 
 	get: (id: string) => invoke<Snapshot>('get_snapshot', { id }),
+
+	delete: (id: string) => invoke<void>('delete_snapshot', { id }),
+
+	restore: (id: string) => invoke<void>('restore_snapshot', { id }),
 };
 
 /**

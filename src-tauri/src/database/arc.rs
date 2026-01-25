@@ -79,7 +79,13 @@ impl Database {
     #[allow(clippy::type_complexity)]
     fn map_arc_core(
         row: &rusqlite::Row,
-    ) -> rusqlite::Result<(String, String, Option<String>, Option<String>, Option<String>)> {
+    ) -> rusqlite::Result<(
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    )> {
         Ok((
             row.get(0)?,
             row.get(1)?,

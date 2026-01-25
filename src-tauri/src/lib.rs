@@ -170,6 +170,8 @@ pub fn run() {
             commands::snapshot::create_snapshot,
             commands::snapshot::get_snapshots,
             commands::snapshot::get_snapshot,
+            commands::snapshot::delete_snapshot,
+            commands::snapshot::restore_snapshot,
             // Export commands
             commands::export::export_markdown,
             commands::export::export_plain_text,
@@ -181,6 +183,7 @@ pub fn run() {
             commands::import::import_markdown_as_scene,
             commands::import::import_markdown_structured,
             commands::import::import_text_as_scene,
+            commands::import::import_json_backup,
             // Trash commands
             commands::trash::get_deleted_scenes,
             commands::trash::restore_scene,

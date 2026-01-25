@@ -15,10 +15,6 @@ export function formatWordCount(count: number): string {
 	return count.toString();
 }
 
-// Default neutral color for custom color pickers (arcs, steps, etc.)
-// This is a hex value because it's used in <input type="color"> elements
-export const DEFAULT_CUSTOM_COLOR = '#525252';
-
 // Status colors
 export const statusColors: Record<string, string> = {
 	planned: 'var(--status-planned)',

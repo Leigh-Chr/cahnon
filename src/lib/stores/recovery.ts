@@ -1,35 +1,8 @@
 /**
- * Autosave and crash recovery utilities.
+ * Crash recovery utilities.
  *
  * @module
  */
-
-// =============================================================================
-// Autosave
-// =============================================================================
-
-let autosaveTimeout: ReturnType<typeof setTimeout> | null = null;
-
-/**
- * Schedules an autosave operation.
- * Marks the app state as having unsaved changes and sets a timeout.
- */
-export function scheduleAutosave(
-	setUnsavedChanges: (value: boolean) => void,
-	onAutosave?: () => void
-) {
-	setUnsavedChanges(true);
-	if (autosaveTimeout) {
-		clearTimeout(autosaveTimeout);
-	}
-	autosaveTimeout = setTimeout(() => {
-		onAutosave?.();
-	}, 30000);
-}
-
-// =============================================================================
-// Crash Recovery
-// =============================================================================
 
 const RECOVERY_KEY = 'cahnon_crash_recovery';
 

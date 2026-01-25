@@ -40,14 +40,14 @@ class ToastState {
 	}
 }
 
-export const toastState = new ToastState();
+const toastState = new ToastState();
 
 // Legacy-compatible store export using Svelte 5's native toStore
 import { toStore } from 'svelte/store';
 
 export const toasts = toStore(() => toastState.items);
 
-export function showToast(toast: Omit<Toast, 'id'>): string {
+function showToast(toast: Omit<Toast, 'id'>): string {
 	return toastState.add(toast);
 }
 
@@ -56,16 +56,8 @@ export function removeToast(id: string) {
 }
 
 // Convenience functions
-export function showInfo(message: string, action?: Toast['action']) {
-	return showToast({ type: 'info', message, action });
-}
-
 export function showSuccess(message: string, action?: Toast['action']) {
 	return showToast({ type: 'success', message, action });
-}
-
-export function showWarning(message: string, action?: Toast['action']) {
-	return showToast({ type: 'warning', message, action });
 }
 
 export function showError(message: string, action?: Toast['action']) {

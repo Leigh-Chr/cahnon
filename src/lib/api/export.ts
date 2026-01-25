@@ -38,4 +38,7 @@ export const importApi = {
 
 	textAsScene: (chapterId: string, title: string, content: string) =>
 		invoke<Scene>('import_text_as_scene', { chapterId, title, content }),
+
+	/** Import a JSON backup file to restore project data. Creates auto-backup first. */
+	jsonBackup: (content: string) => invoke<void>('import_json_backup', { content }),
 };

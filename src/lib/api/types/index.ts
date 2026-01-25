@@ -227,18 +227,6 @@ export interface Annotation {
 	updated_at: string;
 }
 
-export interface Issue {
-	id: string;
-	issue_type: string;
-	title: string;
-	description: string | null;
-	severity: string;
-	status: string;
-	resolution_note: string | null;
-	created_at: string;
-	updated_at: string;
-}
-
 export interface Snapshot {
 	id: string;
 	name: string;

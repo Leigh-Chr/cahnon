@@ -66,7 +66,9 @@ impl Database {
         })
     }
 
-    fn map_annotation_location(row: &rusqlite::Row) -> rusqlite::Result<(String, String, i32, i32)> {
+    fn map_annotation_location(
+        row: &rusqlite::Row,
+    ) -> rusqlite::Result<(String, String, i32, i32)> {
         Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
     }
 
@@ -74,7 +76,13 @@ impl Database {
     fn map_annotation_content(
         row: &rusqlite::Row,
     ) -> rusqlite::Result<(String, String, String, String, String)> {
-        Ok((row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?))
+        Ok((
+            row.get(4)?,
+            row.get(5)?,
+            row.get(6)?,
+            row.get(7)?,
+            row.get(8)?,
+        ))
     }
 
     pub fn get_annotation(&self, id: &str) -> Result<Annotation, String> {

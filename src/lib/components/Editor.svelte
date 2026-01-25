@@ -164,6 +164,25 @@
 		}
 	}, 1000);
 
+	/** Check for and optionally restore a recovery draft for the given scene */
+	function checkRecoveryDraft(sceneId: string, targetEditor: Editor) {
+		const recoveryDraft = getRecoveryDraft();
+		if (recoveryDraft && recoveryDraft.sceneId === sceneId) {
+			const shouldRecover = confirm(
+				'A recovery draft was found from a previous session. Would you like to restore it?\n\n' +
+					'Click OK to restore the draft, or Cancel to discard it.'
+			);
+			if (shouldRecover) {
+				isUpdating = true;
+				targetEditor.commands.setContent(recoveryDraft.text);
+				isUpdating = false;
+				appState.hasUnsavedChanges = true;
+				showSuccess('Draft recovered');
+			}
+			clearRecoveryDraft();
+		}
+	}
+
 	function initEditor() {
 		if (editor) {
 			editor.destroy();
@@ -437,25 +456,16 @@
 			isUpdating = false;
 
 			// Check for crash recovery draft
-			const recoveryDraft = getRecoveryDraft();
-			if (recoveryDraft && recoveryDraft.sceneId === sceneId) {
-				const shouldRecover = confirm(
-					'A recovery draft was found from a previous session. Would you like to restore it?\n\n' +
-						'Click OK to restore the draft, or Cancel to discard it.'
-				);
-				if (shouldRecover) {
-					isUpdating = true;
-					currentEditor.commands.setContent(recoveryDraft.text);
-					isUpdating = false;
-					appState.hasUnsavedChanges = true;
-					showSuccess('Draft recovered');
-				}
-				clearRecoveryDraft();
-			}
+			checkRecoveryDraft(sceneId, currentEditor);
 		} else {
 			// No editor yet - initialize it
 			currentSceneId = sceneId;
 			initEditor();
+
+			// Check for crash recovery draft on initial load
+			if (editor) {
+				checkRecoveryDraft(sceneId, editor);
+			}
 		}
 	});
 </script>

@@ -333,3 +333,12 @@ fn text_to_html(text: &str) -> String {
         .collect::<Vec<_>>()
         .join("")
 }
+
+/// Import a JSON backup to restore project data.
+/// Creates an automatic backup before importing.
+#[tauri::command]
+pub fn import_json_backup(state: State<AppState>, content: String) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    let db = db.as_ref().ok_or("No project open")?;
+    db.import_json_backup(&content)
+}

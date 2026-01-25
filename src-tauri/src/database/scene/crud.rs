@@ -39,11 +39,11 @@ impl Database {
     }
 
     pub fn get_scenes(&self, chapter_id: &str) -> Result<Vec<Scene>, String> {
-        let query = format!("{} FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL ORDER BY position", SCENE_SELECT);
-        let mut stmt = self
-            .conn
-            .prepare(&query)
-            .map_err(|e| e.to_string())?;
+        let query = format!(
+            "{} FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL ORDER BY position",
+            SCENE_SELECT
+        );
+        let mut stmt = self.conn.prepare(&query).map_err(|e| e.to_string())?;
 
         let scenes = stmt
             .query_map(params![chapter_id], Self::map_scene)
@@ -55,7 +55,10 @@ impl Database {
     }
 
     pub fn get_scene(&self, id: &str) -> Result<Scene, String> {
-        let query = format!("{} FROM scenes WHERE id = ?1 AND deleted_at IS NULL", SCENE_SELECT);
+        let query = format!(
+            "{} FROM scenes WHERE id = ?1 AND deleted_at IS NULL",
+            SCENE_SELECT
+        );
         self.conn
             .query_row(&query, params![id], Self::map_scene)
             .map_err(|e| e.to_string())
@@ -188,10 +191,7 @@ impl Database {
             "{} FROM scenes WHERE deleted_at IS NULL AND on_timeline = 1 AND (time_point IS NOT NULL OR time_start IS NOT NULL) ORDER BY COALESCE(time_point, time_start)",
             SCENE_SELECT
         );
-        let mut stmt = self
-            .conn
-            .prepare(&query)
-            .map_err(|e| e.to_string())?;
+        let mut stmt = self.conn.prepare(&query).map_err(|e| e.to_string())?;
 
         let scenes = stmt
             .query_map([], Self::map_scene)

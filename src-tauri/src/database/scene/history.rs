@@ -1,6 +1,6 @@
 //! Scene history operations.
 
-use crate::models::{SceneHistoryEntry, Scene, UpdateSceneRequest};
+use crate::models::{Scene, SceneHistoryEntry, UpdateSceneRequest};
 use rusqlite::params;
 
 use super::super::Database;

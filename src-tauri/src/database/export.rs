@@ -35,16 +35,87 @@ impl Database {
     }
 
     fn html_to_markdown(html: &str) -> String {
-        let text = html
+        let mut text = html.to_string();
+
+        // Headings (must be processed before removing other tags)
+        text = text
+            .replace("<h1>", "\n# ")
+            .replace("</h1>", "\n")
+            .replace("<h2>", "\n## ")
+            .replace("</h2>", "\n")
+            .replace("<h3>", "\n### ")
+            .replace("</h3>", "\n");
+
+        // Blockquotes
+        text = text
+            .replace("<blockquote>", "\n> ")
+            .replace("</blockquote>", "\n");
+
+        // Basic formatting
+        text = text
             .replace("<p>", "")
             .replace("</p>", "\n\n")
             .replace("<br>", "\n")
             .replace("<br/>", "\n")
+            .replace("<br />", "\n")
             .replace("<strong>", "**")
             .replace("</strong>", "**")
+            .replace("<b>", "**")
+            .replace("</b>", "**")
             .replace("<em>", "*")
-            .replace("</em>", "*");
-        HTML_TAG_REGEX.replace_all(&text, "").to_string()
+            .replace("</em>", "*")
+            .replace("<i>", "*")
+            .replace("</i>", "*");
+
+        // Code (inline)
+        text = text.replace("<code>", "`").replace("</code>", "`");
+
+        // Highlight (TipTap uses <mark>)
+        text = text.replace("<mark>", "==").replace("</mark>", "==");
+
+        // Lists
+        text = text
+            .replace("<ul>", "\n")
+            .replace("</ul>", "\n")
+            .replace("<ol>", "\n")
+            .replace("</ol>", "\n")
+            .replace("<li>", "- ")
+            .replace("</li>", "\n");
+
+        // Horizontal rule
+        text = text.replace("<hr>", "\n---\n").replace("<hr/>", "\n---\n");
+
+        // Process links: <a href="url">text</a> -> [text](url)
+        text = Self::convert_links_to_markdown(&text);
+
+        // Clean up remaining HTML tags
+        let text = HTML_TAG_REGEX.replace_all(&text, "").to_string();
+
+        // Clean up excessive newlines
+        let lines: Vec<&str> = text.lines().collect();
+        let mut result = String::new();
+        let mut prev_empty = false;
+        for line in lines {
+            let is_empty = line.trim().is_empty();
+            if is_empty && prev_empty {
+                continue;
+            }
+            result.push_str(line);
+            result.push('\n');
+            prev_empty = is_empty;
+        }
+        result.trim().to_string()
+    }
+
+    /// Convert HTML links to markdown format
+    fn convert_links_to_markdown(html: &str) -> String {
+        use regex::Regex;
+        let link_regex = Regex::new(r#"<a\s+href="([^"]+)"[^>]*>([^<]*)</a>"#).unwrap();
+        link_regex
+            .replace_all(html, |caps: &regex::Captures| {
+                format!("[{}]({})", &caps[2], &caps[1])
+            })
+            .to_string()
     }
 
     fn html_to_plain(html: &str) -> String {
@@ -130,7 +201,10 @@ impl Database {
     }
 
     fn format_outline_scene(output: &mut String, index: usize, scene: &Scene) {
-        output.push_str(&format!("{}. **{}** [{}]\n", index, scene.title, scene.status));
+        output.push_str(&format!(
+            "{}. **{}** [{}]\n",
+            index, scene.title, scene.status
+        ));
         Self::append_optional(output, &scene.summary, "   *{}*\n");
         Self::append_optional(output, &scene.pov, "   POV: {}\n");
         output.push('\n');
@@ -197,7 +271,11 @@ impl Database {
         }
     }
 
-    fn format_entry_relationships(&self, output: &mut String, entry_id: &str) -> Result<(), String> {
+    fn format_entry_relationships(
+        &self,
+        output: &mut String,
+        entry_id: &str,
+    ) -> Result<(), String> {
         if let Ok(relationships) = self.get_bible_relationships(entry_id) {
             if !relationships.is_empty() {
                 output.push_str("**Relationships:**\n");
@@ -257,7 +335,8 @@ impl Database {
     }
 
     fn format_event(output: &mut String, event: &Event) {
-        let time_str = Self::format_time_range(&event.time_point, &event.time_start, &event.time_end);
+        let time_str =
+            Self::format_time_range(&event.time_point, &event.time_start, &event.time_end);
         output.push_str(&format!("- **{}** ({})\n", event.title, time_str));
         Self::append_optional(output, &event.description, "  {}\n");
     }

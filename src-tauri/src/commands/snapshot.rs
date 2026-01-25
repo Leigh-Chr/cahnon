@@ -30,3 +30,17 @@ pub fn get_snapshot(state: State<AppState>, id: String) -> Result<Snapshot, Stri
     let db = db.as_ref().ok_or("No project open")?;
     db.get_snapshot(&id)
 }
+
+#[tauri::command]
+pub fn delete_snapshot(state: State<AppState>, id: String) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    let db = db.as_ref().ok_or("No project open")?;
+    db.delete_snapshot(&id)
+}
+
+#[tauri::command]
+pub fn restore_snapshot(state: State<AppState>, id: String) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    let db = db.as_ref().ok_or("No project open")?;
+    db.restore_snapshot(&id)
+}

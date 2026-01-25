@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/routes/**/+*.ts",
+    "src/routes/**/+*.svelte"
+  ],
+  "project": ["src/**/*.{ts,svelte}"],
+  "ignore": ["src/tests/**", "**/*.test.ts"],
+  "ignoreDependencies": [
+    "@wdio/*"
+  ],
+  "ignoreExportsUsedInFile": true
+}

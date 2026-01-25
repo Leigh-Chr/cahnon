@@ -34,28 +34,19 @@ export type {
 	RecentProject,
 	// Bible
 	BibleEntry,
-	BibleRelationship,
 	BibleRelationshipWithEntry,
 	// Arc & Timeline
 	Arc,
 	TimelineEvent,
 	TimelineConflict,
 	// Content
-	Template,
 	TemplateStep,
 	Annotation,
-	Issue,
 	Snapshot,
 	Cut,
 	// Search & Stats
 	SearchResult,
 	WordCounts,
-	// File & Lock
-	LockInfo,
-	FileStatus,
-	// Import/Export
-	ImportResult,
-	VersionDiff,
 } from './types';
 
 // =============================================================================
@@ -66,14 +57,7 @@ export { projectApi } from './project';
 export { chapterApi, sceneApi, historyApi } from './manuscript';
 export { bibleApi, associationApi, relationshipApi } from './bible';
 export { arcApi, eventApi, timelineApi } from './timeline';
-export { templateApi, annotationApi, issueApi, snapshotApi, cutApi, trashApi } from './content';
+export { templateApi, annotationApi, snapshotApi, cutApi, trashApi } from './content';
 export { searchApi, statsApi } from './search';
 export { exportApi, importApi } from './export';
 
-// =============================================================================
-// Legacy Compatibility
-// =============================================================================
-
-// Re-export historyApi as historyApiExtended for backward compatibility
-// (they are now the same, compareVersions is included in historyApi)
-export { historyApi as historyApiExtended } from './manuscript';

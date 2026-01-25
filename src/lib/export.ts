@@ -150,7 +150,7 @@ export async function exportToDocx(
 }
 
 // Simple HTML export (for systems without DOCX support)
-export function exportToHtml(
+function exportToHtml(
 	project: Project,
 	chapters: Chapter[],
 	scenesByChapter: Map<string, Scene[]>

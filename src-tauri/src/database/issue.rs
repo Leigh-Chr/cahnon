@@ -75,7 +75,13 @@ impl Database {
     fn map_issue_core(
         row: &rusqlite::Row,
     ) -> rusqlite::Result<(String, String, String, Option<String>, String)> {
-        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+        Ok((
+            row.get(0)?,
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)?,
+            row.get(4)?,
+        ))
     }
 
     fn map_issue_meta(

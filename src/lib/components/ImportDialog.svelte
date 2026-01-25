@@ -12,8 +12,8 @@
 
 	let { isOpen = $bindable(false), onclose }: Props = $props();
 
-	type ImportMode = 'structured' | 'single-scene' | 'docx';
-	type FileType = 'markdown' | 'text' | 'docx';
+	type ImportMode = 'structured' | 'single-scene' | 'docx' | 'json-backup';
+	type FileType = 'markdown' | 'text' | 'docx' | 'json';
 
 	let importMode = $state<ImportMode>('structured');
 	let fileType = $state<FileType>('markdown');
@@ -42,6 +42,15 @@
 			importMode = 'docx';
 			docxFile = file;
 			content = `DOCX file selected: ${file.name}`;
+		} else if (file.name.endsWith('.json')) {
+			fileType = 'json';
+			importMode = 'json-backup';
+			docxFile = null;
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				content = (e.target?.result as string) || '';
+			};
+			reader.readAsText(file);
 		} else {
 			docxFile = null;
 			const reader = new FileReader();
@@ -58,13 +67,28 @@
 		}
 
 		// Use filename as scene title
-		sceneTitle = file.name.replace(/\.(md|markdown|txt|docx)$/i, '');
+		sceneTitle = file.name.replace(/\.(md|markdown|txt|docx|json)$/i, '');
 	}
 
 	async function handleImport() {
 		if (importMode === 'docx') {
 			if (!docxFile) {
 				error = 'Please select a DOCX file';
+				return;
+			}
+		} else if (importMode === 'json-backup') {
+			if (!content.trim()) {
+				error = 'Please select a JSON backup file';
+				return;
+			}
+			// Confirm before importing (it's destructive)
+			if (
+				!confirm(
+					'Are you sure you want to import this JSON backup?\n\n' +
+						'This will REPLACE all current project data (chapters, scenes, bible entries, arcs, events).\n\n' +
+						'An automatic backup will be created before importing.'
+				)
+			) {
 				return;
 			}
 		} else if (!content.trim()) {
@@ -77,7 +101,16 @@
 		result = null;
 
 		try {
-			if (importMode === 'docx') {
+			if (importMode === 'json-backup') {
+				// Import JSON backup
+				await importApi.jsonBackup(content);
+				// Reload all project data
+				await appState.loadManuscript();
+				await appState.loadBible();
+				await appState.loadStats();
+				result = { chapters: -1, scenes: -1 }; // Special marker for "full restore"
+				showSuccess('JSON backup imported successfully');
+			} else if (importMode === 'docx') {
 				// Import DOCX file
 				const docxResult = await importFromDocx(docxFile!);
 				let chaptersCreated = 0;
@@ -179,10 +212,14 @@
 						<Icon name="check" size={48} />
 						<h3>Import Successful</h3>
 						<p>
-							{#if result.chapters > 0}
+							{#if result.chapters === -1 && result.scenes === -1}
+								Project data fully restored from backup.
+							{:else if result.chapters > 0}
 								Created {result.chapters} chapter{result.chapters !== 1 ? 's' : ''} and
+								{result.scenes} scene{result.scenes !== 1 ? 's' : ''}.
+							{:else}
+								{result.scenes} scene{result.scenes !== 1 ? 's' : ''}.
 							{/if}
-							{result.scenes} scene{result.scenes !== 1 ? 's' : ''}.
 						</p>
 						<Button variant="primary" onclick={reset}>Import More</Button>
 					</div>
@@ -256,18 +293,49 @@
 							<span>DOCX Import</span>
 							<small>Import Word document with structure</small>
 						</button>
+						<button
+							class="mode-btn"
+							class:active={importMode === 'json-backup'}
+							onclick={() => {
+								importMode = 'json-backup';
+								docxFile = null;
+							}}
+						>
+							<svg
+								width="20"
+								height="20"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+								<polyline points="7 10 12 15 17 10" />
+								<line x1="12" y1="15" x2="12" y2="3" />
+							</svg>
+							<span>JSON Backup</span>
+							<small>Restore full project from backup</small>
+						</button>
 					</div>
 
 					<div class="file-input-section">
 						<label class="file-input-label">
 							<input
 								type="file"
-								accept={importMode === 'docx' ? '.docx' : '.md,.markdown,.txt,.docx'}
+								accept={importMode === 'docx'
+									? '.docx'
+									: importMode === 'json-backup'
+										? '.json'
+										: '.md,.markdown,.txt,.docx,.json'}
 								onchange={handleFileSelect}
 							/>
 							<Icon name="upload" size={20} />
 							<span>Choose file</span>
-							<small>{importMode === 'docx' ? '.docx' : '.md, .markdown, .txt, .docx'}</small>
+							<small>{importMode === 'docx'
+								? '.docx'
+								: importMode === 'json-backup'
+									? '.json'
+									: '.md, .markdown, .txt, .docx, .json'}</small>
 						</label>
 					</div>
 
@@ -379,7 +447,7 @@
 
 	.import-modes {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(2, 1fr);
 		gap: var(--spacing-md);
 		margin-bottom: var(--spacing-lg);
 	}

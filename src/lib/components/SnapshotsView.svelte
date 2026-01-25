@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { snapshotApi, type Snapshot } from '$lib/api';
+	import { appState } from '$lib/stores';
 	import { showSuccess, showError } from '$lib/toast';
 	import { Icon, Button, EmptyState, LoadingState, FormGroup, FormActions } from './ui';
 
@@ -21,6 +22,7 @@
 	let snapshots = $state<Snapshot[]>([]);
 	let isLoading = $state(true);
 	let isCreating = $state(false);
+	let isRestoring = $state(false);
 	let showCreateForm = $state(false);
 	let selectedSnapshot = $state<Snapshot | null>(null);
 
@@ -137,6 +139,57 @@
 		} catch {
 			return null;
 		}
+	}
+
+	async function deleteSnapshot(snapshot: Snapshot) {
+		if (
+			!confirm(
+				`Are you sure you want to delete the snapshot "${snapshot.name}"?\n\nThis action cannot be undone.`
+			)
+		) {
+			return;
+		}
+
+		try {
+			await snapshotApi.delete(snapshot.id);
+			snapshots = snapshots.filter((s) => s.id !== snapshot.id);
+			selectedSnapshot = null;
+			showSuccess('Snapshot deleted');
+		} catch (e) {
+			console.error('Failed to delete snapshot:', e);
+			showError('Failed to delete snapshot');
+		}
+	}
+
+	async function restoreSnapshot(snapshot: Snapshot) {
+		if (
+			!confirm(
+				`Are you sure you want to restore the snapshot "${snapshot.name}"?\n\n` +
+					'This will replace ALL current project data (chapters, scenes, bible entries, arcs, events) ' +
+					'with the data from this snapshot.\n\n' +
+					'An automatic backup will be created before restoring.'
+			)
+		) {
+			return;
+		}
+
+		isRestoring = true;
+		try {
+			await snapshotApi.restore(snapshot.id);
+			// Reload all project data
+			await appState.loadManuscript();
+			await appState.loadBible();
+			await appState.loadStats();
+			// Reload snapshots list (will include the auto-backup)
+			await loadSnapshots();
+			selectedSnapshot = null;
+			showSuccess('Snapshot restored successfully');
+			close();
+		} catch (e) {
+			console.error('Failed to restore snapshot:', e);
+			showError('Failed to restore snapshot');
+		}
+		isRestoring = false;
 	}
 </script>
 
@@ -260,9 +313,21 @@
 						{/if}
 
 						<div class="detail-actions">
-							<Button variant="primary" disabled>
+							<Button
+								variant="primary"
+								onclick={() => selectedSnapshot && restoreSnapshot(selectedSnapshot)}
+								disabled={isRestoring}
+							>
 								<Icon name="refresh" size={16} />
-								Restore Full Project
+								{isRestoring ? 'Restoring...' : 'Restore Full Project'}
+							</Button>
+							<Button
+								variant="danger"
+								onclick={() => selectedSnapshot && deleteSnapshot(selectedSnapshot)}
+								disabled={isRestoring}
+							>
+								<Icon name="trash" size={16} />
+								Delete Snapshot
 							</Button>
 						</div>
 					</div>
@@ -510,5 +575,7 @@
 
 	.detail-actions {
 		margin-top: var(--spacing-lg);
+		display: flex;
+		gap: var(--spacing-sm);
 	}
 </style>
