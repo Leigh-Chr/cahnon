@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores';
 	import { statusColors } from '$lib/utils';
+	import { EmptyState } from './ui';
 
 	let statusData = $derived(appState.wordCounts?.by_status || []);
 	let total = $derived(
@@ -78,9 +79,7 @@
 	<h4>Scenes by Status</h4>
 
 	{#if segments.length === 0}
-		<div class="empty-state">
-			<p>No scenes yet</p>
-		</div>
+		<EmptyState title="No scenes yet" />
 	{:else}
 		<div class="chart-container">
 			<svg viewBox="0 0 100 100" class="pie-chart">
@@ -142,12 +141,6 @@
 		font-weight: 600;
 		color: var(--color-text-secondary);
 		margin-bottom: var(--spacing-md);
-	}
-
-	.empty-state {
-		text-align: center;
-		padding: var(--spacing-lg);
-		color: var(--color-text-muted);
 	}
 
 	.chart-container {

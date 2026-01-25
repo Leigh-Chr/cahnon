@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { snapshotApi, type Snapshot } from '$lib/api';
 	import { showSuccess, showError } from '$lib/toast';
+	import { Icon, Button, EmptyState, LoadingState, FormGroup, FormActions } from './ui';
 
 	// Type for parsed snapshot data
 	interface SnapshotData {
@@ -155,33 +156,13 @@
 			<div class="panel-header">
 				<h2 id="snapshots-title">Snapshots</h2>
 				<div class="header-actions">
-					<button class="create-btn" onclick={() => (showCreateForm = true)}>
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<line x1="12" y1="5" x2="12" y2="19" />
-							<line x1="5" y1="12" x2="19" y2="12" />
-						</svg>
+					<Button variant="primary" onclick={() => (showCreateForm = true)}>
+						<Icon name="plus" size={16} />
 						New Snapshot
-					</button>
-					<button class="close-btn" onclick={close} aria-label="Close">
-						<svg
-							width="20"
-							height="20"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<line x1="18" y1="6" x2="6" y2="18" />
-							<line x1="6" y1="6" x2="18" y2="18" />
-						</svg>
-					</button>
+					</Button>
+					<Button variant="icon" onclick={close} title="Close">
+						<Icon name="close" size={20} />
+					</Button>
 				</div>
 			</div>
 
@@ -189,60 +170,48 @@
 				{#if showCreateForm}
 					<div class="create-form">
 						<h3>Create Snapshot</h3>
-						<div class="form-group">
-							<label for="snapshot-name">Name</label>
+						<FormGroup label="Name" id="snapshot-name">
 							<input
 								id="snapshot-name"
 								type="text"
 								bind:value={newName}
 								placeholder="e.g., Before major revision..."
 							/>
-						</div>
-						<div class="form-group">
-							<label for="snapshot-description">Description (optional)</label>
+						</FormGroup>
+						<FormGroup label="Description (optional)" id="snapshot-description">
 							<textarea
 								id="snapshot-description"
 								bind:value={newDescription}
 								placeholder="Describe what this snapshot captures..."
 								rows="2"
 							></textarea>
-						</div>
-						<div class="form-group">
-							<label for="snapshot-type">Type</label>
+						</FormGroup>
+						<FormGroup label="Type" id="snapshot-type">
 							<select id="snapshot-type" bind:value={newType}>
 								{#each snapshotTypes as type (type.value)}
 									<option value={type.value}>{type.label}</option>
 								{/each}
 							</select>
-						</div>
-						<div class="form-actions">
-							<button class="cancel-btn" onclick={resetCreateForm}>Cancel</button>
-							<button
-								class="save-btn"
+						</FormGroup>
+						<FormActions>
+							<Button variant="ghost" onclick={resetCreateForm}>Cancel</Button>
+							<Button
+								variant="primary"
 								onclick={createSnapshot}
 								disabled={!newName.trim() || isCreating}
 							>
 								{isCreating ? 'Creating...' : 'Create Snapshot'}
-							</button>
-						</div>
+							</Button>
+						</FormActions>
 					</div>
 				{/if}
 
 				{#if selectedSnapshot}
 					<div class="snapshot-detail">
-						<button class="back-btn" onclick={() => (selectedSnapshot = null)}>
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<polyline points="15 18 9 12 15 6" />
-							</svg>
+						<Button variant="ghost" onclick={() => (selectedSnapshot = null)}>
+							<Icon name="chevron-left" size={16} />
 							Back to list
-						</button>
+						</Button>
 
 						<div class="detail-header">
 							<h3>{selectedSnapshot.name}</h3>
@@ -291,59 +260,28 @@
 						{/if}
 
 						<div class="detail-actions">
-							<button class="restore-btn" disabled>
-								<svg
-									width="16"
-									height="16"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<polyline points="1 4 1 10 7 10" />
-									<path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-								</svg>
+							<Button variant="primary" disabled>
+								<Icon name="refresh" size={16} />
 								Restore Full Project
-							</button>
+							</Button>
 						</div>
 					</div>
 				{:else if isLoading}
-					<div class="loading">Loading snapshots...</div>
+					<LoadingState message="Loading snapshots..." />
 				{:else if snapshots.length === 0 && !showCreateForm}
-					<div class="empty-state">
-						<svg
-							width="48"
-							height="48"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.5"
-						>
-							<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-							<circle cx="8.5" cy="8.5" r="1.5" />
-							<polyline points="21 15 16 10 5 21" />
-						</svg>
-						<h3>No snapshots yet</h3>
-						<p>Create snapshots to save your project state at important milestones.</p>
-						<button class="primary-btn" onclick={() => (showCreateForm = true)}
-							>Create First Snapshot</button
-						>
-					</div>
+					<EmptyState
+						icon="image"
+						title="No snapshots yet"
+						description="Create snapshots to save your project state at important milestones."
+						actionLabel="Create First Snapshot"
+						onaction={() => (showCreateForm = true)}
+					/>
 				{:else if !showCreateForm}
 					<div class="snapshots-list">
 						{#each snapshots as snapshot (snapshot.id)}
 							<button class="snapshot-item" onclick={() => viewSnapshot(snapshot)}>
 								<div class="snapshot-icon">
-									<svg
-										width="20"
-										height="20"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-									>
-										<path d={getTypeIcon(snapshot.snapshot_type)} />
-									</svg>
+									<Icon name="file" size={20} />
 								</div>
 								<div class="snapshot-info">
 									<div class="snapshot-name">{snapshot.name}</div>
@@ -356,16 +294,7 @@
 									{/if}
 								</div>
 								<div class="snapshot-arrow">
-									<svg
-										width="16"
-										height="16"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-									>
-										<polyline points="9 18 15 12 9 6" />
-									</svg>
+									<Icon name="chevron-right" size={16} />
 								</div>
 							</button>
 						{/each}
@@ -418,68 +347,10 @@
 		gap: var(--spacing-sm);
 	}
 
-	.create-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-xs) var(--spacing-md);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-md);
-		font-size: var(--font-size-sm);
-		font-weight: 500;
-	}
-
-	.create-btn:hover {
-		background-color: var(--color-accent-hover);
-	}
-
-	.close-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.close-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
 	.panel-content {
 		flex: 1;
 		overflow-y: auto;
 		padding: var(--spacing-lg);
-	}
-
-	.loading,
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		text-align: center;
-		color: var(--color-text-muted);
-	}
-
-	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: var(--spacing-md);
-	}
-
-	.empty-state h3 {
-		font-size: var(--font-size-lg);
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-sm);
-	}
-
-	.primary-btn {
-		margin-top: var(--spacing-lg);
-		padding: var(--spacing-sm) var(--spacing-lg);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-md);
-		font-weight: 500;
 	}
 
 	.create-form {
@@ -494,64 +365,6 @@
 		font-size: var(--font-size-base);
 		font-weight: 600;
 		margin-bottom: var(--spacing-md);
-	}
-
-	.form-group {
-		margin-bottom: var(--spacing-md);
-	}
-
-	.form-group label {
-		display: block;
-		font-size: var(--font-size-sm);
-		font-weight: 500;
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-xs);
-	}
-
-	.form-group input,
-	.form-group textarea,
-	.form-group select {
-		width: 100%;
-		padding: var(--spacing-sm);
-		background-color: var(--color-bg-primary);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-primary);
-	}
-
-	.form-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: var(--spacing-sm);
-		margin-top: var(--spacing-md);
-	}
-
-	.cancel-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		color: var(--color-text-secondary);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.cancel-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.save-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-sm);
-		font-weight: 500;
-	}
-
-	.save-btn:hover:not(:disabled) {
-		background-color: var(--color-accent-hover);
-	}
-
-	.save-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 
 	.snapshots-list {
@@ -628,22 +441,6 @@
 		gap: var(--spacing-md);
 	}
 
-	.back-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		color: var(--color-text-secondary);
-		font-size: var(--font-size-sm);
-		border-radius: var(--border-radius-sm);
-		align-self: flex-start;
-	}
-
-	.back-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
 	.detail-header {
 		display: flex;
 		align-items: center;
@@ -713,25 +510,5 @@
 
 	.detail-actions {
 		margin-top: var(--spacing-lg);
-	}
-
-	.restore-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-sm) var(--spacing-lg);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-md);
-		font-weight: 500;
-	}
-
-	.restore-btn:hover:not(:disabled) {
-		background-color: var(--color-accent-hover);
-	}
-
-	.restore-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 </style>

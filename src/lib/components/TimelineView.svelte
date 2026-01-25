@@ -21,6 +21,7 @@
 	} from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { countWords, formatWordCount } from '$lib/utils';
+	import { Icon, Button, EmptyState, LoadingState } from './ui';
 
 	let timelineScenes = $state<Scene[]>([]);
 	let _events = $state<TimelineEvent[]>([]);
@@ -113,34 +114,21 @@
 	<div class="timeline-header">
 		<h2>Timeline</h2>
 		<div class="header-actions">
-			<button
-				class="conflict-btn"
-				class:has-conflicts={conflicts.length > 0}
+			<Button
+				variant="secondary"
+				class={conflicts.length > 0 ? 'has-conflicts' : ''}
 				onclick={checkConflicts}
 				disabled={isCheckingConflicts}
 			>
 				{#if isCheckingConflicts}
 					Checking...
 				{:else if conflicts.length > 0}
-					<svg
-						width="16"
-						height="16"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<path
-							d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-						/>
-						<line x1="12" y1="9" x2="12" y2="13" />
-						<line x1="12" y1="17" x2="12.01" y2="17" />
-					</svg>
+					<Icon name="alert" size={16} />
 					{conflicts.length} Conflict{conflicts.length !== 1 ? 's' : ''}
 				{:else}
 					Check Conflicts
 				{/if}
-			</button>
+			</Button>
 			<div class="view-toggle">
 				<button
 					class:active={viewMode === 'chronological'}
@@ -159,19 +147,9 @@
 		<div class="conflicts-panel">
 			<div class="conflicts-header">
 				<h3>Timeline Conflicts</h3>
-				<button class="close-btn" onclick={() => (showConflicts = false)} aria-label="Close">
-					<svg
-						width="16"
-						height="16"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
+				<Button variant="icon" onclick={() => (showConflicts = false)} title="Close">
+					<Icon name="close" size={16} />
+				</Button>
 			</div>
 			<div class="conflicts-list">
 				{#each conflicts as conflict, index (index)}
@@ -208,24 +186,15 @@
 	{/if}
 
 	{#if isLoading}
-		<div class="loading">Loading timeline...</div>
+		<LoadingState message="Loading timeline..." />
 	{:else if scenesWithTime.length === 0}
-		<div class="empty-state">
-			<svg
-				width="48"
-				height="48"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.5"
-			>
-				<circle cx="12" cy="12" r="10" />
-				<polyline points="12 6 12 12 16 14" />
-			</svg>
-			<h3>No scenes on timeline</h3>
-			<p>Add time information to your scenes to see them here.</p>
+		<EmptyState
+			icon="clock"
+			title="No scenes on timeline"
+			description="Add time information to your scenes to see them here."
+		>
 			<p class="hint">Set the time_point or time_start field in the scene editor.</p>
-		</div>
+		</EmptyState>
 	{:else}
 		<div class="timeline-content">
 			{#if viewMode === 'chronological'}
@@ -336,30 +305,7 @@
 		color: var(--color-text-primary);
 	}
 
-	.loading,
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		flex: 1;
-		text-align: center;
-		color: var(--color-text-muted);
-		padding: var(--spacing-xl);
-	}
-
-	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: var(--spacing-md);
-	}
-
-	.empty-state h3 {
-		font-size: var(--font-size-lg);
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-sm);
-	}
-
-	.empty-state .hint {
+	.hint {
 		font-size: var(--font-size-sm);
 		margin-top: var(--spacing-md);
 		color: var(--color-text-muted);
@@ -527,28 +473,7 @@
 		align-items: center;
 	}
 
-	.conflict-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-xs) var(--spacing-md);
-		background-color: var(--color-bg-secondary);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-md);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-	}
-
-	.conflict-btn:hover:not(:disabled) {
-		background-color: var(--color-bg-hover);
-	}
-
-	.conflict-btn:disabled {
-		opacity: 0.6;
-		cursor: wait;
-	}
-
-	.conflict-btn.has-conflicts {
+	.header-actions :global(.has-conflicts) {
 		background-color: var(--color-bg-tertiary);
 		border-color: var(--color-text-muted);
 		color: var(--color-text-primary);
@@ -576,16 +501,6 @@
 		font-size: var(--font-size-sm);
 		font-weight: 600;
 		color: var(--color-text-primary);
-	}
-
-	.close-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.close-btn:hover {
-		background-color: var(--color-bg-hover);
 	}
 
 	.conflicts-list {

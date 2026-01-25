@@ -1,15 +1,22 @@
 <script lang="ts">
+	/**
+	 * TrashView Component
+	 *
+	 * Displays deleted scenes and chapters with restore functionality.
+	 * Supports tabbed view between scenes and chapters.
+	 */
+
 	import { onMount } from 'svelte';
 	import { trashApi, type Scene, type Chapter } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showSuccess, showError } from '$lib/toast';
+	import { Icon, Button, EmptyState, LoadingState } from './ui';
 
 	let deletedScenes = $state<Scene[]>([]);
 	let deletedChapters = $state<Chapter[]>([]);
 	let isLoading = $state(true);
 	let activeTab = $state<'scenes' | 'chapters'>('scenes');
 
-	// Use onMount for one-time initialization
 	onMount(() => {
 		loadTrash();
 	});
@@ -75,42 +82,20 @@
 	</div>
 
 	{#if isLoading}
-		<div class="loading">Loading trash...</div>
+		<LoadingState message="Loading trash..." />
 	{:else if activeTab === 'scenes'}
 		{#if deletedScenes.length === 0}
-			<div class="empty-state">
-				<svg
-					width="48"
-					height="48"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-				>
-					<polyline points="3 6 5 6 21 6" />
-					<path
-						d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-					/>
-				</svg>
-				<h3>Trash is empty</h3>
-				<p>Deleted scenes will appear here.</p>
-			</div>
+			<EmptyState
+				icon="trash"
+				title="Trash is empty"
+				description="Deleted scenes will appear here."
+			/>
 		{:else}
 			<div class="trash-list">
 				{#each deletedScenes as scene (scene.id)}
 					<div class="trash-item">
 						<div class="item-icon">
-							<svg
-								width="20"
-								height="20"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-								<polyline points="14 2 14 8 20 8" />
-							</svg>
+							<Icon name="file" size={20} />
 						</div>
 						<div class="item-info">
 							<h4>{scene.title}</h4>
@@ -122,56 +107,26 @@
 								<p class="item-summary">{scene.summary}</p>
 							{/if}
 						</div>
-						<button class="restore-btn" onclick={() => restoreScene(scene)}>
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<polyline points="1 4 1 10 7 10" />
-								<path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-							</svg>
+						<Button variant="secondary" onclick={() => restoreScene(scene)}>
+							<Icon name="restore" size={16} />
 							Restore
-						</button>
+						</Button>
 					</div>
 				{/each}
 			</div>
 		{/if}
 	{:else if deletedChapters.length === 0}
-		<div class="empty-state">
-			<svg
-				width="48"
-				height="48"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.5"
-			>
-				<polyline points="3 6 5 6 21 6" />
-				<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-			</svg>
-			<h3>No deleted chapters</h3>
-			<p>Deleted chapters will appear here.</p>
-		</div>
+		<EmptyState
+			icon="trash"
+			title="No deleted chapters"
+			description="Deleted chapters will appear here."
+		/>
 	{:else}
 		<div class="trash-list">
 			{#each deletedChapters as chapter (chapter.id)}
 				<div class="trash-item">
 					<div class="item-icon">
-						<svg
-							width="20"
-							height="20"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-							<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-						</svg>
+						<Icon name="book" size={20} />
 					</div>
 					<div class="item-info">
 						<h4>{chapter.title}</h4>
@@ -182,20 +137,10 @@
 							<p class="item-summary">{chapter.summary}</p>
 						{/if}
 					</div>
-					<button class="restore-btn" onclick={() => restoreChapter(chapter)}>
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<polyline points="1 4 1 10 7 10" />
-							<path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-						</svg>
+					<Button variant="secondary" onclick={() => restoreChapter(chapter)}>
+						<Icon name="restore" size={16} />
 						Restore
-					</button>
+					</Button>
 				</div>
 			{/each}
 		</div>
@@ -242,29 +187,6 @@
 	.tab-toggle button.active {
 		background-color: var(--color-bg-primary);
 		color: var(--color-text-primary);
-	}
-
-	.loading,
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		flex: 1;
-		text-align: center;
-		color: var(--color-text-muted);
-		padding: var(--spacing-xl);
-	}
-
-	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: var(--spacing-md);
-	}
-
-	.empty-state h3 {
-		font-size: var(--font-size-lg);
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-sm);
 	}
 
 	.trash-list {
@@ -316,23 +238,5 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-
-	.restore-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-xs) var(--spacing-md);
-		color: var(--color-accent);
-		border: 1px solid var(--color-accent);
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-sm);
-		font-weight: 500;
-		flex-shrink: 0;
-	}
-
-	.restore-btn:hover {
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
 	}
 </style>

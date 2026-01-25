@@ -14,6 +14,7 @@
 	import { appState } from '$lib/stores';
 	import { relationshipApi, type BibleEntry, type BibleRelationshipWithEntry } from '$lib/api';
 	import { bibleEntryTypes, bibleStatuses } from '$lib/utils';
+	import { Icon, Button, FormGroup, FormActions } from './ui';
 
 	let isCreating = $state(false);
 	let newEntryType = $state('character');
@@ -212,24 +213,9 @@
 	<div class="bible-sidebar">
 		<div class="sidebar-header">
 			<h2>Bible</h2>
-			<button
-				class="add-btn"
-				onclick={() => (isCreating = true)}
-				title="Add new entry"
-				aria-label="Add new entry"
-			>
-				<svg
-					width="16"
-					height="16"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<line x1="12" y1="5" x2="12" y2="19" />
-					<line x1="5" y1="12" x2="19" y2="12" />
-				</svg>
-			</button>
+			<Button variant="icon" onclick={() => (isCreating = true)} title="Add new entry">
+				<Icon name="plus" size={16} />
+			</Button>
 		</div>
 
 		<div class="filter-tabs">
@@ -265,10 +251,10 @@
 					bind:value={newEntryName}
 					onkeydown={(e) => e.key === 'Enter' && createEntry()}
 				/>
-				<div class="form-actions">
-					<button class="btn-cancel" onclick={() => (isCreating = false)}>Cancel</button>
-					<button class="btn-create" onclick={createEntry}>Create</button>
-				</div>
+				<FormActions>
+					<Button variant="ghost" onclick={() => (isCreating = false)}>Cancel</Button>
+					<Button variant="primary" onclick={createEntry}>Create</Button>
+				</FormActions>
 			</div>
 		{/if}
 
@@ -315,27 +301,14 @@
 							<option value={status.value}>{status.label}</option>
 						{/each}
 					</select>
-					<button class="delete-btn" onclick={deleteEntry} title="Delete entry">
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<polyline points="3 6 5 6 21 6" />
-							<path
-								d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-							/>
-						</svg>
-					</button>
+					<Button variant="icon" class="danger" onclick={deleteEntry} title="Delete entry">
+						<Icon name="delete" size={16} />
+					</Button>
 				</div>
 			</div>
 
 			<div class="entry-fields">
-				<div class="field">
-					<label for="entry-aliases">Aliases</label>
+				<FormGroup label="Aliases" id="entry-aliases">
 					<input
 						id="entry-aliases"
 						type="text"
@@ -343,10 +316,9 @@
 						value={selectedEntry.aliases || ''}
 						onblur={(e) => updateEntry('aliases', e.currentTarget.value)}
 					/>
-				</div>
+				</FormGroup>
 
-				<div class="field">
-					<label for="entry-short-desc">Short Description</label>
+				<FormGroup label="Short Description" id="entry-short-desc">
 					<input
 						id="entry-short-desc"
 						type="text"
@@ -354,10 +326,9 @@
 						value={selectedEntry.short_description || ''}
 						onblur={(e) => updateEntry('short_description', e.currentTarget.value)}
 					/>
-				</div>
+				</FormGroup>
 
-				<div class="field">
-					<label for="entry-full-desc">Full Description</label>
+				<FormGroup label="Full Description" id="entry-full-desc">
 					<textarea
 						id="entry-full-desc"
 						rows="6"
@@ -365,10 +336,9 @@
 						value={selectedEntry.full_description || ''}
 						onblur={(e) => updateEntry('full_description', e.currentTarget.value)}
 					></textarea>
-				</div>
+				</FormGroup>
 
-				<div class="field">
-					<label for="entry-tags">Tags</label>
+				<FormGroup label="Tags" id="entry-tags">
 					<input
 						id="entry-tags"
 						type="text"
@@ -376,10 +346,9 @@
 						value={selectedEntry.tags || ''}
 						onblur={(e) => updateEntry('tags', e.currentTarget.value)}
 					/>
-				</div>
+				</FormGroup>
 
-				<div class="field">
-					<label for="entry-notes">Notes</label>
+				<FormGroup label="Notes" id="entry-notes">
 					<textarea
 						id="entry-notes"
 						rows="4"
@@ -387,25 +356,15 @@
 						value={selectedEntry.notes || ''}
 						onblur={(e) => updateEntry('notes', e.currentTarget.value)}
 					></textarea>
-				</div>
+				</FormGroup>
 
 				<div class="relationships-section">
 					<div class="section-header">
 						<h4>Relationships</h4>
-						<button class="add-relationship-btn" onclick={() => (showRelationshipForm = true)}>
-							<svg
-								width="14"
-								height="14"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<line x1="12" y1="5" x2="12" y2="19" />
-								<line x1="5" y1="12" x2="19" y2="12" />
-							</svg>
+						<Button variant="secondary" size="sm" onclick={() => (showRelationshipForm = true)}>
+							<Icon name="plus" size={14} />
 							Add
-						</button>
+						</Button>
 					</div>
 
 					{#if showRelationshipForm}
@@ -422,16 +381,16 @@
 									<option value={entry.id}>{typeInfo.icon} {entry.name}</option>
 								{/each}
 							</select>
-							<div class="form-actions">
-								<button class="btn-cancel" onclick={() => (showRelationshipForm = false)}
-									>Cancel</button
+							<FormActions>
+								<Button variant="ghost" onclick={() => (showRelationshipForm = false)}
+									>Cancel</Button
 								>
-								<button
-									class="btn-create"
+								<Button
+									variant="primary"
 									onclick={createRelationship}
-									disabled={!newRelationshipTarget}>Add</button
+									disabled={!newRelationshipTarget}>Add</Button
 								>
-							</div>
+							</FormActions>
 						</div>
 					{/if}
 
@@ -448,23 +407,14 @@
 									>
 										{rel.related_entry_name}
 									</button>
-									<button
-										class="delete-relationship-btn"
+									<Button
+										variant="icon"
+										size="sm"
 										onclick={() => deleteRelationship(rel.id)}
 										title="Remove relationship"
 									>
-										<svg
-											width="12"
-											height="12"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<line x1="18" y1="6" x2="6" y2="18" />
-											<line x1="6" y1="6" x2="18" y2="18" />
-										</svg>
-									</button>
+										<Icon name="close" size={12} />
+									</Button>
 								</div>
 							{/each}
 						</div>
@@ -481,23 +431,14 @@
 					{#if selectedEntry.image_path}
 						<div class="image-preview">
 							<img src={selectedEntry.image_path} alt={selectedEntry.name} />
-							<button
-								class="remove-image-btn"
+							<Button
+								variant="icon"
+								size="sm"
 								onclick={() => updateEntry('image_path', '')}
 								title="Remove image"
 							>
-								<svg
-									width="14"
-									height="14"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<line x1="18" y1="6" x2="6" y2="18" />
-									<line x1="6" y1="6" x2="18" y2="18" />
-								</svg>
-							</button>
+								<Icon name="close" size={14} />
+							</Button>
 						</div>
 					{:else}
 						<div class="image-upload">
@@ -514,20 +455,10 @@
 				<div class="custom-fields-section">
 					<div class="section-header">
 						<h4>Custom Fields</h4>
-						<button class="add-field-btn" onclick={addCustomField}>
-							<svg
-								width="14"
-								height="14"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<line x1="12" y1="5" x2="12" y2="19" />
-								<line x1="5" y1="12" x2="19" y2="12" />
-							</svg>
+						<Button variant="secondary" size="sm" onclick={addCustomField}>
+							<Icon name="plus" size={14} />
 							Add
-						</button>
+						</Button>
 					</div>
 					{#if customFields.length > 0}
 						<div class="custom-fields-list">
@@ -547,23 +478,14 @@
 										value={field.value}
 										onblur={(e) => updateCustomFieldValue(index, e.currentTarget.value)}
 									/>
-									<button
-										class="remove-field-btn"
+									<Button
+										variant="icon"
+										size="sm"
 										onclick={() => removeCustomField(index)}
 										title="Remove field"
 									>
-										<svg
-											width="14"
-											height="14"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<line x1="18" y1="6" x2="6" y2="18" />
-											<line x1="6" y1="6" x2="18" y2="18" />
-										</svg>
-									</button>
+										<Icon name="close" size={14} />
+									</Button>
 								</div>
 							{/each}
 						</div>
@@ -574,18 +496,7 @@
 			</div>
 		{:else}
 			<div class="no-selection">
-				<svg
-					width="48"
-					height="48"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-				>
-					<circle cx="12" cy="12" r="10" />
-					<line x1="12" y1="16" x2="12" y2="12" />
-					<line x1="12" y1="8" x2="12.01" y2="8" />
-				</svg>
+				<Icon name="info" size={48} strokeWidth={1.5} />
 				<h3>No entry selected</h3>
 				<p>Select an entry from the list or create a new one.</p>
 			</div>
@@ -618,22 +529,6 @@
 	.sidebar-header h2 {
 		font-size: var(--font-size-md);
 		font-weight: 600;
-	}
-
-	.add-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 28px;
-		height: 28px;
-		border-radius: var(--border-radius-sm);
-		color: var(--color-text-muted);
-		transition: all var(--transition-fast);
-	}
-
-	.add-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
 	}
 
 	.filter-tabs {
@@ -675,37 +570,6 @@
 		width: 100%;
 		font-size: var(--font-size-sm);
 		padding: var(--spacing-sm);
-	}
-
-	.form-actions {
-		display: flex;
-		gap: var(--spacing-sm);
-		justify-content: flex-end;
-	}
-
-	.btn-cancel,
-	.btn-create {
-		padding: var(--spacing-xs) var(--spacing-md);
-		font-size: var(--font-size-sm);
-		border-radius: var(--border-radius-sm);
-		transition: all var(--transition-fast);
-	}
-
-	.btn-cancel {
-		color: var(--color-text-muted);
-	}
-
-	.btn-cancel:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.btn-create {
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-	}
-
-	.btn-create:hover {
-		background-color: var(--color-accent-hover);
 	}
 
 	.entries-list {
@@ -806,20 +670,9 @@
 		padding: var(--spacing-xs) var(--spacing-sm);
 	}
 
-	.delete-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		border-radius: var(--border-radius-sm);
-		color: var(--color-text-muted);
-		transition: all var(--transition-fast);
-	}
-
-	.delete-btn:hover {
-		background-color: var(--color-error);
-		color: var(--text-on-accent);
+	/* Danger variant for icon buttons */
+	.entry-actions :global(.btn-icon.danger:hover) {
+		color: var(--color-error);
 	}
 
 	.entry-fields {
@@ -828,29 +681,6 @@
 		flex-direction: column;
 		gap: var(--spacing-lg);
 		max-width: 700px;
-	}
-
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: var(--spacing-xs);
-	}
-
-	.field label {
-		font-size: var(--font-size-sm);
-		font-weight: 500;
-		color: var(--color-text-secondary);
-	}
-
-	.field input,
-	.field textarea {
-		font-size: var(--font-size-md);
-		padding: var(--spacing-sm) var(--spacing-md);
-	}
-
-	.field textarea {
-		resize: vertical;
-		line-height: var(--line-height-normal);
 	}
 
 	.no-selection {
@@ -864,7 +694,7 @@
 		padding: var(--spacing-xl);
 	}
 
-	.no-selection svg {
+	.no-selection :global(.icon) {
 		margin-bottom: var(--spacing-md);
 		opacity: 0.5;
 	}
@@ -893,21 +723,6 @@
 		font-size: var(--font-size-sm);
 		font-weight: 600;
 		color: var(--color-text-secondary);
-	}
-
-	.add-relationship-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-xs);
-		color: var(--color-accent);
-		border: 1px solid var(--color-accent);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.add-relationship-btn:hover {
-		background-color: var(--color-accent-light);
 	}
 
 	.relationship-form {
@@ -958,17 +773,6 @@
 		text-decoration: underline;
 	}
 
-	.delete-relationship-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.delete-relationship-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-error);
-	}
-
 	.no-relationships {
 		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
@@ -993,20 +797,16 @@
 		object-fit: contain;
 	}
 
-	.remove-image-btn {
+	.image-preview :global(.btn) {
 		position: absolute;
 		top: var(--spacing-xs);
 		right: var(--spacing-xs);
-		padding: var(--spacing-xs);
 		background-color: var(--color-bg-primary);
-		border-radius: var(--border-radius-sm);
-		color: var(--color-text-muted);
 		opacity: 0.8;
 	}
 
-	.remove-image-btn:hover {
+	.image-preview :global(.btn:hover) {
 		opacity: 1;
-		color: var(--color-error);
 	}
 
 	.image-upload input {
@@ -1024,21 +824,6 @@
 		padding: var(--spacing-md);
 		background-color: var(--color-bg-secondary);
 		border-radius: var(--border-radius-md);
-	}
-
-	.add-field-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
-		border-radius: var(--border-radius-sm);
-		background-color: var(--color-bg-primary);
-	}
-
-	.add-field-btn:hover {
-		background-color: var(--color-bg-hover);
 	}
 
 	.custom-fields-list {
@@ -1074,17 +859,6 @@
 		background-color: var(--color-bg-primary);
 		font-size: var(--font-size-sm);
 		color: var(--color-text-primary);
-	}
-
-	.remove-field-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.remove-field-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-error);
 	}
 
 	.no-custom-fields {

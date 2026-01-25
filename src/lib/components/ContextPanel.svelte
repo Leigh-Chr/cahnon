@@ -30,6 +30,7 @@
 	import RevisionChecklist from './RevisionChecklist.svelte';
 	import { sceneApi } from '$lib/api';
 	import { showError } from '$lib/toast';
+	import { Icon, Button } from './ui';
 
 	interface Props {
 		onSelectAnnotation?: ((annotation: Annotation) => void) | null;
@@ -204,8 +205,9 @@
 						<span class="progress-text">
 							{countWords(selectedScene.text)} / {selectedScene.word_target}
 						</span>
-						<button
-							class="edit-target-btn"
+						<Button
+							variant="icon"
+							size="sm"
 							onclick={() => {
 								const newTarget = prompt(
 									'Set word target for this scene:',
@@ -220,18 +222,8 @@
 							}}
 							title="Edit word target"
 						>
-							<svg
-								width="12"
-								height="12"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-							</svg>
-						</button>
+							<Icon name="edit" size={12} />
+						</Button>
 					</div>
 				{:else}
 					<button
@@ -261,9 +253,17 @@
 		<section class="panel-section">
 			<div class="section-header">
 				<h3>Characters & Locations</h3>
-				<button class="add-btn" onclick={() => (isAddingAssociation = !isAddingAssociation)}>
-					{isAddingAssociation ? '×' : '+'}
-				</button>
+				<Button
+					variant="icon"
+					size="sm"
+					onclick={() => (isAddingAssociation = !isAddingAssociation)}
+				>
+					{#if isAddingAssociation}
+						<Icon name="close" size={16} />
+					{:else}
+						<Icon name="plus" size={16} />
+					{/if}
+				</Button>
 			</div>
 
 			{#if isAddingAssociation}
@@ -391,19 +391,9 @@
 			<div class="section-header">
 				<h3>Notes</h3>
 				{#if !isEditingNotes}
-					<button class="edit-btn" onclick={startEditingNotes} title="Edit notes">
-						<svg
-							width="14"
-							height="14"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-						</svg>
-					</button>
+					<Button variant="icon" size="sm" onclick={startEditingNotes} title="Edit notes">
+						<Icon name="edit" size={14} />
+					</Button>
 				{/if}
 			</div>
 			<div class="notes-content">
@@ -415,8 +405,8 @@
 						class="edit-textarea"
 					></textarea>
 					<div class="edit-actions">
-						<button class="cancel-btn" onclick={cancelEditingNotes}>Cancel</button>
-						<button class="save-btn" onclick={saveNotes}>Save</button>
+						<Button variant="ghost" size="sm" onclick={cancelEditingNotes}>Cancel</Button>
+						<Button variant="primary" size="sm" onclick={saveNotes}>Save</Button>
 					</div>
 				{:else if selectedScene.notes}
 					<p>{selectedScene.notes}</p>
@@ -435,19 +425,9 @@
 			<div class="section-header">
 				<h3>TODOs</h3>
 				{#if !isEditingTodos}
-					<button class="edit-btn" onclick={startEditingTodos} title="Edit TODOs">
-						<svg
-							width="14"
-							height="14"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-						</svg>
-					</button>
+					<Button variant="icon" size="sm" onclick={startEditingTodos} title="Edit TODOs">
+						<Icon name="edit" size={14} />
+					</Button>
 				{/if}
 			</div>
 			<div class="todos-content">
@@ -459,8 +439,8 @@
 						class="edit-textarea"
 					></textarea>
 					<div class="edit-actions">
-						<button class="cancel-btn" onclick={cancelEditingTodos}>Cancel</button>
-						<button class="save-btn" onclick={saveTodos}>Save</button>
+						<Button variant="ghost" size="sm" onclick={cancelEditingTodos}>Cancel</Button>
+						<Button variant="primary" size="sm" onclick={saveTodos}>Save</Button>
 					</div>
 				{:else if selectedScene.todos}
 					<ul class="todos-list">
@@ -552,23 +532,6 @@
 		margin-bottom: 0;
 	}
 
-	.add-btn {
-		width: 24px;
-		height: 24px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-lg);
-		color: var(--color-text-muted);
-		transition: all var(--transition-fast);
-	}
-
-	.add-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
 	.word-stats {
 		display: flex;
 		gap: var(--spacing-lg);
@@ -631,17 +594,12 @@
 		margin-bottom: 0;
 	}
 
-	.edit-target-btn {
-		padding: 2px;
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
+	.word-progress :global(.btn-icon) {
 		opacity: 0.5;
-		transition: all var(--transition-fast);
 	}
 
-	.edit-target-btn:hover {
+	.word-progress :global(.btn-icon:hover) {
 		opacity: 1;
-		background-color: var(--color-bg-hover);
 	}
 
 	.set-target-btn {
@@ -771,18 +729,6 @@
 		margin: 0;
 	}
 
-	.edit-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-		transition: all var(--transition-fast);
-	}
-
-	.edit-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
 	.edit-textarea {
 		width: 100%;
 		padding: var(--spacing-sm);
@@ -805,31 +751,6 @@
 		justify-content: flex-end;
 		gap: var(--spacing-sm);
 		margin-top: var(--spacing-sm);
-	}
-
-	.cancel-btn,
-	.save-btn {
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-sm);
-		border-radius: var(--border-radius-sm);
-		transition: all var(--transition-fast);
-	}
-
-	.cancel-btn {
-		color: var(--color-text-muted);
-	}
-
-	.cancel-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.save-btn {
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-	}
-
-	.save-btn:hover {
-		background-color: var(--color-accent-hover);
 	}
 
 	.add-link {

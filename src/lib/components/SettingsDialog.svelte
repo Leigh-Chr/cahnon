@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores';
 	import { projectApi } from '$lib/api';
+	import { Icon, Button } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -112,19 +113,9 @@
 		<div class="dialog-container">
 			<div class="dialog-header">
 				<h2>Settings</h2>
-				<button class="close-btn" onclick={handleClose} aria-label="Close">
-					<svg
-						width="20"
-						height="20"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
+				<Button variant="icon" onclick={handleClose} title="Close">
+					<Icon name="close" size={20} />
+				</Button>
 			</div>
 
 			<div class="dialog-content">
@@ -248,8 +239,8 @@
 			</div>
 
 			<div class="dialog-footer">
-				<button class="reset-btn" onclick={resetToDefaults}>Reset to Defaults</button>
-				<button class="done-btn" onclick={handleClose}>Done</button>
+				<Button variant="ghost" onclick={resetToDefaults}>Reset to Defaults</Button>
+				<Button variant="primary" onclick={handleClose}>Done</Button>
 			</div>
 		</div>
 	</div>
@@ -289,18 +280,6 @@
 	.dialog-header h2 {
 		font-size: var(--font-size-lg);
 		font-weight: 600;
-	}
-
-	.close-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-		transition: all var(--transition-fast);
-	}
-
-	.close-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
 	}
 
 	.dialog-content {
@@ -384,29 +363,5 @@
 		justify-content: space-between;
 		padding: var(--spacing-md) var(--spacing-lg);
 		border-top: 1px solid var(--color-border-light);
-	}
-
-	.reset-btn {
-		padding: var(--spacing-sm) var(--spacing-md);
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-muted);
-	}
-
-	.reset-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
-	.done-btn {
-		padding: var(--spacing-sm) var(--spacing-lg);
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-sm);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-	}
-
-	.done-btn:hover {
-		background-color: var(--color-accent-hover);
 	}
 </style>

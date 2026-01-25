@@ -3,6 +3,7 @@
 	import { importApi } from '$lib/api';
 	import { showSuccess, showError } from '$lib/toast';
 	import { importFromDocx } from '$lib/export';
+	import { Icon, Button } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -167,35 +168,15 @@
 		<div class="dialog-container">
 			<div class="dialog-header">
 				<h2>Import Content</h2>
-				<button class="close-btn" onclick={handleClose} aria-label="Close">
-					<svg
-						width="20"
-						height="20"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
+				<Button variant="icon" onclick={handleClose} title="Close">
+					<Icon name="close" size={20} />
+				</Button>
 			</div>
 
 			{#if result}
 				<div class="dialog-content">
 					<div class="success-message">
-						<svg
-							width="48"
-							height="48"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-							<polyline points="22 4 12 14.01 9 11.01" />
-						</svg>
+						<Icon name="check" size={48} />
 						<h3>Import Successful</h3>
 						<p>
 							{#if result.chapters > 0}
@@ -203,7 +184,7 @@
 							{/if}
 							{result.scenes} scene{result.scenes !== 1 ? 's' : ''}.
 						</p>
-						<button class="primary-btn" onclick={reset}>Import More</button>
+						<Button variant="primary" onclick={reset}>Import More</Button>
 					</div>
 				</div>
 			{:else}
@@ -284,18 +265,7 @@
 								accept={importMode === 'docx' ? '.docx' : '.md,.markdown,.txt,.docx'}
 								onchange={handleFileSelect}
 							/>
-							<svg
-								width="20"
-								height="20"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-								<polyline points="17 8 12 3 7 8" />
-								<line x1="12" y1="3" x2="12" y2="15" />
-							</svg>
+							<Icon name="upload" size={20} />
 							<span>Choose file</span>
 							<small>{importMode === 'docx' ? '.docx' : '.md, .markdown, .txt, .docx'}</small>
 						</label>
@@ -347,9 +317,9 @@
 				</div>
 
 				<div class="dialog-footer">
-					<button class="cancel-btn" onclick={handleClose}>Cancel</button>
-					<button
-						class="primary-btn"
+					<Button variant="ghost" onclick={handleClose}>Cancel</Button>
+					<Button
+						variant="primary"
 						onclick={handleImport}
 						disabled={isImporting || !content.trim()}
 					>
@@ -358,7 +328,7 @@
 						{:else}
 							Import
 						{/if}
-					</button>
+					</Button>
 				</div>
 			{/if}
 		</div>
@@ -399,18 +369,6 @@
 	.dialog-header h2 {
 		font-size: var(--font-size-lg);
 		font-weight: 600;
-	}
-
-	.close-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-		transition: all var(--transition-fast);
-	}
-
-	.close-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
 	}
 
 	.dialog-content {
@@ -542,7 +500,7 @@
 		text-align: center;
 	}
 
-	.success-message svg {
+	.success-message :global(.icon) {
 		color: var(--color-success);
 	}
 
@@ -561,33 +519,5 @@
 		gap: var(--spacing-sm);
 		padding: var(--spacing-md) var(--spacing-lg);
 		border-top: 1px solid var(--color-border-light);
-	}
-
-	.cancel-btn {
-		padding: var(--spacing-sm) var(--spacing-lg);
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-	}
-
-	.cancel-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.primary-btn {
-		padding: var(--spacing-sm) var(--spacing-lg);
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-sm);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-	}
-
-	.primary-btn:hover:not(:disabled) {
-		background-color: var(--color-accent-hover);
-	}
-
-	.primary-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 </style>

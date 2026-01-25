@@ -1,5 +1,13 @@
 <script lang="ts">
+	/**
+	 * AnnotationsPanel Component
+	 *
+	 * Side panel for managing scene annotations (comments, questions, TODOs, etc.).
+	 * Supports filtering by status and inline creation.
+	 */
+
 	import { annotationApi, type Annotation } from '$lib/api';
+	import { Icon, Button, FormActions } from './ui';
 
 	interface Props {
 		sceneId: string;
@@ -146,12 +154,17 @@
 					{/each}
 				</select>
 				<textarea bind:value={newContent} placeholder="Add your note..." rows="3"></textarea>
-				<div class="form-actions">
-					<button class="cancel-btn" onclick={resetNewForm}>Cancel</button>
-					<button class="save-btn" onclick={handleSubmitNew} disabled={!newContent.trim()}
-						>Add</button
+				<FormActions>
+					<Button variant="ghost" size="sm" onclick={resetNewForm}>Cancel</Button>
+					<Button
+						variant="primary"
+						size="sm"
+						onclick={handleSubmitNew}
+						disabled={!newContent.trim()}
 					>
-				</div>
+						Add
+					</Button>
+				</FormActions>
 			</div>
 		{/if}
 
@@ -186,26 +199,17 @@
 									<option value={status}>{status.replace('_', ' ')}</option>
 								{/each}
 							</select>
-							<button
-								class="delete-btn"
+							<Button
+								variant="icon"
+								size="sm"
 								onclick={(e) => {
 									e.stopPropagation();
 									deleteAnnotation(annotation.id);
 								}}
 								title="Delete"
 							>
-								<svg
-									width="12"
-									height="12"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<line x1="18" y1="6" x2="6" y2="18" />
-									<line x1="6" y1="6" x2="18" y2="18" />
-								</svg>
-							</button>
+								<Icon name="close" size={12} />
+							</Button>
 						</div>
 						<p class="annotation-content">{annotation.content}</p>
 					</div>
@@ -281,39 +285,6 @@
 		resize: none;
 	}
 
-	.form-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: var(--spacing-sm);
-	}
-
-	.cancel-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.cancel-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.save-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		font-size: var(--font-size-xs);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.save-btn:hover:not(:disabled) {
-		background-color: var(--color-accent-hover);
-	}
-
-	.save-btn:disabled {
-		opacity: 0.5;
-	}
-
 	.annotations-list {
 		flex: 1;
 		overflow-y: auto;
@@ -363,17 +334,6 @@
 		font-weight: 500;
 		text-transform: capitalize;
 		cursor: pointer;
-	}
-
-	.delete-btn {
-		padding: 2px;
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.delete-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-error);
 	}
 
 	.annotation-content {

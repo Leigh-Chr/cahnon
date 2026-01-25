@@ -15,6 +15,7 @@
 	import { chapterApi, sceneApi } from '$lib/api';
 	import { statusColors, countWords, formatWordCount } from '$lib/utils';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { Icon, Button } from './ui';
 
 	let expandedChapters = new SvelteSet<string>();
 
@@ -185,19 +186,9 @@
 <div class="outline">
 	<div class="outline-header">
 		<h2>Manuscript</h2>
-		<button class="add-btn" onclick={handleAddChapter} title="Add Chapter">
-			<svg
-				width="16"
-				height="16"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<line x1="12" y1="5" x2="12" y2="19" />
-				<line x1="5" y1="12" x2="19" y2="12" />
-			</svg>
-		</button>
+		<Button variant="icon" onclick={handleAddChapter} title="Add Chapter">
+			<Icon name="plus" size={16} />
+		</Button>
 	</div>
 
 	<div class="outline-tree">
@@ -232,17 +223,9 @@
 						}}
 						aria-label={isExpanded ? 'Collapse chapter' : 'Expand chapter'}
 					>
-						<svg
-							width="12"
-							height="12"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							class:expanded={isExpanded}
-						>
-							<polyline points="9 18 15 12 9 6" />
-						</svg>
+						<span class:expanded={isExpanded}>
+							<Icon name="chevron-right" size={12} />
+						</span>
 					</button>
 
 					<span
@@ -262,17 +245,7 @@
 						}}
 						title="Add Scene"
 					>
-						<svg
-							width="12"
-							height="12"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<line x1="12" y1="5" x2="12" y2="19" />
-							<line x1="5" y1="12" x2="19" y2="12" />
-						</svg>
+						<Icon name="plus" size={12} />
 					</button>
 				</div>
 
@@ -363,22 +336,6 @@
 		color: var(--color-text-muted);
 	}
 
-	.add-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 24px;
-		height: 24px;
-		border-radius: var(--border-radius-sm);
-		color: var(--color-text-muted);
-		transition: all var(--transition-fast);
-	}
-
-	.add-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
 	.outline-tree {
 		flex: 1;
 		overflow-y: auto;
@@ -420,11 +377,12 @@
 		color: var(--color-text-muted);
 	}
 
-	.expand-btn svg {
+	.expand-btn span {
+		display: flex;
 		transition: transform var(--transition-fast);
 	}
 
-	.expand-btn svg.expanded {
+	.expand-btn span.expanded {
 		transform: rotate(90deg);
 	}
 

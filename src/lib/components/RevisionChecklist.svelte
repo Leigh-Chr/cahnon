@@ -1,4 +1,13 @@
 <script lang="ts">
+	/**
+	 * RevisionChecklist Component
+	 *
+	 * Checklist for scene revision with predefined writing quality checks.
+	 * Tracks completion with progress bar.
+	 */
+
+	import { Icon } from './ui';
+
 	interface Props {
 		checklist?: Record<string, boolean>;
 		onchange?: (data: { checklist: Record<string, boolean> }) => void;
@@ -93,16 +102,7 @@
 				</div>
 				<div class="checkmark">
 					{#if checklist[item.id]}
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<polyline points="20 6 9 17 4 12" />
-						</svg>
+						<Icon name="check" size={16} />
 					{/if}
 				</div>
 			</label>
@@ -111,17 +111,7 @@
 
 	{#if completedCount === totalCount}
 		<div class="completion-message">
-			<svg
-				width="20"
-				height="20"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-				<polyline points="22 4 12 14.01 9 11.01" />
-			</svg>
+			<Icon name="check" size={20} />
 			<span>All checks complete!</span>
 		</div>
 	{/if}
@@ -248,7 +238,7 @@
 		gap: var(--spacing-sm);
 		padding: var(--spacing-md);
 		background-color: var(--color-bg-tertiary);
-		color: var(--color-text-primary);
+		color: var(--color-success);
 		font-size: var(--font-size-sm);
 		font-weight: 500;
 		border-top: 1px solid var(--color-border-light);

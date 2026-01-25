@@ -19,6 +19,7 @@
 	import { showSuccess, showError } from '$lib/toast';
 	import { appState } from '$lib/stores';
 	import { exportToDocx, downloadHtml, exportToPdf } from '$lib/export';
+	import { Icon, Button } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -188,19 +189,9 @@
 		>
 			<div class="dialog-header">
 				<h2 id="export-title">Export Project</h2>
-				<button class="close-btn" onclick={close} aria-label="Close">
-					<svg
-						width="20"
-						height="20"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
+				<Button variant="icon" onclick={close} title="Close">
+					<Icon name="close" size={20} />
+				</Button>
 			</div>
 
 			<div class="dialog-content">
@@ -447,29 +438,20 @@
 					{/if}
 
 					<div class="dialog-actions">
-						<button class="cancel-btn" onclick={close}>Cancel</button>
-						<button class="export-btn" onclick={handleExport} disabled={isExporting}>
+						<Button variant="ghost" onclick={close}>Cancel</Button>
+						<Button variant="primary" onclick={handleExport} disabled={isExporting}>
 							{#if isExporting}
 								Exporting...
 							{:else}
 								Export
 							{/if}
-						</button>
+						</Button>
 					</div>
 				{:else}
 					<div class="export-result">
 						<div class="result-header">
 							<span class="success-icon">
-								<svg
-									width="20"
-									height="20"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<polyline points="20 6 9 17 4 12" />
-								</svg>
+								<Icon name="check" size={20} />
 							</span>
 							<span>Export complete!</span>
 						</div>
@@ -482,35 +464,14 @@
 					</div>
 
 					<div class="dialog-actions">
-						<button class="secondary-btn" onclick={copyToClipboard}>
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-								<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-							</svg>
+						<Button variant="secondary" onclick={copyToClipboard}>
+							<Icon name="copy" size={16} />
 							Copy
-						</button>
-						<button class="export-btn" onclick={downloadFile}>
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-								<polyline points="7 10 12 15 17 10" />
-								<line x1="12" y1="15" x2="12" y2="3" />
-							</svg>
+						</Button>
+						<Button variant="primary" onclick={downloadFile}>
+							<Icon name="download" size={16} />
 							Download
-						</button>
+						</Button>
 					</div>
 				{/if}
 			</div>
@@ -555,17 +516,6 @@
 	.dialog-header h2 {
 		font-size: var(--font-size-lg);
 		font-weight: 600;
-	}
-
-	.close-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.close-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
 	}
 
 	.dialog-content {
@@ -643,52 +593,6 @@
 		justify-content: flex-end;
 		gap: var(--spacing-sm);
 		margin-top: var(--spacing-lg);
-	}
-
-	.cancel-btn {
-		padding: var(--spacing-sm) var(--spacing-lg);
-		color: var(--color-text-secondary);
-		border-radius: var(--border-radius-md);
-	}
-
-	.cancel-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.secondary-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-sm) var(--spacing-lg);
-		background-color: var(--color-bg-secondary);
-		border: 1px solid var(--color-border);
-		color: var(--color-text-primary);
-		border-radius: var(--border-radius-md);
-		font-weight: 500;
-	}
-
-	.secondary-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.export-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-sm) var(--spacing-lg);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-md);
-		font-weight: 500;
-	}
-
-	.export-btn:hover:not(:disabled) {
-		background-color: var(--color-accent-hover);
-	}
-
-	.export-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 
 	.export-result {

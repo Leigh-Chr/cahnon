@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { cutApi, type Cut } from '$lib/api';
 	import { countWords, formatWordCount } from '$lib/utils';
+	import { Icon, Button, EmptyState, LoadingState } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -85,42 +86,20 @@
 		>
 			<div class="panel-header">
 				<h2 id="cuts-title">Cut Library</h2>
-				<button class="close-btn" onclick={close} aria-label="Close">
-					<svg
-						width="20"
-						height="20"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
+				<Button variant="icon" onclick={close} title="Close">
+					<Icon name="close" size={20} />
+				</Button>
 			</div>
 
 			<div class="panel-content">
 				{#if isLoading}
-					<div class="loading">Loading cuts...</div>
+					<LoadingState message="Loading cuts..." />
 				{:else if cuts.length === 0}
-					<div class="empty-state">
-						<svg
-							width="48"
-							height="48"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.5"
-						>
-							<circle cx="12" cy="12" r="3" />
-							<path
-								d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-							/>
-						</svg>
-						<h3>No cuts yet</h3>
-						<p>Text you cut from scenes will be saved here for later use.</p>
-					</div>
+					<EmptyState
+						icon="scissors"
+						title="No cuts yet"
+						description="Text you cut from scenes will be saved here for later use."
+					/>
 				{:else}
 					<div class="cuts-list">
 						{#each cuts as cut (cut.id)}
@@ -134,61 +113,34 @@
 										<span class="date">{formatDate(cut.created_at)}</span>
 									</div>
 									<div class="cut-actions">
-										<button
-											class="action-btn"
+										<Button
+											variant="icon"
+											size="sm"
 											onclick={() => copyToClipboard(cut.text)}
 											title="Copy to clipboard"
 										>
-											<svg
-												width="16"
-												height="16"
-												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												stroke-width="2"
-											>
-												<rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-												<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-											</svg>
-										</button>
+											<Icon name="copy" size={16} />
+										</Button>
 										{#if onInsert}
-											<button
-												class="action-btn primary"
+											<Button
+												variant="icon"
+												size="sm"
+												class="primary"
 												onclick={() => insertCut(cut)}
 												title="Insert at cursor"
 											>
-												<svg
-													width="16"
-													height="16"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="2"
-												>
-													<path d="M12 5v14" />
-													<path d="M5 12h14" />
-												</svg>
-											</button>
+												<Icon name="plus" size={16} />
+											</Button>
 										{/if}
-										<button
-											class="action-btn danger"
+										<Button
+											variant="icon"
+											size="sm"
+											class="danger"
 											onclick={() => deleteCut(cut.id)}
 											title="Delete permanently"
 										>
-											<svg
-												width="16"
-												height="16"
-												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												stroke-width="2"
-											>
-												<polyline points="3 6 5 6 21 6" />
-												<path
-													d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-												/>
-											</svg>
-										</button>
+											<Icon name="delete" size={16} />
+										</Button>
 									</div>
 								</div>
 							</div>
@@ -236,43 +188,9 @@
 		font-weight: 600;
 	}
 
-	.close-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.close-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
 	.panel-content {
 		flex: 1;
 		overflow-y: auto;
-	}
-
-	.loading,
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		text-align: center;
-		color: var(--color-text-muted);
-		padding: var(--spacing-xl);
-	}
-
-	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: var(--spacing-md);
-	}
-
-	.empty-state h3 {
-		font-size: var(--font-size-lg);
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-sm);
 	}
 
 	.cuts-list {
@@ -326,26 +244,15 @@
 		gap: var(--spacing-xs);
 	}
 
-	.action-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.action-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
-	.action-btn.primary {
+	.cut-actions :global(.btn.primary) {
 		color: var(--color-accent);
 	}
 
-	.action-btn.primary:hover {
+	.cut-actions :global(.btn.primary:hover) {
 		background-color: var(--color-accent-light);
 	}
 
-	.action-btn.danger:hover {
+	.cut-actions :global(.btn.danger:hover) {
 		color: var(--color-error);
 	}
 </style>

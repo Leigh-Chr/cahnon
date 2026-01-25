@@ -2,6 +2,7 @@
 	import { historyApi, type SceneHistoryEntry } from '$lib/api';
 	import { countWords, formatWordCount } from '$lib/utils';
 	import { showSuccess, showError } from '$lib/toast';
+	import { Icon, Button, EmptyState, LoadingState } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -97,40 +98,20 @@
 		>
 			<div class="modal-header">
 				<h2 id="history-title">Scene History</h2>
-				<button class="close-btn" onclick={close} aria-label="Close">
-					<svg
-						width="20"
-						height="20"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
+				<Button variant="icon" onclick={close} title="Close">
+					<Icon name="close" size={20} />
+				</Button>
 			</div>
 
 			<div class="modal-content">
 				{#if isLoading}
-					<div class="loading">Loading history...</div>
+					<LoadingState message="Loading history..." />
 				{:else if history.length === 0}
-					<div class="empty-state">
-						<svg
-							width="48"
-							height="48"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.5"
-						>
-							<circle cx="12" cy="12" r="10" />
-							<polyline points="12 6 12 12 16 14" />
-						</svg>
-						<h3>No history yet</h3>
-						<p>Scene versions are saved automatically as you write.</p>
-					</div>
+					<EmptyState
+						icon="clock"
+						title="No history yet"
+						description="Scene versions are saved automatically as you write."
+					/>
 				{:else}
 					<div class="history-layout">
 						<div class="history-list">
@@ -189,25 +170,15 @@
 
 			{#if selectedEntry}
 				<div class="modal-footer">
-					<button class="cancel-btn" onclick={close}>Cancel</button>
-					<button class="restore-btn" onclick={restoreVersion} disabled={isRestoring}>
+					<Button variant="ghost" onclick={close}>Cancel</Button>
+					<Button variant="primary" onclick={restoreVersion} disabled={isRestoring}>
 						{#if isRestoring}
 							Restoring...
 						{:else}
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<polyline points="1 4 1 10 7 10" />
-								<path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-							</svg>
+							<Icon name="restore" size={16} />
 							Restore This Version
 						{/if}
-					</button>
+					</Button>
 				</div>
 			{/if}
 		</div>
@@ -252,44 +223,10 @@
 		font-weight: 600;
 	}
 
-	.close-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.close-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-text-primary);
-	}
-
 	.modal-content {
 		flex: 1;
 		overflow: hidden;
 		display: flex;
-	}
-
-	.loading,
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		flex: 1;
-		text-align: center;
-		color: var(--color-text-muted);
-		padding: var(--spacing-xl);
-	}
-
-	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: var(--spacing-md);
-	}
-
-	.empty-state h3 {
-		font-size: var(--font-size-lg);
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-sm);
 	}
 
 	.history-layout {
@@ -428,35 +365,5 @@
 		gap: var(--spacing-sm);
 		padding: var(--spacing-md) var(--spacing-lg);
 		border-top: 1px solid var(--color-border);
-	}
-
-	.cancel-btn {
-		padding: var(--spacing-sm) var(--spacing-lg);
-		color: var(--color-text-secondary);
-		border-radius: var(--border-radius-md);
-	}
-
-	.cancel-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.restore-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-sm) var(--spacing-lg);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-md);
-		font-weight: 500;
-	}
-
-	.restore-btn:hover:not(:disabled) {
-		background-color: var(--color-accent-hover);
-	}
-
-	.restore-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 </style>

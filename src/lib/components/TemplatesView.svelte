@@ -1,8 +1,16 @@
 <script lang="ts">
+	/**
+	 * TemplatesView Component
+	 *
+	 * Manages narrative templates (story structures) like Save the Cat, Hero's Journey, etc.
+	 * Supports built-in and custom templates with editable steps.
+	 */
+
 	import { onMount } from 'svelte';
 	import { templateApi, type Template, type TemplateStep } from '$lib/api';
 	import { showSuccess, showError } from '$lib/toast';
 	import { DEFAULT_CUSTOM_COLOR } from '$lib/utils';
+	import { Icon, Button, Badge, LoadingState, FormActions } from './ui';
 
 	let templates = $state<Template[]>([]);
 	let selectedTemplate = $state<Template | null>(null);
@@ -25,7 +33,6 @@
 	let editStepPosition = $state(50);
 	let editStepColor = $state(DEFAULT_CUSTOM_COLOR);
 
-	// Use onMount for one-time initialization
 	onMount(() => {
 		loadTemplates();
 	});
@@ -33,10 +40,8 @@
 	async function loadTemplates() {
 		isLoading = true;
 		try {
-			// Initialize builtin templates if needed
 			await templateApi.initBuiltin();
 			templates = await templateApi.getAll();
-			// Auto-select active template or first one
 			const active = templates.find((t) => t.is_active) || templates[0];
 			if (active) {
 				await selectTemplate(active);
@@ -205,29 +210,20 @@
 	</div>
 
 	{#if isLoading}
-		<div class="loading">Loading templates...</div>
+		<LoadingState message="Loading templates..." />
 	{:else}
 		<div class="templates-layout">
 			<div class="templates-list">
 				<div class="list-header">
 					<span>Templates</span>
-					<button
-						class="add-btn"
+					<Button
+						variant="icon"
+						size="sm"
 						onclick={() => (isCreatingTemplate = true)}
 						title="Create template"
 					>
-						<svg
-							width="14"
-							height="14"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<line x1="12" y1="5" x2="12" y2="19" />
-							<line x1="5" y1="12" x2="19" y2="12" />
-						</svg>
-					</button>
+						<Icon name="plus" size={14} />
+					</Button>
 				</div>
 
 				{#if isCreatingTemplate}
@@ -238,18 +234,26 @@
 							placeholder="Template name..."
 							onkeydown={(e) => e.key === 'Enter' && createTemplate()}
 						/>
-						<div class="form-actions">
-							<button
-								class="cancel-btn"
+						<FormActions>
+							<Button
+								variant="ghost"
+								size="sm"
 								onclick={() => {
 									isCreatingTemplate = false;
 									newTemplateName = '';
-								}}>Cancel</button
+								}}
 							>
-							<button class="save-btn" onclick={createTemplate} disabled={!newTemplateName.trim()}
-								>Create</button
+								Cancel
+							</Button>
+							<Button
+								variant="primary"
+								size="sm"
+								onclick={createTemplate}
+								disabled={!newTemplateName.trim()}
 							>
-						</div>
+								Create
+							</Button>
+						</FormActions>
 					</div>
 				{/if}
 
@@ -263,7 +267,7 @@
 						<div class="template-name">
 							{template.name}
 							{#if template.is_active}
-								<span class="active-badge">Active</span>
+								<Badge variant="success" size="sm">Active</Badge>
 							{/if}
 						</div>
 						{#if template.is_builtin}
@@ -286,55 +290,42 @@
 								onkeydown={(e) => e.key === 'Enter' && updateTemplate()}
 							/>
 							<div class="header-actions">
-								<button class="cancel-btn" onclick={() => (isEditingTemplate = false)}
-									>Cancel</button
-								>
-								<button class="save-btn" onclick={updateTemplate}>Save</button>
+								<Button variant="ghost" size="sm" onclick={() => (isEditingTemplate = false)}>
+									Cancel
+								</Button>
+								<Button variant="primary" size="sm" onclick={updateTemplate}>Save</Button>
 							</div>
 						{:else}
 							<h3>{selectedTemplate.name}</h3>
 							<div class="header-actions">
 								{#if !selectedTemplate.is_builtin}
-									<button
-										class="edit-btn"
-										aria-label="Edit template"
+									<Button
+										variant="icon"
+										title="Edit template"
 										onclick={() => {
 											isEditingTemplate = true;
 											editTemplateName = selectedTemplate!.name;
 										}}
 									>
-										<svg
-											width="14"
-											height="14"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-											<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-										</svg>
-									</button>
-									<button class="delete-btn" aria-label="Delete template" onclick={deleteTemplate}>
-										<svg
-											width="14"
-											height="14"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<polyline points="3 6 5 6 21 6" />
-											<path
-												d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-											/>
-										</svg>
-									</button>
+										<Icon name="edit" size={14} />
+									</Button>
+									<Button
+										variant="icon"
+										class="danger"
+										title="Delete template"
+										onclick={deleteTemplate}
+									>
+										<Icon name="delete" size={14} />
+									</Button>
 								{/if}
 								{#if !selectedTemplate.is_active}
-									<button class="activate-btn" onclick={() => setActiveTemplate(selectedTemplate!)}>
+									<Button
+										variant="primary"
+										size="sm"
+										onclick={() => setActiveTemplate(selectedTemplate!)}
+									>
 										Set as Active
-									</button>
+									</Button>
 								{/if}
 							</div>
 						{/if}
@@ -366,12 +357,12 @@
 												<input type="color" bind:value={editStepColor} />
 											</label>
 										</div>
-										<div class="form-actions">
-											<button class="cancel-btn" onclick={() => (editingStepId = null)}
-												>Cancel</button
-											>
-											<button class="save-btn" onclick={updateStep}>Save</button>
-										</div>
+										<FormActions>
+											<Button variant="ghost" size="sm" onclick={() => (editingStepId = null)}>
+												Cancel
+											</Button>
+											<Button variant="primary" size="sm" onclick={updateStep}>Save</Button>
+										</FormActions>
 									</div>
 								{:else}
 									<div class="step-content">
@@ -380,42 +371,23 @@
 											<span class="step-position">{formatPosition(step.typical_position)}</span>
 											{#if !selectedTemplate.is_builtin}
 												<div class="step-actions">
-													<button
-														class="step-edit-btn"
+													<Button
+														variant="icon"
+														size="sm"
 														onclick={() => startEditingStep(step)}
 														title="Edit step"
 													>
-														<svg
-															width="12"
-															height="12"
-															viewBox="0 0 24 24"
-															fill="none"
-															stroke="currentColor"
-															stroke-width="2"
-														>
-															<path
-																d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
-															/>
-															<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-														</svg>
-													</button>
-													<button
-														class="step-delete-btn"
+														<Icon name="edit" size={12} />
+													</Button>
+													<Button
+														variant="icon"
+														size="sm"
+														class="danger"
 														onclick={() => deleteStep(step.id)}
 														title="Delete step"
 													>
-														<svg
-															width="12"
-															height="12"
-															viewBox="0 0 24 24"
-															fill="none"
-															stroke="currentColor"
-															stroke-width="2"
-														>
-															<line x1="18" y1="6" x2="6" y2="18" />
-															<line x1="6" y1="6" x2="18" y2="18" />
-														</svg>
-													</button>
+														<Icon name="close" size={12} />
+													</Button>
 												</div>
 											{/if}
 										</div>
@@ -447,33 +419,31 @@
 											<input type="color" bind:value={newStepColor} />
 										</label>
 									</div>
-									<div class="form-actions">
-										<button
-											class="cancel-btn"
+									<FormActions>
+										<Button
+											variant="ghost"
+											size="sm"
 											onclick={() => {
 												isAddingStep = false;
 												newStepName = '';
 												newStepDescription = '';
-											}}>Cancel</button
+											}}
 										>
-										<button class="save-btn" onclick={createStep} disabled={!newStepName.trim()}
-											>Add Step</button
+											Cancel
+										</Button>
+										<Button
+											variant="primary"
+											size="sm"
+											onclick={createStep}
+											disabled={!newStepName.trim()}
 										>
-									</div>
+											Add Step
+										</Button>
+									</FormActions>
 								</div>
 							{:else}
 								<button class="add-step-btn" onclick={() => (isAddingStep = true)}>
-									<svg
-										width="14"
-										height="14"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-									>
-										<line x1="12" y1="5" x2="12" y2="19" />
-										<line x1="5" y1="12" x2="19" y2="12" />
-									</svg>
+									<Icon name="plus" size={14} />
 									Add Step
 								</button>
 							{/if}
@@ -519,14 +489,6 @@
 		color: var(--color-text-muted);
 	}
 
-	.loading {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex: 1;
-		color: var(--color-text-muted);
-	}
-
 	.templates-layout {
 		display: flex;
 		flex: 1;
@@ -540,6 +502,9 @@
 	}
 
 	.list-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		padding: var(--spacing-md);
 		font-size: var(--font-size-sm);
 		font-weight: 600;
@@ -577,18 +542,14 @@
 		gap: var(--spacing-sm);
 	}
 
-	.active-badge {
-		font-size: var(--font-size-xs);
-		padding: 2px 6px;
-		background-color: var(--color-success);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-sm);
-		font-weight: 500;
-	}
-
 	.builtin-badge {
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
+	}
+
+	.custom-badge {
+		font-size: var(--font-size-xs);
+		color: var(--color-accent);
 	}
 
 	.template-detail {
@@ -609,17 +570,15 @@
 		font-weight: 600;
 	}
 
-	.activate-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-sm);
-		font-weight: 500;
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
 	}
 
-	.activate-btn:hover {
-		background-color: var(--color-accent-hover);
+	/* Danger style for icon buttons */
+	.header-actions :global(.btn-icon.danger:hover) {
+		color: var(--color-error);
 	}
 
 	.steps-list {
@@ -682,10 +641,33 @@
 		color: var(--color-text-muted);
 	}
 
+	.step-actions {
+		display: flex;
+		gap: var(--spacing-xs);
+		opacity: 0;
+		transition: opacity var(--transition-fast);
+	}
+
+	.step-item:hover .step-actions {
+		opacity: 1;
+	}
+
+	.step-actions :global(.btn-icon.danger:hover) {
+		color: var(--color-error);
+	}
+
 	.step-description {
 		font-size: var(--font-size-sm);
 		color: var(--color-text-secondary);
 		line-height: var(--line-height-normal);
+	}
+
+	.step-edit-form {
+		flex: 1;
+		padding-bottom: var(--spacing-md);
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
 	}
 
 	.template-info {
@@ -708,23 +690,6 @@
 		color: var(--color-text-muted);
 	}
 
-	.list-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-
-	.add-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.add-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-accent);
-	}
-
 	.new-template-form,
 	.add-step-form {
 		padding: var(--spacing-md);
@@ -743,6 +708,8 @@
 		border-radius: var(--border-radius-sm);
 		font-size: var(--font-size-sm);
 		width: 100%;
+		background-color: var(--color-bg-primary);
+		color: var(--color-text-primary);
 	}
 
 	.add-step-form textarea,
@@ -753,6 +720,8 @@
 		font-size: var(--font-size-sm);
 		resize: vertical;
 		width: 100%;
+		background-color: var(--color-bg-primary);
+		color: var(--color-text-primary);
 	}
 
 	.step-form-row {
@@ -781,102 +750,10 @@
 		cursor: pointer;
 	}
 
-	.form-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: var(--spacing-sm);
-	}
-
-	.cancel-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.cancel-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.save-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		font-size: var(--font-size-sm);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.save-btn:hover:not(:disabled) {
-		background-color: var(--color-accent-hover);
-	}
-
-	.save-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.custom-badge {
-		font-size: var(--font-size-xs);
-		color: var(--color-accent);
-	}
-
-	.header-actions {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-sm);
-	}
-
-	.edit-btn,
-	.delete-btn {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.edit-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-accent);
-	}
-
-	.delete-btn:hover {
-		background-color: var(--danger-subtle);
-		color: var(--color-error);
-	}
-
-	.step-actions {
-		display: flex;
-		gap: var(--spacing-xs);
-		opacity: 0;
-		transition: opacity var(--transition-fast);
-	}
-
-	.step-item:hover .step-actions {
-		opacity: 1;
-	}
-
-	.step-edit-btn,
-	.step-delete-btn {
-		padding: 2px;
-		color: var(--color-text-muted);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.step-edit-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-accent);
-	}
-
-	.step-delete-btn:hover {
-		background-color: var(--danger-subtle);
-		color: var(--color-error);
-	}
-
-	.step-edit-form {
+	.edit-name-input {
+		font-size: var(--font-size-lg);
+		font-weight: 600;
 		flex: 1;
-		padding-bottom: var(--spacing-md);
-		display: flex;
-		flex-direction: column;
-		gap: var(--spacing-sm);
 	}
 
 	.add-step-btn {
@@ -897,11 +774,5 @@
 		border-color: var(--color-accent);
 		color: var(--color-accent);
 		background-color: var(--color-accent-light);
-	}
-
-	.edit-name-input {
-		font-size: var(--font-size-lg);
-		font-weight: 600;
-		flex: 1;
 	}
 </style>

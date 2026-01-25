@@ -1,6 +1,14 @@
 <script lang="ts">
+	/**
+	 * IssuesView Component
+	 *
+	 * Tracks continuity errors, plot holes, and other story problems.
+	 * Supports filtering by status and CRUD operations.
+	 */
+
 	import { onMount } from 'svelte';
 	import { issueApi, type Issue } from '$lib/api';
+	import { Icon, Button, EmptyState, LoadingState, FormGroup, FormRow, FormActions } from './ui';
 
 	let issues = $state<Issue[]>([]);
 	let isLoading = $state(true);
@@ -16,7 +24,6 @@
 	const issueSeverities = ['low', 'medium', 'high', 'critical'];
 	const issueStatuses = ['open', 'in_progress', 'resolved', 'wont_fix'];
 
-	// Use onMount for one-time initialization
 	onMount(() => {
 		loadIssues();
 	});
@@ -122,95 +129,67 @@
 				<option value="resolved">Resolved</option>
 				<option value="wont_fix">Won't Fix</option>
 			</select>
-			<button class="add-btn" onclick={() => (showNewIssueForm = true)}>
-				<svg
-					width="16"
-					height="16"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<line x1="12" y1="5" x2="12" y2="19" />
-					<line x1="5" y1="12" x2="19" y2="12" />
-				</svg>
+			<Button variant="primary" onclick={() => (showNewIssueForm = true)}>
+				<Icon name="plus" size={16} />
 				New Issue
-			</button>
+			</Button>
 		</div>
 	</div>
 
 	{#if isLoading}
-		<div class="loading">Loading issues...</div>
+		<LoadingState message="Loading issues..." />
 	{:else if filteredIssues.length === 0 && !showNewIssueForm}
-		<div class="empty-state">
-			<svg
-				width="48"
-				height="48"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.5"
-			>
-				<circle cx="12" cy="12" r="10" />
-				<line x1="12" y1="8" x2="12" y2="12" />
-				<line x1="12" y1="16" x2="12.01" y2="16" />
-			</svg>
-			<h3>No issues found</h3>
-			<p>Track continuity errors, plot holes, and other problems to fix.</p>
-			<button class="primary-btn" onclick={() => (showNewIssueForm = true)}
-				>Report First Issue</button
-			>
-		</div>
+		<EmptyState
+			icon="alert"
+			title="No issues found"
+			description="Track continuity errors, plot holes, and other problems to fix."
+			actionLabel="Report First Issue"
+			onaction={() => (showNewIssueForm = true)}
+		/>
 	{:else}
 		<div class="issues-list">
 			{#if showNewIssueForm}
 				<div class="issue-card new-issue-form">
-					<div class="form-row">
-						<div class="form-group flex-1">
-							<label for="issue-title">Title</label>
-							<!-- svelte-ignore a11y_autofocus -->
-							<input
-								id="issue-title"
-								type="text"
-								bind:value={newIssueTitle}
-								placeholder="Brief description of the issue..."
-								autofocus
-							/>
-						</div>
-					</div>
-					<div class="form-group">
-						<label for="issue-description">Description</label>
+					<FormGroup label="Title" id="issue-title">
+						<!-- svelte-ignore a11y_autofocus -->
+						<input
+							id="issue-title"
+							type="text"
+							bind:value={newIssueTitle}
+							placeholder="Brief description of the issue..."
+							autofocus
+						/>
+					</FormGroup>
+					<FormGroup label="Description" id="issue-description">
 						<textarea
 							id="issue-description"
 							bind:value={newIssueDescription}
 							placeholder="Detailed explanation..."
 							rows="3"
 						></textarea>
-					</div>
-					<div class="form-row">
-						<div class="form-group">
-							<label for="issue-type">Type</label>
+					</FormGroup>
+					<FormRow>
+						<FormGroup label="Type" id="issue-type">
 							<select id="issue-type" bind:value={newIssueType}>
 								{#each issueTypes as type (type)}
 									<option value={type}>{type.replace('_', ' ')}</option>
 								{/each}
 							</select>
-						</div>
-						<div class="form-group">
-							<label for="issue-severity">Severity</label>
+						</FormGroup>
+						<FormGroup label="Severity" id="issue-severity">
 							<select id="issue-severity" bind:value={newIssueSeverity}>
 								{#each issueSeverities as severity (severity)}
 									<option value={severity}>{severity}</option>
 								{/each}
 							</select>
-						</div>
-					</div>
-					<div class="form-actions">
-						<button class="cancel-btn" onclick={resetNewIssueForm}>Cancel</button>
-						<button class="save-btn" onclick={createIssue} disabled={!newIssueTitle.trim()}
-							>Create Issue</button
-						>
-					</div>
+						</FormGroup>
+					</FormRow>
+					<FormActions>
+						<Button variant="ghost" onclick={resetNewIssueForm}>Cancel</Button>
+						<Button variant="primary" onclick={createIssue} disabled={!newIssueTitle.trim()}>
+							Create Issue
+						</Button>
+					</FormActions>
 				</div>
 			{/if}
 
@@ -296,54 +275,6 @@
 		border-radius: var(--border-radius-sm);
 		font-size: var(--font-size-sm);
 		color: var(--color-text-primary);
-	}
-
-	.add-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-xs) var(--spacing-md);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-md);
-		font-size: var(--font-size-sm);
-		font-weight: 500;
-	}
-
-	.add-btn:hover {
-		background-color: var(--color-accent-hover);
-	}
-
-	.loading,
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		flex: 1;
-		text-align: center;
-		color: var(--color-text-muted);
-		padding: var(--spacing-xl);
-	}
-
-	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: var(--spacing-md);
-	}
-
-	.empty-state h3 {
-		font-size: var(--font-size-lg);
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-sm);
-	}
-
-	.primary-btn {
-		margin-top: var(--spacing-lg);
-		padding: var(--spacing-sm) var(--spacing-lg);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-md);
-		font-weight: 500;
 	}
 
 	.issues-list {
@@ -433,72 +364,5 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-text-secondary);
 		margin-left: calc(20px + var(--spacing-md));
-	}
-
-	.form-group {
-		margin-bottom: var(--spacing-md);
-	}
-
-	.form-group.flex-1 {
-		flex: 1;
-	}
-
-	.form-group label {
-		display: block;
-		font-size: var(--font-size-xs);
-		font-weight: 500;
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-xs);
-	}
-
-	.form-group input[type='text'],
-	.form-group textarea,
-	.form-group select {
-		width: 100%;
-		padding: var(--spacing-sm);
-		background-color: var(--color-bg-primary);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-sm);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-primary);
-	}
-
-	.form-row {
-		display: flex;
-		gap: var(--spacing-md);
-	}
-
-	.form-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: var(--spacing-sm);
-		margin-top: var(--spacing-md);
-	}
-
-	.cancel-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		color: var(--color-text-secondary);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.cancel-btn:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.save-btn {
-		padding: var(--spacing-xs) var(--spacing-md);
-		background-color: var(--color-accent);
-		color: var(--text-on-accent);
-		border-radius: var(--border-radius-sm);
-		font-weight: 500;
-	}
-
-	.save-btn:hover:not(:disabled) {
-		background-color: var(--color-accent-hover);
-	}
-
-	.save-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 </style>
