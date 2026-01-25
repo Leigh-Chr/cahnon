@@ -1,0 +1,4 @@
+# Ignored because glib is a transitive dependency from Tauri/gtk that we cannot update
+# The gtk-rs project needs to release a new version of gtk that uses glib 0.20.0
+# Tracking: https://github.com/gtk-rs/gtk3-rs/issues
+GHSA-wrw7-89jp-8q8g

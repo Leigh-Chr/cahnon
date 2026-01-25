@@ -1,0 +1,624 @@
+/*
+ * Cahnon Design System
+ * Modern CSS with Design Tokens (2024-2025 Best Practices)
+ *
+ * Architecture:
+ * 1. @property definitions (typed custom properties)
+ * 2. Primitive tokens (raw values)
+ * 3. Semantic tokens (meaning-based aliases)
+ * 4. Component tokens (component-specific)
+ *
+ * References:
+ * - https://moderncss.dev/providing-type-definitions-for-css-with-at-property/
+ * - https://evilmartians.com/chronicles/oklch-in-css-why-quit-rgb-hsl
+ * - https://css-tricks.com/come-to-the-light-dark-side/
+ */
+
+/* ==========================================================================
+   @property Definitions - Typed Custom Properties
+   ========================================================================== */
+
+/* Color properties with type safety */
+@property --color-neutral-0 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(100% 0 0);
+}
+
+@property --color-neutral-50 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(98% 0 0);
+}
+
+@property --color-neutral-100 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(96% 0 0);
+}
+
+@property --color-neutral-200 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(92% 0 0);
+}
+
+@property --color-neutral-300 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(87% 0 0);
+}
+
+@property --color-neutral-400 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(70% 0 0);
+}
+
+@property --color-neutral-500 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(55% 0 0);
+}
+
+@property --color-neutral-600 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(45% 0 0);
+}
+
+@property --color-neutral-700 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(35% 0 0);
+}
+
+@property --color-neutral-800 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(25% 0 0);
+}
+
+@property --color-neutral-900 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(15% 0 0);
+}
+
+@property --color-neutral-950 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(10% 0 0);
+}
+
+@property --color-neutral-1000 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: oklch(0% 0 0);
+}
+
+/* Spacing with type safety (minimal set) */
+@property --space-4 {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 16px;
+}
+
+/* Radius with type safety */
+@property --radius-sm {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 4px;
+}
+
+/* ==========================================================================
+   Primitive Tokens - Raw Design Values (OKLCH for perceptual uniformity)
+   ========================================================================== */
+
+:root {
+	/* Enable color-scheme for native dark mode support on form controls */
+	color-scheme: light dark;
+
+	/* -------------------------------------------------------------------------
+	   Primitive Colors (Neutral Grayscale in OKLCH)
+	   OKLCH provides perceptually uniform lightness steps
+	   ------------------------------------------------------------------------- */
+	--color-neutral-0: oklch(100% 0 0); /* white */
+	--color-neutral-50: oklch(98% 0 0);
+	--color-neutral-100: oklch(96% 0 0);
+	--color-neutral-200: oklch(92% 0 0);
+	--color-neutral-300: oklch(87% 0 0);
+	--color-neutral-400: oklch(70% 0 0);
+	--color-neutral-500: oklch(55% 0 0);
+	--color-neutral-600: oklch(45% 0 0);
+	--color-neutral-700: oklch(35% 0 0);
+	--color-neutral-800: oklch(25% 0 0);
+	--color-neutral-900: oklch(15% 0 0);
+	--color-neutral-950: oklch(10% 0 0);
+	--color-neutral-1000: oklch(0% 0 0); /* black */
+
+	/* Transparent variants for overlays */
+	--color-overlay-light: oklch(100% 0 0 / 80%);
+	--color-overlay-dark: oklch(0% 0 0 / 50%);
+
+	/* -------------------------------------------------------------------------
+	   Primitive Spacing (simple 4px base, minimal set)
+	   ------------------------------------------------------------------------- */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-6: 24px;
+	--space-8: 32px;
+
+	/* -------------------------------------------------------------------------
+	   Primitive Typography (basic system fonts)
+	   ------------------------------------------------------------------------- */
+	--font-sans: system-ui, sans-serif;
+	--font-serif: serif;
+	--font-mono: monospace;
+
+	/* Standard rem scale */
+	--text-xs: 0.75rem;
+	--text-sm: 0.875rem;
+	--text-base: 1rem;
+	--text-lg: 1.25rem;
+	--text-xl: 1.5rem;
+	--text-2xl: 2rem;
+
+	/* Single standard line-height */
+	--leading-normal: 1.5;
+
+	/* Basic font weights */
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;
+
+	/* -------------------------------------------------------------------------
+	   Primitive Radius (single simple value)
+	   ------------------------------------------------------------------------- */
+	--radius-sm: 4px;
+	--radius-md: 4px;
+	--radius-lg: 4px;
+	--radius-full: 9999px;
+
+	/* -------------------------------------------------------------------------
+	   Primitive Shadows (minimal, subtle)
+	   ------------------------------------------------------------------------- */
+	--shadow-sm: 0 1px 2px oklch(0% 0 0 / 5%);
+	--shadow-md: 0 2px 4px oklch(0% 0 0 / 5%);
+	--shadow-lg: 0 4px 8px oklch(0% 0 0 / 5%);
+
+	/* -------------------------------------------------------------------------
+	   Primitive Transitions (minimal, functional only)
+	   ------------------------------------------------------------------------- */
+	--duration-fast: 100ms;
+	--duration-normal: 150ms;
+	--duration-slow: 200ms;
+
+	/* Simple ease - neutral, not decorative */
+	--ease-default: ease-out;
+
+	/* -------------------------------------------------------------------------
+	   Primitive Layout
+	   ------------------------------------------------------------------------- */
+	--width-sidebar: 260px;
+	--width-panel: 300px;
+	--height-toolbar: 44px;
+	--height-statusbar: 28px;
+}
+
+/* ==========================================================================
+   Semantic Tokens - Meaning-Based Aliases
+   Using light-dark() for automatic theme switching
+   ========================================================================== */
+
+:root {
+	/* -------------------------------------------------------------------------
+	   Semantic Colors - Surfaces
+	   ------------------------------------------------------------------------- */
+	--surface-primary: light-dark(var(--color-neutral-0), var(--color-neutral-950));
+	--surface-secondary: light-dark(var(--color-neutral-50), var(--color-neutral-900));
+	--surface-tertiary: light-dark(var(--color-neutral-100), var(--color-neutral-800));
+	--surface-elevated: light-dark(var(--color-neutral-0), var(--color-neutral-900));
+	--surface-overlay: light-dark(var(--color-overlay-dark), var(--color-overlay-dark));
+
+	/* -------------------------------------------------------------------------
+	   Semantic Colors - Interactive States
+	   ------------------------------------------------------------------------- */
+	--surface-hover: light-dark(var(--color-neutral-100), var(--color-neutral-800));
+	--surface-active: light-dark(var(--color-neutral-200), var(--color-neutral-700));
+	--surface-selected: light-dark(var(--color-neutral-100), var(--color-neutral-800));
+
+	/* -------------------------------------------------------------------------
+	   Semantic Colors - Text
+	   ------------------------------------------------------------------------- */
+	--text-primary: light-dark(var(--color-neutral-900), var(--color-neutral-50));
+	--text-secondary: light-dark(var(--color-neutral-600), var(--color-neutral-400));
+	--text-muted: light-dark(var(--color-neutral-500), var(--color-neutral-500));
+	--text-disabled: light-dark(var(--color-neutral-400), var(--color-neutral-600));
+	--text-inverse: light-dark(var(--color-neutral-0), var(--color-neutral-950));
+
+	/* -------------------------------------------------------------------------
+	   Semantic Colors - Borders
+	   ------------------------------------------------------------------------- */
+	--border-default: light-dark(var(--color-neutral-200), var(--color-neutral-800));
+	--border-subtle: light-dark(var(--color-neutral-100), var(--color-neutral-900));
+	--border-strong: light-dark(var(--color-neutral-300), var(--color-neutral-700));
+	--border-focus: light-dark(var(--color-neutral-900), var(--color-neutral-100));
+
+	/* -------------------------------------------------------------------------
+	   Semantic Colors - Accent (neutral, customizable)
+	   ------------------------------------------------------------------------- */
+	--accent-default: light-dark(var(--color-neutral-700), var(--color-neutral-300));
+	--accent-hover: light-dark(var(--color-neutral-800), var(--color-neutral-200));
+	--accent-subtle: light-dark(var(--color-neutral-100), var(--color-neutral-800));
+
+	/* -------------------------------------------------------------------------
+	   Semantic Colors - Status (neutral grayscale)
+	   ------------------------------------------------------------------------- */
+	--status-1: light-dark(var(--color-neutral-400), var(--color-neutral-600)); /* planned */
+	--status-2: light-dark(var(--color-neutral-500), var(--color-neutral-500)); /* to write */
+	--status-3: light-dark(var(--color-neutral-600), var(--color-neutral-400)); /* draft */
+	--status-4: light-dark(var(--color-neutral-700), var(--color-neutral-300)); /* in revision */
+	--status-5: light-dark(var(--color-neutral-800), var(--color-neutral-200)); /* done */
+	--status-6: light-dark(var(--color-neutral-300), var(--color-neutral-700)); /* to cut */
+
+	/* -------------------------------------------------------------------------
+	   Semantic Spacing (aliased for context)
+	   ------------------------------------------------------------------------- */
+	--spacing-xs: var(--space-1);
+	--spacing-sm: var(--space-2);
+	--spacing-md: var(--space-4);
+	--spacing-lg: var(--space-6);
+	--spacing-xl: var(--space-8);
+
+	/* -------------------------------------------------------------------------
+	   Semantic Typography
+	   ------------------------------------------------------------------------- */
+	--font-family-ui: var(--font-sans);
+	--font-family-editor: var(--font-serif);
+	--font-family-mono: var(--font-mono);
+
+	--font-size-xs: var(--text-xs);
+	--font-size-sm: var(--text-sm);
+	--font-size-md: var(--text-base);
+	--font-size-lg: var(--text-lg);
+	--font-size-xl: var(--text-xl);
+	--font-size-2xl: var(--text-2xl);
+
+	--line-height-tight: 1.25;
+	--line-height-normal: var(--leading-normal);
+	--line-height-relaxed: 1.75;
+
+	/* -------------------------------------------------------------------------
+	   Semantic Borders & Radius
+	   ------------------------------------------------------------------------- */
+	--border-radius-sm: var(--radius-sm);
+	--border-radius-md: var(--radius-md);
+	--border-radius-lg: var(--radius-lg);
+
+	/* -------------------------------------------------------------------------
+	   Semantic Shadows
+	   ------------------------------------------------------------------------- */
+	--shadow-elevation-1: var(--shadow-sm);
+	--shadow-elevation-2: var(--shadow-md);
+	--shadow-elevation-3: var(--shadow-lg);
+
+	/* -------------------------------------------------------------------------
+	   Semantic Transitions
+	   ------------------------------------------------------------------------- */
+	--transition-fast: var(--duration-fast) var(--ease-default);
+	--transition-normal: var(--duration-normal) var(--ease-default);
+	--transition-slow: var(--duration-slow) var(--ease-default);
+
+	/* -------------------------------------------------------------------------
+	   Semantic Layout
+	   ------------------------------------------------------------------------- */
+	--sidebar-width: var(--width-sidebar);
+	--context-panel-width: var(--width-panel);
+	--toolbar-height: var(--height-toolbar);
+	--statusbar-height: var(--height-statusbar);
+}
+
+/* ==========================================================================
+   Component Tokens - Backward Compatibility Layer
+   Maps old variable names to new semantic tokens
+   ========================================================================== */
+
+:root {
+	/* Legacy color mappings */
+	--color-bg-primary: var(--surface-primary);
+	--color-bg-secondary: var(--surface-secondary);
+	--color-bg-tertiary: var(--surface-tertiary);
+	--color-bg-hover: var(--surface-hover);
+
+	--color-text-primary: var(--text-primary);
+	--color-text-secondary: var(--text-secondary);
+	--color-text-muted: var(--text-muted);
+
+	--color-border: var(--border-default);
+	--color-border-light: var(--border-subtle);
+
+	--color-accent: var(--accent-default);
+	--color-accent-hover: var(--accent-hover);
+	--color-accent-light: var(--accent-subtle);
+
+	/* Legacy semantic colors (neutral) */
+	--color-success: var(--accent-default);
+	--color-warning: var(--accent-default);
+	--color-error: var(--accent-default);
+
+	/* Legacy status colors */
+	--status-planned: var(--status-1);
+	--status-to-write: var(--status-2);
+	--status-draft: var(--status-3);
+	--status-in-revision: var(--status-4);
+	--status-done: var(--status-5);
+	--status-to-cut: var(--status-6);
+}
+
+/* ==========================================================================
+   Manual Theme Override Classes
+   ========================================================================== */
+
+:root.light {
+	color-scheme: light;
+}
+
+:root.dark {
+	color-scheme: dark;
+}
+
+/* ==========================================================================
+   CSS Reset - Modern Minimal Reset
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html {
+	/* Prevent font size inflation on mobile */
+	-moz-text-size-adjust: none;
+	-webkit-text-size-adjust: none;
+	text-size-adjust: none;
+	/* Smooth scrolling for anchor links */
+	scroll-behavior: smooth;
+}
+
+html,
+body {
+	height: 100%;
+}
+
+body {
+	font-family: var(--font-family-ui);
+	font-size: var(--font-size-md);
+	line-height: var(--line-height-normal);
+	color: var(--text-primary);
+	background-color: var(--surface-primary);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+	overflow: hidden;
+}
+
+/* Remove list styles */
+ul,
+ol {
+	list-style: none;
+}
+
+/* Balance text wrapping on headings */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	text-wrap: balance;
+}
+
+/* Avoid text overflow on paragraphs */
+p {
+	text-wrap: pretty;
+}
+
+/* Media elements */
+img,
+picture,
+video,
+canvas,
+svg {
+	display: block;
+	max-width: 100%;
+}
+
+/* Inherit fonts for form elements */
+input,
+button,
+textarea,
+select {
+	font: inherit;
+	color: inherit;
+}
+
+/* Remove default textarea resize */
+textarea {
+	resize: vertical;
+}
+
+/* Anchor styling */
+a {
+	color: var(--text-primary);
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+}
+
+a:hover {
+	text-decoration: none;
+}
+
+/* ==========================================================================
+   Interactive Elements
+   ========================================================================== */
+
+/* Buttons */
+button {
+	cursor: pointer;
+	border: none;
+	background: none;
+	font: inherit;
+	color: inherit;
+}
+
+button:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+/* Form controls */
+input,
+textarea,
+select {
+	background-color: var(--surface-primary);
+	border: 1px solid var(--border-default);
+	border-radius: var(--border-radius-sm);
+	padding: var(--spacing-sm) var(--spacing-md);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+	border-color: var(--border-focus);
+	outline: none;
+}
+
+/* ==========================================================================
+   Focus Management - Accessibility
+   ========================================================================== */
+
+/* Focus visible for keyboard navigation */
+:focus-visible {
+	outline: 2px solid var(--border-focus);
+	outline-offset: 2px;
+}
+
+/* Remove focus outline for mouse users */
+:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* ==========================================================================
+   Scrollbar Styling
+   ========================================================================== */
+
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--border-default);
+	border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--text-muted);
+}
+
+/* Firefox scrollbar */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--border-default) transparent;
+}
+
+/* ==========================================================================
+   Selection Styling
+   ========================================================================== */
+
+::selection {
+	background-color: var(--surface-selected);
+	color: var(--text-primary);
+}
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+
+.text-muted {
+	color: var(--text-muted);
+}
+
+.text-secondary {
+	color: var(--text-secondary);
+}
+
+.text-sm {
+	font-size: var(--font-size-sm);
+}
+
+.text-xs {
+	font-size: var(--font-size-xs);
+}
+
+.truncate {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Screen reader only - Accessibility */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Visually hidden but focusable */
+.sr-only-focusable:focus,
+.sr-only-focusable:focus-within {
+	position: static;
+	width: auto;
+	height: auto;
+	padding: inherit;
+	margin: inherit;
+	overflow: visible;
+	clip: auto;
+	white-space: normal;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+	:root {
+		--border-default: light-dark(var(--color-neutral-400), var(--color-neutral-500));
+		--border-focus: light-dark(var(--color-neutral-1000), var(--color-neutral-0));
+	}
+}
