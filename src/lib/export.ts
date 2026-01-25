@@ -16,12 +16,12 @@ const defaultOptions: ExportOptions = {
 	pageBreakBetweenChapters: true,
 };
 
-function _htmlToTextRuns(html: string): TextRun[] {
-	// Simple HTML to text conversion
-	// Remove tags and convert basic formatting
-
-	// Remove HTML tags but preserve line breaks
-	const text = html
+/**
+ * Converts HTML content to plain text, preserving paragraph breaks.
+ * Handles common HTML entities and removes all tags.
+ */
+function htmlToPlainText(html: string): string {
+	return html
 		.replace(/<br\s*\/?>/gi, '\n')
 		.replace(/<\/p>/gi, '\n\n')
 		.replace(/<\/div>/gi, '\n')
@@ -33,30 +33,11 @@ function _htmlToTextRuns(html: string): TextRun[] {
 		.replace(/&quot;/g, '"')
 		.replace(/&#39;/g, "'")
 		.trim();
-
-	// Split into paragraphs
-	const paragraphs = text.split(/\n\n+/);
-
-	return paragraphs.map((p) => new TextRun({ text: p.trim(), break: 2 }));
 }
 
 function createParagraphsFromHtml(html: string): Paragraph[] {
 	const paragraphs: Paragraph[] = [];
-
-	// Simple HTML to paragraphs conversion
-	const text = html
-		.replace(/<br\s*\/?>/gi, '\n')
-		.replace(/<\/p>/gi, '\n\n')
-		.replace(/<\/div>/gi, '\n')
-		.replace(/<[^>]+>/g, '')
-		.replace(/&nbsp;/g, ' ')
-		.replace(/&amp;/g, '&')
-		.replace(/&lt;/g, '<')
-		.replace(/&gt;/g, '>')
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'")
-		.trim();
-
+	const text = htmlToPlainText(html);
 	const parts = text.split(/\n\n+/);
 
 	for (const part of parts) {
@@ -260,21 +241,6 @@ export async function exportToPdf(
 	const titleFontSize = 24;
 	const h1FontSize = 18;
 	const h2FontSize = 14;
-
-	function htmlToPlainText(html: string): string {
-		return html
-			.replace(/<br\s*\/?>/gi, '\n')
-			.replace(/<\/p>/gi, '\n\n')
-			.replace(/<\/div>/gi, '\n')
-			.replace(/<[^>]+>/g, '')
-			.replace(/&nbsp;/g, ' ')
-			.replace(/&amp;/g, '&')
-			.replace(/&lt;/g, '<')
-			.replace(/&gt;/g, '>')
-			.replace(/&quot;/g, '"')
-			.replace(/&#39;/g, "'")
-			.trim();
-	}
 
 	function wrapText(
 		text: string,
