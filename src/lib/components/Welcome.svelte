@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { open, save } from '@tauri-apps/plugin-dialog';
+	import { onMount } from 'svelte';
+
 	import { projectApi, type RecentProject } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { formatRelativeTime } from '$lib/utils';
@@ -64,7 +65,7 @@
 					newProjectAuthor.trim() || undefined
 				);
 			} catch (e) {
-				appState.error = e as string;
+				appState.error = e instanceof Error ? e.message : String(e);
 			}
 		}
 	}
@@ -80,7 +81,7 @@
 			try {
 				await appState.loadProject(path);
 			} catch (e) {
-				appState.error = e as string;
+				appState.error = e instanceof Error ? e.message : String(e);
 			}
 		}
 	}
@@ -89,7 +90,7 @@
 		try {
 			await appState.loadProject(project.path);
 		} catch (e) {
-			appState.error = e as string;
+			appState.error = e instanceof Error ? e.message : String(e);
 			// Remove from recent if file doesn't exist
 			recentProjects = recentProjects.filter((p) => p.path !== project.path);
 		}

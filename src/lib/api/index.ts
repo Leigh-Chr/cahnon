@@ -26,28 +26,33 @@
 // =============================================================================
 
 export type {
-	// Project & Manuscript
-	Project,
-	Chapter,
-	Scene,
-	SceneHistoryEntry,
-	RecentProject,
+	Annotation,
+	// Arc & Timeline
+	Arc,
 	// Bible
 	BibleEntry,
 	BibleRelationshipWithEntry,
-	// Arc & Timeline
-	Arc,
-	TimelineEvent,
-	TimelineConflict,
+	Chapter,
+	Cut,
+	Issue,
+	NameMention,
+	// Name Registry
+	NameRegistryEntry,
+	// Project & Manuscript
+	Project,
+	RecentProject,
+	// Saved Filters
+	SavedFilter,
+	Scene,
+	SceneHistoryEntry,
+	// Search & Stats
+	SearchResult,
+	Snapshot,
 	// Content
 	Template,
 	TemplateStep,
-	Annotation,
-	Snapshot,
-	Cut,
-	Issue,
-	// Search & Stats
-	SearchResult,
+	TimelineConflict,
+	TimelineEvent,
 	WordCounts,
 } from './types';
 
@@ -55,11 +60,13 @@ export type {
 // API Objects
 // =============================================================================
 
-export { projectApi } from './project';
-export { chapterApi, sceneApi, historyApi } from './manuscript';
-export { bibleApi, associationApi, relationshipApi } from './bible';
-export { arcApi, eventApi, timelineApi } from './timeline';
-export { templateApi, annotationApi, snapshotApi, cutApi, trashApi } from './content';
-export { issueApi } from './issue';
-export { searchApi, statsApi } from './search';
+export { associationApi, bibleApi, relationshipApi } from './bible';
+export { annotationApi, cutApi, snapshotApi, templateApi, trashApi } from './content';
 export { exportApi, importApi } from './export';
+export { issueApi } from './issue';
+export { chapterApi, historyApi, sceneApi } from './manuscript';
+export { nameMentionApi, nameRegistryApi } from './name-registry';
+export { projectApi } from './project';
+export { savedFilterApi } from './saved-filter';
+export { searchApi, statsApi } from './search';
+export { arcApi, eventApi, timelineApi } from './timeline';

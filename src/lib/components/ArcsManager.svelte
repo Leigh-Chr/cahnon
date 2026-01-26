@@ -10,10 +10,11 @@
   - View scenes associated with each arc
 -->
 <script lang="ts">
-	import { arcApi, type Arc } from '$lib/api';
+	import { type Arc, arcApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
-	import { Button, FormGroup, FormActions, Icon, EmptyState } from './ui';
+
+	import { Button, EmptyState, FormActions, FormGroup, Icon } from './ui';
 
 	interface Props {
 		isOpen: boolean;
@@ -266,7 +267,7 @@
 
 							<FormGroup label="Status">
 								<select bind:value={formStatus}>
-									{#each arcStatuses as status}
+									{#each arcStatuses as status (status.value)}
 										<option value={status.value}>{status.label}</option>
 									{/each}
 								</select>
@@ -274,7 +275,7 @@
 
 							<FormGroup label="Color">
 								<div class="color-picker">
-									{#each arcColors as color}
+									{#each arcColors as color (color)}
 										<button
 											type="button"
 											class="color-option"
@@ -316,11 +317,21 @@
 									</span>
 								</div>
 								<div class="detail-actions">
-									<Button size="sm" onclick={() => startEdit(selectedArc!)}>
+									<Button
+										size="sm"
+										onclick={() => {
+											if (selectedArc) startEdit(selectedArc);
+										}}
+									>
 										<Icon name="edit" size={14} />
 										Edit
 									</Button>
-									<Button size="sm" onclick={() => deleteArc(selectedArc!.id)}>
+									<Button
+										size="sm"
+										onclick={() => {
+											if (selectedArc) deleteArc(selectedArc.id);
+										}}
+									>
 										<Icon name="trash" size={14} />
 										Delete
 									</Button>
@@ -345,7 +356,7 @@
 								<div class="detail-section">
 									<h4>Key Characters</h4>
 									<div class="characters-list">
-										{#each getCharacterNames(selectedArc.characters) as name}
+										{#each getCharacterNames(selectedArc.characters) as name, i (i)}
 											<span class="character-tag">{name}</span>
 										{/each}
 									</div>

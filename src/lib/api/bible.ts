@@ -8,6 +8,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+
 import type { BibleEntry, BibleRelationship, BibleRelationshipWithEntry } from './types';
 
 /**

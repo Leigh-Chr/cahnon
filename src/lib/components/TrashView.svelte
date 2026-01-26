@@ -7,10 +7,12 @@
 	 */
 
 	import { onMount } from 'svelte';
-	import { trashApi, type Scene, type Chapter } from '$lib/api';
+
+	import { type Chapter, type Scene, trashApi } from '$lib/api';
 	import { appState } from '$lib/stores';
-	import { showSuccess, showError } from '$lib/toast';
-	import { Icon, Button, EmptyState, LoadingState } from './ui';
+	import { showError, showSuccess } from '$lib/toast';
+
+	import { Button, EmptyState, Icon, LoadingState } from './ui';
 
 	let deletedScenes = $state<Scene[]>([]);
 	let deletedChapters = $state<Chapter[]>([]);
@@ -61,7 +63,10 @@
 
 	function getChapterTitle(chapterId: string): string {
 		const chapter = appState.chapters.find((c) => c.id === chapterId);
-		return chapter?.title || 'Unknown Chapter';
+		if (chapter) return chapter.title;
+		// Also check deleted chapters for scenes whose parent was also deleted
+		const deletedChapter = deletedChapters.find((c) => c.id === chapterId);
+		return deletedChapter?.title || 'Unknown Chapter';
 	}
 
 	function formatDate(dateStr: string): string {

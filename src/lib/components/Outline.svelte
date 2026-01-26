@@ -11,11 +11,14 @@
   - Context menu for edit/delete operations
 -->
 <script lang="ts">
-	import { appState } from '$lib/stores';
-	import { chapterApi, sceneApi, trashApi } from '$lib/api';
-	import { statusColors, countWords, formatWordCount } from '$lib/utils';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { Icon, Button } from './ui';
+
+	import { chapterApi, sceneApi, trashApi } from '$lib/api';
+	import { appState } from '$lib/stores';
+	import { showError } from '$lib/toast';
+	import { countWords, formatWordCount, statusColors } from '$lib/utils';
+
+	import { Button, Icon } from './ui';
 
 	// Context menu state
 	let contextMenu = $state<{ x: number; y: number; sceneId: string; chapterId: string } | null>(
@@ -177,6 +180,7 @@
 			}
 		} catch (e) {
 			console.error('Failed to reorder:', e);
+			showError('Failed to reorder items');
 		}
 
 		draggedItem = null;
@@ -217,11 +221,10 @@
 
 	// Close context menu when clicking elsewhere
 	$effect(() => {
+		if (!contextMenu) return;
 		const handleClick = () => closeContextMenu();
-		if (contextMenu) {
-			document.addEventListener('click', handleClick);
-			return () => document.removeEventListener('click', handleClick);
-		}
+		document.addEventListener('click', handleClick);
+		return () => document.removeEventListener('click', handleClick);
 	});
 </script>
 

@@ -223,6 +223,33 @@ impl Database {
         Ok(())
     }
 
+    /// Deletes an issue and its links to scenes and bible entries.
+    pub fn delete_issue(&self, id: &str) -> Result<(), String> {
+        // Clean up junction tables first
+        self.conn
+            .execute(
+                "DELETE FROM issue_scenes WHERE issue_id = ?1",
+                rusqlite::params![id],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "DELETE FROM issue_bible WHERE issue_id = ?1",
+                rusqlite::params![id],
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = self
+            .conn
+            .execute("DELETE FROM issues WHERE id = ?1", rusqlite::params![id])
+            .map_err(|e| e.to_string())?;
+
+        if rows == 0 {
+            return Err("Issue not found".to_string());
+        }
+        Ok(())
+    }
+
     /// Gets all bible entry IDs linked to an issue.
     pub fn get_issue_bible_entries(&self, issue_id: &str) -> Result<Vec<String>, String> {
         let mut stmt = self

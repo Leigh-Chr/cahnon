@@ -11,8 +11,9 @@
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { appState } from '$lib/stores';
+
 	import { searchApi, type SearchResult } from '$lib/api';
+	import { appState } from '$lib/stores';
 	import { bibleEntryTypes, debounce } from '$lib/utils';
 
 	let inputElement = $state<HTMLInputElement | null>(null);

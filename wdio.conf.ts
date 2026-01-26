@@ -1,5 +1,5 @@
 import type { Options } from '@wdio/types';
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess, spawn } from 'child_process';
 import * as path from 'path';
 
 let tauriDriver: ChildProcess | null = null;

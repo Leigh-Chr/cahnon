@@ -109,6 +109,8 @@ impl Database {
         add_field!(req.todos, "todos");
         add_field!(req.word_target, "word_target", int);
         add_field!(req.time_point, "time_point");
+        add_field!(req.time_start, "time_start");
+        add_field!(req.time_end, "time_end");
         add_field!(req.on_timeline, "on_timeline", bool);
         add_field!(req.position, "position", int);
         // Revision fields
@@ -148,6 +150,34 @@ impl Database {
 
     pub fn delete_scene(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
+
+        // Clean up junction tables to avoid orphaned records
+        self.conn
+            .execute(
+                "DELETE FROM canonical_associations WHERE scene_id = ?1",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM scene_arcs WHERE scene_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM event_scenes WHERE scene_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM issue_scenes WHERE scene_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM scene_steps WHERE scene_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM annotations WHERE scene_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM name_mentions WHERE scene_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+
+        // Soft-delete the scene itself
         self.conn
             .execute(
                 "UPDATE scenes SET deleted_at = ?1 WHERE id = ?2",
@@ -159,15 +189,33 @@ impl Database {
 
     pub fn reorder_scenes(&self, chapter_id: &str, ids: &[String]) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
-        for (i, id) in ids.iter().enumerate() {
-            self.conn
-                .execute(
-                    "UPDATE scenes SET position = ?1, updated_at = ?2 WHERE id = ?3 AND chapter_id = ?4",
-                    params![i as i32, now, id, chapter_id],
-                )
-                .map_err(|e| e.to_string())?;
+
+        self.conn
+            .execute("BEGIN TRANSACTION", [])
+            .map_err(|e| e.to_string())?;
+
+        let result = (|| -> Result<(), String> {
+            for (i, id) in ids.iter().enumerate() {
+                self.conn
+                    .execute(
+                        "UPDATE scenes SET position = ?1, updated_at = ?2 WHERE id = ?3 AND chapter_id = ?4",
+                        params![i as i32, now, id, chapter_id],
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = self.conn.execute("ROLLBACK", []);
+                Err(e)
+            }
         }
-        Ok(())
     }
 
     pub fn move_scene_to_chapter(

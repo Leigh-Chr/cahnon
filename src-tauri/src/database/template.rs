@@ -68,16 +68,36 @@ impl Database {
     }
 
     pub fn set_active_template(&self, template_id: &str) -> Result<(), String> {
+        // Verify the template exists before changing anything
+        self.get_template(template_id)?;
+
         self.conn
-            .execute("UPDATE templates SET is_active = 0", [])
+            .execute("BEGIN TRANSACTION", [])
             .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "UPDATE templates SET is_active = 1 WHERE id = ?1",
-                params![template_id],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+
+        let result = (|| -> Result<(), String> {
+            self.conn
+                .execute("UPDATE templates SET is_active = 0", [])
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "UPDATE templates SET is_active = 1 WHERE id = ?1",
+                    params![template_id],
+                )
+                .map_err(|e| e.to_string())?;
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = self.conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
     }
 
     pub fn assign_scene_to_step(&self, scene_id: &str, step_id: &str) -> Result<(), String> {
@@ -117,7 +137,7 @@ impl Database {
                 [],
                 |row| row.get(0),
             )
-            .unwrap_or(0);
+            .map_err(|e| format!("Failed to check builtin templates: {}", e))?;
         if count > 0 {
             return Ok(());
         }
@@ -337,12 +357,17 @@ impl Database {
         id: &str,
         req: &UpdateTemplateRequest,
     ) -> Result<Template, String> {
+        let template = self.get_template(id)?;
+        if template.is_builtin {
+            return Err("Cannot modify builtin templates".to_string());
+        }
+
         let now = chrono::Utc::now().to_rfc3339();
 
         if let Some(name) = &req.name {
             self.conn
                 .execute(
-                    "UPDATE templates SET name = ?1, updated_at = ?2 WHERE id = ?3 AND is_builtin = 0",
+                    "UPDATE templates SET name = ?1, updated_at = ?2 WHERE id = ?3",
                     params![name, now, id],
                 )
                 .map_err(|e| e.to_string())?;
@@ -352,22 +377,46 @@ impl Database {
     }
 
     pub fn delete_template(&self, id: &str) -> Result<(), String> {
-        // Only allow deleting non-builtin templates
-        self.conn
-            .execute(
-                "DELETE FROM template_steps WHERE template_id = ?1 AND EXISTS (SELECT 1 FROM templates WHERE id = ?1 AND is_builtin = 0)",
-                params![id],
-            )
-            .map_err(|e| e.to_string())?;
+        let template = self.get_template(id)?;
+        if template.is_builtin {
+            return Err("Cannot delete builtin templates".to_string());
+        }
 
-        self.conn
-            .execute(
-                "DELETE FROM templates WHERE id = ?1 AND is_builtin = 0",
-                params![id],
-            )
-            .map_err(|e| e.to_string())?;
+        self.conn.execute("BEGIN", []).map_err(|e| e.to_string())?;
 
-        Ok(())
+        let result = (|| -> Result<(), String> {
+            // Clean up scene assignments for all steps in this template
+            self.conn
+                .execute(
+                    "DELETE FROM scene_steps WHERE step_id IN (SELECT id FROM template_steps WHERE template_id = ?1)",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+
+            self.conn
+                .execute(
+                    "DELETE FROM template_steps WHERE template_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+
+            self.conn
+                .execute("DELETE FROM templates WHERE id = ?1", params![id])
+                .map_err(|e| e.to_string())?;
+
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = self.conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
     }
 
     pub fn create_template_step(
@@ -384,7 +433,7 @@ impl Database {
                 params![req.template_id],
                 |row| row.get(0),
             )
-            .unwrap_or(0);
+            .map_err(|e| format!("Failed to get next step position: {}", e))?;
 
         self.conn
             .execute(
@@ -471,12 +520,19 @@ impl Database {
     }
 
     pub fn delete_template_step(&self, id: &str) -> Result<(), String> {
-        // Only delete from non-builtin templates
+        let step = self.get_template_step(id)?;
+        let template = self.get_template(&step.template_id)?;
+        if template.is_builtin {
+            return Err("Cannot delete steps from builtin templates".to_string());
+        }
+
+        // Clean up scene assignments for this step
         self.conn
-            .execute(
-                "DELETE FROM template_steps WHERE id = ?1 AND template_id IN (SELECT id FROM templates WHERE is_builtin = 0)",
-                params![id],
-            )
+            .execute("DELETE FROM scene_steps WHERE step_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+
+        self.conn
+            .execute("DELETE FROM template_steps WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
     }

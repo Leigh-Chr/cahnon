@@ -7,15 +7,29 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Scene, ImportResult } from './types';
+
+import type { ImportResult, Scene } from './types';
 
 /**
  * API for export operations.
  */
 export const exportApi = {
-	markdown: () => invoke<string>('export_markdown'),
+	markdown: (options?: {
+		chapterIds?: string[];
+		sceneSeparator?: string;
+		includeTitles?: boolean;
+	}) =>
+		invoke<string>('export_markdown', {
+			chapterIds: options?.chapterIds,
+			sceneSeparator: options?.sceneSeparator,
+			includeTitles: options?.includeTitles,
+		}),
 
-	plainText: () => invoke<string>('export_plain_text'),
+	plainText: (options?: { chapterIds?: string[]; sceneSeparator?: string }) =>
+		invoke<string>('export_plain_text', {
+			chapterIds: options?.chapterIds,
+			sceneSeparator: options?.sceneSeparator,
+		}),
 
 	jsonBackup: () => invoke<string>('export_json_backup'),
 

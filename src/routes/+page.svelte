@@ -1,8 +1,9 @@
 <script lang="ts">
 	import '../app.css';
-	import { appState } from '$lib/stores';
-	import Welcome from '$lib/components/Welcome.svelte';
+
 	import Layout from '$lib/components/Layout.svelte';
+	import Welcome from '$lib/components/Welcome.svelte';
+	import { appState } from '$lib/stores';
 </script>
 
 <svelte:head>

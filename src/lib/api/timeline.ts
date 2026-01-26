@@ -7,7 +7,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Arc, TimelineEvent, TimelineConflict, Scene } from './types';
+
+import type { Arc, Scene, TimelineConflict, TimelineEvent } from './types';
 
 /**
  * API for plot arc operations.

@@ -9,17 +9,19 @@
   - Auto-detect timeline conflicts
 -->
 <script lang="ts">
+	import { type Issue, issueApi, timelineApi } from '$lib/api';
 	import { appState } from '$lib/stores';
-	import { issueApi, timelineApi, type Issue } from '$lib/api';
-	import { Button, FormGroup, FormActions, EmptyState } from './ui';
+	import { showError } from '$lib/toast';
+
+	import { Button, EmptyState, FormActions, FormGroup } from './ui';
 
 	let issues = $state<Issue[]>([]);
 	let isLoading = $state(false);
 
-	// Filters
-	let filterType = $state<string | null>(null);
-	let filterStatus = $state<string | null>(null);
-	let filterSeverity = $state<string | null>(null);
+	// Filters (empty string = no filter; using string instead of null for HTML select compatibility)
+	let filterType = $state('');
+	let filterStatus = $state('');
+	let filterSeverity = $state('');
 
 	// Create issue form
 	let showCreateForm = $state(false);
@@ -57,8 +59,12 @@
 		selectedIssueId ? issues.find((i) => i.id === selectedIssueId) || null : null
 	);
 
-	let filteredIssues = $derived(() => {
+	let filteredIssues = $derived.by(() => {
 		let result = issues;
+		// In writing mode, only show critical (error) issues per spec 14.4
+		if (appState.workMode === 'writing') {
+			result = result.filter((i) => i.severity === 'error');
+		}
 		if (filterType) result = result.filter((i) => i.issue_type === filterType);
 		if (filterStatus) result = result.filter((i) => i.status === filterStatus);
 		if (filterSeverity) result = result.filter((i) => i.severity === filterSeverity);
@@ -119,6 +125,7 @@
 			await loadIssues();
 		} catch (e) {
 			console.error('Failed to detect conflicts:', e);
+			showError('Failed to detect timeline conflicts');
 		} finally {
 			isLoading = false;
 		}
@@ -141,6 +148,7 @@
 			selectedIssueId = issue.id;
 		} catch (e) {
 			console.error('Failed to create issue:', e);
+			showError('Failed to create issue');
 		}
 	}
 
@@ -155,6 +163,21 @@
 			issues = issues.map((i) => (i.id === updated.id ? updated : i));
 		} catch (e) {
 			console.error('Failed to update issue:', e);
+			showError('Failed to update issue');
+		}
+	}
+
+	async function deleteIssue() {
+		if (!selectedIssue) return;
+		const issueId = selectedIssue.id;
+
+		try {
+			await issueApi.delete(issueId);
+			issues = issues.filter((i) => i.id !== issueId);
+			selectedIssueId = null;
+		} catch (e) {
+			console.error('Failed to delete issue:', e);
+			showError('Failed to delete issue');
 		}
 	}
 
@@ -212,6 +235,9 @@
 	<div class="issues-sidebar">
 		<div class="sidebar-header">
 			<h2>Issues</h2>
+			{#if appState.workMode === 'writing'}
+				<span class="mode-badge">Critical only</span>
+			{/if}
 			<div class="header-actions">
 				<Button size="sm" onclick={() => detectTimelineConflicts()} disabled={isLoading}>
 					Detect Conflicts
@@ -224,22 +250,22 @@
 
 		<div class="filters">
 			<select bind:value={filterType}>
-				<option value={null}>All Types</option>
-				{#each issueTypes as type}
+				<option value="">All Types</option>
+				{#each issueTypes as type (type.value)}
 					<option value={type.value}>{type.label}</option>
 				{/each}
 			</select>
 
 			<select bind:value={filterStatus}>
-				<option value={null}>All Statuses</option>
-				{#each statuses as status}
+				<option value="">All Statuses</option>
+				{#each statuses as status (status.value)}
 					<option value={status.value}>{status.label}</option>
 				{/each}
 			</select>
 
 			<select bind:value={filterSeverity}>
-				<option value={null}>All Severities</option>
-				{#each severities as severity}
+				<option value="">All Severities</option>
+				{#each severities as severity (severity.value)}
 					<option value={severity.value}>{severity.label}</option>
 				{/each}
 			</select>
@@ -248,10 +274,10 @@
 		<div class="issues-list">
 			{#if isLoading}
 				<div class="loading">Loading issues...</div>
-			{:else if filteredIssues().length === 0}
+			{:else if filteredIssues.length === 0}
 				<EmptyState title="No issues found" />
 			{:else}
-				{#each filteredIssues() as issue (issue.id)}
+				{#each filteredIssues as issue (issue.id)}
 					<button
 						class="issue-item"
 						class:selected={selectedIssueId === issue.id}
@@ -287,7 +313,7 @@
 				>
 					<FormGroup label="Type">
 						<select bind:value={newIssueType}>
-							{#each issueTypes.filter((t) => !t.auto) as type}
+							{#each issueTypes.filter((t) => !t.auto) as type (type.value)}
 								<option value={type.value}>{type.label}</option>
 							{/each}
 						</select>
@@ -311,7 +337,7 @@
 
 					<FormGroup label="Severity">
 						<select bind:value={newIssueSeverity}>
-							{#each severities as severity}
+							{#each severities as severity (severity.value)}
 								<option value={severity.value}>{severity.label}</option>
 							{/each}
 						</select>
@@ -353,7 +379,7 @@
 					<div class="linked-items">
 						<strong>Linked Scenes:</strong>
 						<ul>
-							{#each linkedSceneIds as sceneId}
+							{#each linkedSceneIds as sceneId (sceneId)}
 								<li>
 									<button class="link-btn" onclick={() => navigateToScene(sceneId)}>
 										{getSceneTitle(sceneId)}
@@ -368,7 +394,7 @@
 					<div class="linked-items">
 						<strong>Linked Bible Entries:</strong>
 						<ul>
-							{#each linkedBibleIds as entryId}
+							{#each linkedBibleIds as entryId (entryId)}
 								<li>
 									<button class="link-btn" onclick={() => navigateToBibleEntry(entryId)}>
 										{getBibleEntryName(entryId)}
@@ -385,10 +411,12 @@
 							Mark Resolved
 						</Button>
 						<Button onclick={() => updateIssueStatus('ignored', 'Ignored by user')}>Ignore</Button>
+						<Button onclick={deleteIssue} variant="danger">Delete</Button>
 					</div>
 				{:else}
 					<div class="actions">
 						<Button onclick={() => updateIssueStatus('open')}>Reopen</Button>
+						<Button onclick={deleteIssue} variant="danger">Delete</Button>
 					</div>
 				{/if}
 
@@ -425,6 +453,17 @@
 	.sidebar-header h2 {
 		margin: 0 0 var(--spacing-sm) 0;
 		font-size: var(--font-size-lg);
+	}
+
+	.mode-badge {
+		display: inline-block;
+		font-size: var(--font-size-xs);
+		padding: 2px var(--spacing-xs);
+		background-color: var(--color-warning);
+		color: white;
+		border-radius: var(--border-radius-sm);
+		margin-bottom: var(--spacing-sm);
+		font-weight: 500;
 	}
 
 	.header-actions {

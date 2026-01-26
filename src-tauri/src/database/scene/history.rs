@@ -8,13 +8,14 @@ use super::super::Database;
 impl Database {
     /// Save current scene text to history before update.
     pub(crate) fn save_scene_to_history(&self, id: &str, now: &str) -> Result<(), String> {
-        if let Ok(scene) = self.get_scene(id) {
-            let history_id = uuid::Uuid::new_v4().to_string();
-            let _ = self.conn.execute(
+        let scene = self.get_scene(id)?;
+        let history_id = uuid::Uuid::new_v4().to_string();
+        self.conn
+            .execute(
                 "INSERT INTO scene_history (id, scene_id, text, created_at) VALUES (?1, ?2, ?3, ?4)",
                 params![history_id, id, scene.text, now],
-            );
-        }
+            )
+            .map_err(|e| format!("Failed to save scene history: {}", e))?;
         Ok(())
     }
 

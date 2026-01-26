@@ -1,0 +1,6 @@
+pnpm lint-staged
+
+cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings
+cd ..
+
+pnpm knip || echo "⚠ Knip found unused code (non-blocking)"

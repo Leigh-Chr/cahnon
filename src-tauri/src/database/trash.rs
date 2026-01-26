@@ -56,16 +56,28 @@ impl Database {
     }
 
     pub fn restore_chapter(&self, id: &str) -> Result<Chapter, String> {
+        // Get the chapter's deleted_at timestamp to only restore scenes deleted at the same time
+        let chapter_deleted_at: String = self
+            .conn
+            .query_row(
+                "SELECT deleted_at FROM chapters WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+
         self.conn
             .execute(
                 "UPDATE chapters SET deleted_at = NULL WHERE id = ?1",
                 params![id],
             )
             .map_err(|e| e.to_string())?;
+        // Only restore scenes that were deleted at the same time as the chapter
+        // (not scenes that were individually deleted before the chapter)
         self.conn
             .execute(
-                "UPDATE scenes SET deleted_at = NULL WHERE chapter_id = ?1",
-                params![id],
+                "UPDATE scenes SET deleted_at = NULL WHERE chapter_id = ?1 AND deleted_at = ?2",
+                params![id, chapter_deleted_at],
             )
             .map_err(|e| e.to_string())?;
         self.get_chapter(id)

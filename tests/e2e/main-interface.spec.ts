@@ -1,4 +1,4 @@
-import { expect, browser, $, $$ } from '@wdio/globals';
+import { $, $$, browser, expect } from '@wdio/globals';
 import * as path from 'path';
 
 const SCREENSHOT_DIR = './tests/e2e/screenshots';
@@ -10,21 +10,6 @@ async function jsClick(selector: string) {
 	await browser.execute((el: HTMLElement) => el.click(), element);
 }
 
-// Helper to set input value via JavaScript
-async function _jsSetValue(selector: string, value: string) {
-	const element = await $(selector);
-	await element.waitForExist({ timeout: 5000 });
-	await browser.execute(
-		(el: HTMLElement, val: string) => {
-			(el as HTMLInputElement).value = val;
-			el.dispatchEvent(new Event('input', { bubbles: true }));
-			el.dispatchEvent(new Event('change', { bubbles: true }));
-		},
-		element,
-		value
-	);
-}
-
 // Helper to take screenshot
 async function takeScreenshot(name: string) {
 	const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -33,22 +18,6 @@ async function takeScreenshot(name: string) {
 	await browser.saveScreenshot(filepath);
 	console.log(`Screenshot: ${filepath}`);
 	return filepath;
-}
-
-// Helper to wait and verify element
-async function _waitAndVerify(selector: string, description: string, timeout = 10000) {
-	const element = await $(selector);
-	const exists = await element.waitForExist({ timeout }).catch(() => false);
-	if (!exists) {
-		throw new Error(`Element not found: ${description} (${selector})`);
-	}
-	console.log(`✓ ${description}`);
-	return element;
-}
-
-// Helper to simulate keyboard shortcut
-async function _pressKeys(keys: string) {
-	await browser.keys(keys);
 }
 
 describe('Cahnon - Main Interface Tests', () => {
@@ -302,7 +271,7 @@ describe('Cahnon - Main Interface Tests', () => {
 					console.log('  ✓ Bible view loaded');
 				} else {
 					// Check if we're still in the app but Bible view rendered differently
-					const _pageContent = await browser.execute(() => document.body.innerHTML);
+					await browser.execute(() => document.body.innerHTML);
 					console.log('  Bible view element check - looking for Bible content');
 				}
 			} else {

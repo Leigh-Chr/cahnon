@@ -1,4 +1,4 @@
-import { expect, browser, $ } from '@wdio/globals';
+import { $, browser, expect } from '@wdio/globals';
 
 // Helper function to click elements using JavaScript (workaround for WebKitWebDriver limitation)
 async function jsClick(selector: string) {

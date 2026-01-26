@@ -18,7 +18,17 @@
 		"test:watch": "vitest",
 		"test:all": "vitest run && cargo test --manifest-path src-tauri/Cargo.toml",
 		"test:e2e": "pnpm tauri build && wdio run ./wdio.conf.ts",
-		"tauri": "tauri"
+		"tauri": "tauri",
+		"prepare": "husky"
+	},
+	"lint-staged": {
+		"*.{ts,svelte,js}": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{json,md,css,html,yaml}": [
+			"prettier --write"
+		]
 	},
 	"license": "GPL-3.0",
 	"dependencies": {
@@ -57,10 +67,13 @@
 		"@wdio/spec-reporter": "^9.23.2",
 		"@wdio/types": "^9.23.2",
 		"eslint": "^9.39.2",
+		"eslint-plugin-simple-import-sort": "^12.1.1",
 		"eslint-plugin-svelte": "^3.14.0",
 		"globals": "^17.1.0",
+		"husky": "^9.1.7",
 		"jsdom": "^27.4.0",
 		"knip": "^5.82.1",
+		"lint-staged": "^16.2.7",
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.4.1",
 		"svelte": "^5.48.2",

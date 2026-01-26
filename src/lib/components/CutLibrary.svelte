@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { cutApi, type Cut } from '$lib/api';
-	import { countWords, formatWordCount } from '$lib/utils';
+	import { type Cut, cutApi } from '$lib/api';
 	import { showError, showSuccess } from '$lib/toast';
-	import { Icon, Button, EmptyState, LoadingState } from './ui';
+	import { countWords, formatWordCount } from '$lib/utils';
+
+	import { Button, EmptyState, Icon, LoadingState } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -13,6 +14,7 @@
 
 	let cuts = $state<Cut[]>([]);
 	let isLoading = $state(true);
+	let searchQuery = $state('');
 
 	$effect(() => {
 		if (isOpen) {
@@ -58,7 +60,9 @@
 	}
 
 	function formatDate(dateStr: string): string {
-		return new Date(dateStr).toLocaleString();
+		const date = new Date(dateStr);
+		if (isNaN(date.getTime())) return dateStr;
+		return date.toLocaleString();
 	}
 
 	function close() {
@@ -66,6 +70,7 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		if (!isOpen) return;
 		if (event.key === 'Escape') {
 			close();
 		}
@@ -78,6 +83,12 @@
 	function handlePanelClick(event: MouseEvent) {
 		event.stopPropagation();
 	}
+
+	let filteredCuts = $derived(
+		searchQuery
+			? cuts.filter((c) => c.text.toLowerCase().includes(searchQuery.toLowerCase()))
+			: cuts
+	);
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -110,8 +121,14 @@
 						description="Text you cut from scenes will be saved here for later use."
 					/>
 				{:else}
+					<div class="search-box">
+						<input type="text" placeholder="Search cuts..." bind:value={searchQuery} />
+					</div>
+					{#if filteredCuts.length === 0 && searchQuery}
+						<div class="no-results">No cuts matching "{searchQuery}"</div>
+					{/if}
 					<div class="cuts-list">
-						{#each cuts as cut (cut.id)}
+						{#each filteredCuts as cut (cut.id)}
 							<div class="cut-item">
 								<div class="cut-content">
 									<pre>{cut.text}</pre>
@@ -200,6 +217,27 @@
 	.panel-content {
 		flex: 1;
 		overflow-y: auto;
+	}
+
+	.search-box {
+		padding: var(--spacing-md) var(--spacing-md) 0;
+	}
+
+	.search-box input {
+		width: 100%;
+		padding: var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-secondary);
+	}
+
+	.no-results {
+		padding: var(--spacing-md);
+		text-align: center;
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+		font-style: italic;
 	}
 
 	.cuts-list {

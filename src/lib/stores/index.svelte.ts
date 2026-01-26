@@ -12,11 +12,11 @@
 // =============================================================================
 
 // Types
-export type { ViewMode, WorkMode, EditorSettings, FocusSettings } from './types';
+export type { EditorSettings, FocusSettings, ViewMode, WorkMode } from './types';
 
 // App State (main state class)
 export { appState } from './app-state.svelte';
 
 // Recovery utilities
 export type { RecoveryDraft } from './recovery';
-export { saveRecoveryDraft, getRecoveryDraft, clearRecoveryDraft } from './recovery';
+export { clearRecoveryDraft, getRecoveryDraft, saveRecoveryDraft } from './recovery';

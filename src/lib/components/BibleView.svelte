@@ -11,10 +11,12 @@
   - Status tracking (active, minor, mentioned, deceased)
 -->
 <script lang="ts">
+	import { type BibleEntry, type BibleRelationshipWithEntry, relationshipApi } from '$lib/api';
 	import { appState } from '$lib/stores';
-	import { relationshipApi, type BibleEntry, type BibleRelationshipWithEntry } from '$lib/api';
+	import { showError } from '$lib/toast';
 	import { bibleEntryTypes, bibleStatuses } from '$lib/utils';
-	import { Icon, Button, FormGroup, FormActions } from './ui';
+
+	import { Button, FormActions, FormGroup, Icon } from './ui';
 
 	let isCreating = $state(false);
 	let newEntryType = $state('character');
@@ -97,6 +99,7 @@
 			newRelationshipType = 'related_to';
 		} catch (e) {
 			console.error('Failed to create relationship:', e);
+			showError('Failed to create relationship');
 		}
 	}
 
@@ -107,6 +110,7 @@
 			await loadRelationships(selectedEntry.id);
 		} catch (e) {
 			console.error('Failed to delete relationship:', e);
+			showError('Failed to delete relationship');
 		}
 	}
 
@@ -121,25 +125,39 @@
 	async function createEntry() {
 		if (!newEntryName.trim()) return;
 
-		await appState.createBibleEntry({
-			entry_type: newEntryType,
-			name: newEntryName.trim(),
-		});
-
-		newEntryName = '';
-		isCreating = false;
+		try {
+			await appState.createBibleEntry({
+				entry_type: newEntryType,
+				name: newEntryName.trim(),
+			});
+			newEntryName = '';
+			isCreating = false;
+		} catch (e) {
+			console.error('Failed to create bible entry:', e);
+			showError('Failed to create entry');
+		}
 	}
 
 	async function updateEntry(field: string, value: string) {
 		if (selectedEntry) {
-			await appState.updateBibleEntry(selectedEntry.id, { [field]: value });
+			try {
+				await appState.updateBibleEntry(selectedEntry.id, { [field]: value });
+			} catch (e) {
+				console.error('Failed to update bible entry:', e);
+				showError('Failed to update entry');
+			}
 		}
 	}
 
 	async function deleteEntry() {
 		if (selectedEntry && confirm(`Delete "${selectedEntry.name}"? This cannot be undone.`)) {
-			await appState.deleteBibleEntry(selectedEntry.id);
-			appState.selectedBibleEntryId = null;
+			try {
+				await appState.deleteBibleEntry(selectedEntry.id);
+				appState.selectedBibleEntryId = null;
+			} catch (e) {
+				console.error('Failed to delete bible entry:', e);
+				showError('Failed to delete entry');
+			}
 		}
 	}
 
@@ -176,6 +194,23 @@
 			}
 		}
 	});
+
+	// Friendly labels for type-specific default fields
+	const fieldLabels: Record<string, string> = {
+		role: 'Role',
+		voice_notes: 'Voice Notes',
+		parent_location: 'Parent Location',
+		faction_type: 'Type',
+		members: 'Members',
+		headquarters: 'Headquarters',
+		pronunciation: 'Pronunciation',
+		etymology: 'Etymology',
+		language: 'Language',
+	};
+
+	function getFieldLabel(name: string): string {
+		return fieldLabels[name] || name;
+	}
 
 	function addCustomField() {
 		customFields = [...customFields, { name: '', value: '' }];
@@ -464,13 +499,17 @@
 						<div class="custom-fields-list">
 							{#each customFields as field, index (index)}
 								<div class="custom-field">
-									<input
-										type="text"
-										class="field-name"
-										placeholder="Field name"
-										value={field.name}
-										onblur={(e) => updateCustomFieldName(index, e.currentTarget.value)}
-									/>
+									{#if fieldLabels[field.name]}
+										<span class="field-label">{getFieldLabel(field.name)}</span>
+									{:else}
+										<input
+											type="text"
+											class="field-name"
+											placeholder="Field name"
+											value={field.name}
+											onblur={(e) => updateCustomFieldName(index, e.currentTarget.value)}
+										/>
+									{/if}
 									<input
 										type="text"
 										class="field-value"
@@ -849,6 +888,15 @@
 		font-size: var(--font-size-sm);
 		font-weight: 500;
 		color: var(--color-text-primary);
+	}
+
+	.custom-field .field-label {
+		width: 120px;
+		flex-shrink: 0;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		color: var(--color-text-secondary);
 	}
 
 	.custom-field .field-value {

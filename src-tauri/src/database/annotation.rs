@@ -7,6 +7,16 @@ use super::Database;
 
 impl Database {
     pub fn create_annotation(&self, req: &CreateAnnotationRequest) -> Result<Annotation, String> {
+        if req.start_offset < 0 {
+            return Err("Start offset cannot be negative".to_string());
+        }
+        if req.end_offset < 0 {
+            return Err("End offset cannot be negative".to_string());
+        }
+        if req.end_offset <= req.start_offset {
+            return Err("End offset must be greater than start offset".to_string());
+        }
+
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
 
@@ -103,20 +113,36 @@ impl Database {
     ) -> Result<Annotation, String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        if let Some(content) = &req.content {
-            self.conn
-                .execute(
-                    "UPDATE annotations SET content = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![content, now, id],
-                )
-                .map_err(|e| e.to_string())?;
+        let mut set_clauses = Vec::new();
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+        if let Some(ref content) = req.content {
+            set_clauses.push(format!("content = ?{}", params_vec.len() + 1));
+            params_vec.push(Box::new(content.clone()));
         }
-        if let Some(status) = &req.status {
+        if let Some(ref status) = req.status {
+            set_clauses.push(format!("status = ?{}", params_vec.len() + 1));
+            params_vec.push(Box::new(status.clone()));
+        }
+
+        if !set_clauses.is_empty() {
+            set_clauses.push(format!("updated_at = ?{}", params_vec.len() + 1));
+            params_vec.push(Box::new(now));
+
+            let id_idx = params_vec.len() + 1;
+            let query = format!(
+                "UPDATE annotations SET {} WHERE id = ?{}",
+                set_clauses.join(", "),
+                id_idx
+            );
+
+            let params_refs: Vec<&dyn rusqlite::ToSql> =
+                params_vec.iter().map(|p| p.as_ref()).collect();
+            let mut all_params = params_refs;
+            all_params.push(&id);
+
             self.conn
-                .execute(
-                    "UPDATE annotations SET status = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![status, now, id],
-                )
+                .execute(&query, all_params.as_slice())
                 .map_err(|e| e.to_string())?;
         }
 

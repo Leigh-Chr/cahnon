@@ -167,6 +167,12 @@ impl Database {
 
     pub fn delete_arc(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
+
+        // Clean up junction table to avoid orphaned records
+        self.conn
+            .execute("DELETE FROM scene_arcs WHERE arc_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+
         self.conn
             .execute(
                 "UPDATE arcs SET deleted_at = ?1 WHERE id = ?2",

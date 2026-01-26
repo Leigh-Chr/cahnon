@@ -7,8 +7,9 @@
 	 */
 
 	import type { Snippet } from 'svelte';
-	import Icon from './Icon.svelte';
+
 	import Button from './Button.svelte';
+	import Icon from './Icon.svelte';
 
 	// Manually define the icon names to avoid complex type inference
 	type IconName =

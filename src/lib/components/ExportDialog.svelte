@@ -15,11 +15,14 @@
   DOCX options include chapter headers, scene headers, and page breaks.
 -->
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
+
 	import { exportApi } from '$lib/api';
-	import { showSuccess, showError } from '$lib/toast';
+	import { downloadHtml, exportToDocx, exportToPdf } from '$lib/export';
 	import { appState } from '$lib/stores';
-	import { exportToDocx, downloadHtml, exportToPdf } from '$lib/export';
-	import { Icon, Button } from './ui';
+	import { showError, showSuccess } from '$lib/toast';
+
+	import { Button, Icon } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -40,6 +43,35 @@
 	let includeSceneHeaders = $state(true);
 	let pageBreakBetweenChapters = $state(true);
 
+	// Scope & separator options (markdown/plaintext)
+	let exportScope = $state<'all' | 'selected'>('all');
+	let selectedChapterIds = new SvelteSet<string>();
+	let sceneSeparator = $state('');
+	let includeSceneTitles = $state(true);
+
+	const defaultSeparators: Record<string, string> = {
+		markdown: '###',
+		plaintext: '* * *',
+	};
+
+	function toggleChapter(id: string) {
+		if (selectedChapterIds.has(id)) {
+			selectedChapterIds.delete(id);
+		} else {
+			selectedChapterIds.add(id);
+		}
+	}
+
+	function selectAllChapters() {
+		for (const c of appState.chapters) {
+			selectedChapterIds.add(c.id);
+		}
+	}
+
+	function deselectAllChapters() {
+		selectedChapterIds.clear();
+	}
+
 	function close() {
 		exportResult = null;
 		error = null;
@@ -51,12 +83,28 @@
 		error = null;
 		try {
 			switch (exportFormat) {
-				case 'markdown':
-					exportResult = await exportApi.markdown();
+				case 'markdown': {
+					const chapterIds =
+						exportScope === 'selected' && selectedChapterIds.size > 0
+							? [...selectedChapterIds]
+							: undefined;
+					const sep = sceneSeparator.trim() || undefined;
+					exportResult = await exportApi.markdown({
+						chapterIds,
+						sceneSeparator: sep,
+						includeTitles: includeSceneTitles,
+					});
 					break;
-				case 'plaintext':
-					exportResult = await exportApi.plainText();
+				}
+				case 'plaintext': {
+					const chapterIds =
+						exportScope === 'selected' && selectedChapterIds.size > 0
+							? [...selectedChapterIds]
+							: undefined;
+					const sep = sceneSeparator.trim() || undefined;
+					exportResult = await exportApi.plainText({ chapterIds, sceneSeparator: sep });
 					break;
+				}
 				case 'json':
 					exportResult = await exportApi.jsonBackup();
 					break;
@@ -121,8 +169,10 @@
 
 	function copyToClipboard() {
 		if (exportResult) {
-			navigator.clipboard.writeText(exportResult);
-			showSuccess('Copied to clipboard');
+			navigator.clipboard.writeText(exportResult).then(
+				() => showSuccess('Copied to clipboard'),
+				() => showError('Failed to copy to clipboard')
+			);
 		}
 	}
 
@@ -436,6 +486,63 @@
 						</div>
 					{/if}
 
+					{#if exportFormat === 'markdown' || exportFormat === 'plaintext'}
+						<div class="export-options">
+							<h4>Export Options</h4>
+
+							<div class="scope-option">
+								<label class="radio-option">
+									<input type="radio" bind:group={exportScope} value="all" />
+									All chapters
+								</label>
+								<label class="radio-option">
+									<input type="radio" bind:group={exportScope} value="selected" />
+									Selected chapters
+								</label>
+							</div>
+
+							{#if exportScope === 'selected'}
+								<div class="chapter-select">
+									<div class="chapter-select-actions">
+										<button type="button" class="link-btn" onclick={selectAllChapters}
+											>Select all</button
+										>
+										<button type="button" class="link-btn" onclick={deselectAllChapters}
+											>Clear</button
+										>
+									</div>
+									{#each appState.chapters as chapter (chapter.id)}
+										<label class="checkbox-option">
+											<input
+												type="checkbox"
+												checked={selectedChapterIds.has(chapter.id)}
+												onchange={() => toggleChapter(chapter.id)}
+											/>
+											{chapter.title}
+										</label>
+									{/each}
+								</div>
+							{/if}
+
+							<div class="text-option">
+								<label for="scene-separator">Scene separator</label>
+								<input
+									id="scene-separator"
+									type="text"
+									bind:value={sceneSeparator}
+									placeholder={defaultSeparators[exportFormat] ?? '###'}
+								/>
+							</div>
+
+							{#if exportFormat === 'markdown'}
+								<label class="checkbox-option">
+									<input type="checkbox" bind:checked={includeSceneTitles} />
+									Include scene titles
+								</label>
+							{/if}
+						</div>
+					{/if}
+
 					{#if error}
 						<div class="error-message">{error}</div>
 					{/if}
@@ -687,5 +794,76 @@
 		flex: 1;
 		height: 1px;
 		background-color: var(--color-border);
+	}
+
+	.scope-option {
+		display: flex;
+		gap: var(--spacing-md);
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.radio-option {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+	}
+
+	.radio-option input[type='radio'] {
+		cursor: pointer;
+	}
+
+	.chapter-select {
+		margin-bottom: var(--spacing-sm);
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		max-height: 150px;
+		overflow-y: auto;
+	}
+
+	.chapter-select-actions {
+		display: flex;
+		gap: var(--spacing-sm);
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.link-btn {
+		background: none;
+		border: none;
+		color: var(--color-accent);
+		font-size: var(--font-size-xs);
+		cursor: pointer;
+		padding: 0;
+		text-decoration: underline;
+	}
+
+	.link-btn:hover {
+		color: var(--color-accent-hover, var(--color-accent));
+	}
+
+	.text-option {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		margin: var(--spacing-sm) 0;
+	}
+
+	.text-option label {
+		font-size: var(--font-size-sm);
+		white-space: nowrap;
+	}
+
+	.text-option input[type='text'] {
+		flex: 1;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-primary);
+		color: var(--color-text-primary);
+		font-size: var(--font-size-sm);
+		font-family: var(--font-mono);
 	}
 </style>

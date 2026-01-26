@@ -51,6 +51,16 @@ impl Default for AppState {
     }
 }
 
+impl AppState {
+    /// Acquires the database lock, handling mutex poisoning gracefully.
+    /// Returns a MutexGuard to the database Option.
+    pub fn get_db(&self) -> Result<std::sync::MutexGuard<'_, Option<Database>>, String> {
+        self.db
+            .lock()
+            .map_err(|_| "Database lock is poisoned".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -70,6 +80,7 @@ pub fn run() {
             commands::project::acquire_lock,
             commands::project::release_lock,
             commands::project::force_acquire_lock,
+            commands::project::check_database_integrity,
             // Chapter commands
             commands::chapter::create_chapter,
             commands::chapter::get_chapters,
@@ -100,6 +111,7 @@ pub fn run() {
             commands::association::delete_association,
             // Search commands
             commands::search::global_search,
+            commands::search::find_replace_in_scenes,
             // Stats commands
             commands::stats::get_word_counts,
             // Arc commands
@@ -159,6 +171,7 @@ pub fn run() {
             commands::issue::get_issues,
             commands::issue::get_issue,
             commands::issue::update_issue,
+            commands::issue::delete_issue,
             commands::issue::link_scene_to_issue,
             commands::issue::unlink_scene_from_issue,
             commands::issue::get_issue_scenes,
@@ -172,6 +185,9 @@ pub fn run() {
             commands::snapshot::get_snapshot,
             commands::snapshot::delete_snapshot,
             commands::snapshot::restore_snapshot,
+            commands::snapshot::cleanup_expired_snapshots,
+            commands::snapshot::get_snapshot_scenes,
+            commands::snapshot::restore_scene_from_snapshot,
             // Export commands
             commands::export::export_markdown,
             commands::export::export_plain_text,
@@ -194,6 +210,23 @@ pub fn run() {
             commands::cut::create_cut,
             commands::cut::get_cuts,
             commands::cut::delete_cut,
+            // Name Registry commands
+            commands::name_registry::create_name_registry_entry,
+            commands::name_registry::get_name_registry_entries,
+            commands::name_registry::get_name_registry_entry,
+            commands::name_registry::update_name_registry_entry,
+            commands::name_registry::delete_name_registry_entry,
+            commands::name_registry::get_name_mentions_by_scene,
+            commands::name_registry::get_name_mentions_by_registry,
+            commands::name_registry::update_name_mention,
+            commands::name_registry::delete_name_mention,
+            commands::name_registry::scan_names,
+            commands::name_registry::merge_name_entries,
+            // Saved Filter commands
+            commands::saved_filter::create_saved_filter,
+            commands::saved_filter::get_saved_filters,
+            commands::saved_filter::update_saved_filter,
+            commands::saved_filter::delete_saved_filter,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

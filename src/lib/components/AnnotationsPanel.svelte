@@ -6,9 +6,10 @@
 	 * Supports filtering by status and inline creation.
 	 */
 
-	import { annotationApi, type Annotation } from '$lib/api';
+	import { type Annotation, annotationApi } from '$lib/api';
 	import { showError } from '$lib/toast';
-	import { Icon, Button, FormActions } from './ui';
+
+	import { Button, FormActions, Icon } from './ui';
 
 	interface Props {
 		sceneId: string;

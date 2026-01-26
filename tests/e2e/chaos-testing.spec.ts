@@ -1,4 +1,4 @@
-import { expect, browser, $, $$ } from '@wdio/globals';
+import { $, $$, browser, expect } from '@wdio/globals';
 import * as path from 'path';
 
 const SCREENSHOT_DIR = './tests/e2e/screenshots';
@@ -641,11 +641,9 @@ describe('CHAOS TESTING - Breaking the Application', () => {
 		});
 
 		it('13.3 - Check console for errors', async () => {
-			const _logs = await browser.execute(() => {
-				const errors: string[] = [];
-				const _originalError = console.error;
+			await browser.execute(() => {
 				// This won't catch past errors, but we can check if error handler exists
-				return errors;
+				return [] as string[];
 			});
 			console.log('  Console check completed');
 		});

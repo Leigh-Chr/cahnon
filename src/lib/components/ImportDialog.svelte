@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { appState } from '$lib/stores';
 	import { importApi } from '$lib/api';
-	import { showSuccess, showError } from '$lib/toast';
 	import { importFromDocx } from '$lib/export';
-	import { Icon, Button } from './ui';
+	import { appState } from '$lib/stores';
+	import { showError, showSuccess } from '$lib/toast';
+
+	import { Button, Icon } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -50,12 +51,18 @@
 			reader.onload = (e) => {
 				content = (e.target?.result as string) || '';
 			};
+			reader.onerror = () => {
+				showError('Failed to read file');
+			};
 			reader.readAsText(file);
 		} else {
 			docxFile = null;
 			const reader = new FileReader();
 			reader.onload = (e) => {
 				content = (e.target?.result as string) || '';
+			};
+			reader.onerror = () => {
+				showError('Failed to read file');
 			};
 			reader.readAsText(file);
 

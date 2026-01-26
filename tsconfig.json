@@ -10,6 +10,9 @@
 		"sourceMap": true,
 		"strict": true,
 		"moduleResolution": "bundler",
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
 		"types": ["@wdio/globals/types", "@types/mocha"]
 	}
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias

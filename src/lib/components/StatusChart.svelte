@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores';
 	import { statusColors } from '$lib/utils';
+
 	import { EmptyState } from './ui';
 
 	let statusData = $derived(appState.wordCounts?.by_status || []);

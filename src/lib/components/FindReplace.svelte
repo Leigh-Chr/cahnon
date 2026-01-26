@@ -1,4 +1,6 @@
 <script lang="ts" module>
+	export type FindReplaceScope = 'scene' | 'chapter' | 'manuscript';
+
 	export interface FindReplaceHandle {
 		updateMatchInfo: (current: number, total: number) => void;
 	}
@@ -8,6 +10,7 @@
 	interface Props {
 		isOpen?: boolean;
 		showReplace?: boolean;
+		scope?: FindReplaceScope;
 		onfind?: (data: { query: string; caseSensitive: boolean; wholeWord: boolean }) => void;
 		onreplace?: (data: {
 			find: string;
@@ -20,6 +23,7 @@
 			replace: string;
 			caseSensitive: boolean;
 			wholeWord: boolean;
+			scope: FindReplaceScope;
 		}) => void;
 		onclose?: () => void;
 		onnext?: () => void;
@@ -30,6 +34,7 @@
 	let {
 		isOpen = $bindable(false),
 		showReplace = $bindable(false),
+		scope = $bindable<FindReplaceScope>('scene'),
 		onfind,
 		onreplace,
 		onreplaceAll,
@@ -78,7 +83,7 @@
 
 	function handleReplaceAll() {
 		if (findQuery) {
-			onreplaceAll?.({ find: findQuery, replace: replaceQuery, caseSensitive, wholeWord });
+			onreplaceAll?.({ find: findQuery, replace: replaceQuery, caseSensitive, wholeWord, scope });
 		}
 	}
 
@@ -242,6 +247,14 @@
 					</button>
 				</div>
 			</div>
+			<div class="scope-row">
+				<span class="scope-label">Scope:</span>
+				<select bind:value={scope} class="scope-select">
+					<option value="scene">Scene</option>
+					<option value="chapter">Chapter</option>
+					<option value="manuscript">Manuscript</option>
+				</select>
+			</div>
 		{/if}
 	</div>
 {/if}
@@ -360,5 +373,27 @@
 
 	.replace-input {
 		flex: 1;
+	}
+
+	.scope-row {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		margin-top: var(--spacing-xs);
+		padding-left: var(--spacing-xs);
+	}
+
+	.scope-label {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.scope-select {
+		font-size: var(--font-size-xs);
+		padding: 2px var(--spacing-xs);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-secondary);
+		color: var(--color-text-primary);
 	}
 </style>

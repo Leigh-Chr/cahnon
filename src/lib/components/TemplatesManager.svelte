@@ -10,10 +10,11 @@
   - View template step assignments
 -->
 <script lang="ts">
-	import { templateApi, type Template, type TemplateStep } from '$lib/api';
+	import { type Template, templateApi, type TemplateStep } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
-	import { Button, FormGroup, FormActions, Icon, EmptyState } from './ui';
+
+	import { Button, EmptyState, FormActions, FormGroup, Icon } from './ui';
 
 	interface Props {
 		isOpen: boolean;
@@ -71,12 +72,14 @@
 		}
 	});
 
+	let hasTriedInit = false;
+
 	async function loadTemplates() {
 		isLoading = true;
 		try {
 			templates = await templateApi.getAll();
-			// If no templates, initialize built-ins
-			if (templates.length === 0) {
+			// If no templates and we haven't already tried, initialize built-ins
+			if (templates.length === 0 && !hasTriedInit) {
 				await initBuiltinTemplates();
 			}
 		} catch (e) {
@@ -98,9 +101,10 @@
 	}
 
 	async function initBuiltinTemplates() {
+		hasTriedInit = true;
 		try {
 			await templateApi.initBuiltin();
-			await loadTemplates();
+			templates = await templateApi.getAll();
 		} catch (e) {
 			console.error('Failed to initialize built-in templates:', e);
 			showError('Failed to initialize templates');
@@ -364,7 +368,7 @@
 
 							<FormGroup label="Color">
 								<div class="color-picker">
-									{#each stepColors as color}
+									{#each stepColors as color (color)}
 										<button
 											type="button"
 											class="color-option"
@@ -393,13 +397,20 @@
 										<Button
 											size="sm"
 											variant="primary"
-											onclick={() => activateTemplate(selectedTemplate!.id)}
+											onclick={() => {
+												if (selectedTemplate) activateTemplate(selectedTemplate.id);
+											}}
 										>
 											Activate
 										</Button>
 									{/if}
 									{#if !selectedTemplate.is_builtin}
-										<Button size="sm" onclick={() => deleteTemplate(selectedTemplate!.id)}>
+										<Button
+											size="sm"
+											onclick={() => {
+												if (selectedTemplate) deleteTemplate(selectedTemplate.id);
+											}}
+										>
 											<Icon name="trash" size={14} />
 											Delete
 										</Button>
@@ -425,7 +436,7 @@
 								</div>
 
 								<div class="steps-list">
-									{#each steps.sort((a, b) => a.typical_position - b.typical_position) as step (step.id)}
+									{#each [...steps].sort((a, b) => a.typical_position - b.typical_position) as step (step.id)}
 										<div class="step-item" style="--step-color: {step.color || '#6366f1'}">
 											<div class="step-position">{step.typical_position}%</div>
 											<div class="step-color-bar"></div>

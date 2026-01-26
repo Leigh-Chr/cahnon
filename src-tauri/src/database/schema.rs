@@ -83,22 +83,30 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        let _ = self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_name_registry_type ON name_registry(name_type)",
-            [],
-        );
-        let _ = self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_name_registry_bible ON name_registry(bible_entry_id)",
-            [],
-        );
-        let _ = self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_name_mentions_registry ON name_mentions(name_registry_id)",
-            [],
-        );
-        let _ = self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_name_mentions_scene ON name_mentions(scene_id)",
-            [],
-        );
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_name_registry_type ON name_registry(name_type)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_name_registry_bible ON name_registry(bible_entry_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_name_mentions_registry ON name_mentions(name_registry_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_name_mentions_scene ON name_mentions(scene_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -117,10 +125,12 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        let _ = self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_saved_filters_type ON saved_filters(filter_type)",
-            [],
-        );
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_saved_filters_type ON saved_filters(filter_type)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -130,10 +140,12 @@ impl Database {
             .prepare("SELECT daily_word_target FROM project LIMIT 1")
             .is_ok();
         if !has_daily_target {
-            let _ = self.conn.execute(
-                "ALTER TABLE project ADD COLUMN daily_word_target INTEGER",
-                [],
-            );
+            self.conn
+                .execute(
+                    "ALTER TABLE project ADD COLUMN daily_word_target INTEGER",
+                    [],
+                )
+                .map_err(|e| format!("Failed to add daily_word_target column: {}", e))?;
         }
         Ok(())
     }
@@ -300,7 +312,8 @@ impl Database {
                 issue_id TEXT NOT NULL,
                 scene_id TEXT NOT NULL,
                 FOREIGN KEY (issue_id) REFERENCES issues(id),
-                FOREIGN KEY (scene_id) REFERENCES scenes(id)
+                FOREIGN KEY (scene_id) REFERENCES scenes(id),
+                UNIQUE(issue_id, scene_id)
             )",
                 [],
             )
@@ -313,11 +326,27 @@ impl Database {
                 issue_id TEXT NOT NULL,
                 bible_entry_id TEXT NOT NULL,
                 FOREIGN KEY (issue_id) REFERENCES issues(id),
-                FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id)
+                FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
+                UNIQUE(issue_id, bible_entry_id)
             )",
                 [],
             )
             .map_err(|e| e.to_string())?;
+
+        // Add UNIQUE indexes for existing databases that were created before the constraint
+        self.conn
+            .execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_issue_scenes_unique ON issue_scenes(issue_id, scene_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_issue_bible_unique ON issue_bible(issue_id, bible_entry_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+
         Ok(())
     }
 
@@ -602,7 +631,8 @@ CREATE TABLE IF NOT EXISTS issue_scenes (
     issue_id TEXT NOT NULL,
     scene_id TEXT NOT NULL,
     FOREIGN KEY (issue_id) REFERENCES issues(id),
-    FOREIGN KEY (scene_id) REFERENCES scenes(id)
+    FOREIGN KEY (scene_id) REFERENCES scenes(id),
+    UNIQUE(issue_id, scene_id)
 );
 
 -- Issue-Bible links
@@ -611,7 +641,8 @@ CREATE TABLE IF NOT EXISTS issue_bible (
     issue_id TEXT NOT NULL,
     bible_entry_id TEXT NOT NULL,
     FOREIGN KEY (issue_id) REFERENCES issues(id),
-    FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id)
+    FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
+    UNIQUE(issue_id, bible_entry_id)
 );
 
 -- Text annotations

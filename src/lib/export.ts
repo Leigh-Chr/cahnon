@@ -1,8 +1,9 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, PageBreak, AlignmentType } from 'docx';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import mammoth from 'mammoth';
+import { AlignmentType, Document, HeadingLevel, Packer, PageBreak, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
-import type { Chapter, Scene, Project } from '$lib/api';
+import mammoth from 'mammoth';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+
+import type { Chapter, Project, Scene } from '$lib/api';
 
 interface ExportOptions {
 	includeChapterHeaders: boolean;
@@ -191,7 +192,7 @@ function exportToHtml(
 
 		for (const scene of scenes) {
 			html += `  <h3>${escapeHtml(scene.title)}</h3>\n`;
-			html += `  <div class="scene-content">${scene.text}</div>\n`;
+			html += `  <div class="scene-content">${sanitizeHtml(scene.text)}</div>\n`;
 		}
 	}
 
@@ -206,6 +207,97 @@ function escapeHtml(text: string): string {
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;')
 		.replace(/'/g, '&#39;');
+}
+
+/**
+ * Sanitize HTML from TipTap editor content for safe export.
+ * Uses a DOM-based allowlist approach rather than fragile regex denylists.
+ */
+function sanitizeHtml(html: string): string {
+	const doc = new DOMParser().parseFromString(html, 'text/html');
+	const allowedTags = new Set([
+		'p',
+		'br',
+		'b',
+		'strong',
+		'i',
+		'em',
+		'u',
+		's',
+		'del',
+		'h1',
+		'h2',
+		'h3',
+		'h4',
+		'h5',
+		'h6',
+		'ul',
+		'ol',
+		'li',
+		'blockquote',
+		'pre',
+		'code',
+		'span',
+		'div',
+		'hr',
+		'sub',
+		'sup',
+		'mark',
+		'table',
+		'thead',
+		'tbody',
+		'tr',
+		'th',
+		'td',
+		'caption',
+		'a',
+	]);
+	const allowedAttrs = new Set(['class', 'style', 'href', 'title', 'colspan', 'rowspan']);
+
+	function sanitizeNode(node: Node): Node | null {
+		if (node.nodeType === Node.TEXT_NODE) {
+			return node.cloneNode();
+		}
+		if (node.nodeType !== Node.ELEMENT_NODE) {
+			return null;
+		}
+		const el = node as Element;
+		const tagName = el.tagName.toLowerCase();
+
+		if (!allowedTags.has(tagName)) {
+			// For disallowed tags, keep text children but remove the tag
+			const fragment = document.createDocumentFragment();
+			for (const child of Array.from(el.childNodes)) {
+				const sanitized = sanitizeNode(child);
+				if (sanitized) fragment.appendChild(sanitized);
+			}
+			return fragment;
+		}
+
+		const newEl = document.createElement(tagName);
+		// Only copy allowed attributes
+		for (const attr of Array.from(el.attributes)) {
+			if (allowedAttrs.has(attr.name.toLowerCase())) {
+				// Filter dangerous URL schemes in href attributes
+				if (attr.name.toLowerCase() === 'href' && /^\s*javascript:/i.test(attr.value)) {
+					continue;
+				}
+				newEl.setAttribute(attr.name, attr.value);
+			}
+		}
+		for (const child of Array.from(el.childNodes)) {
+			const sanitized = sanitizeNode(child);
+			if (sanitized) newEl.appendChild(sanitized);
+		}
+		return newEl;
+	}
+
+	const container = document.createElement('div');
+	for (const child of Array.from(doc.body.childNodes)) {
+		const sanitized = sanitizeNode(child);
+		if (sanitized) container.appendChild(sanitized);
+	}
+	return container.innerHTML;
 }
 
 export function downloadHtml(

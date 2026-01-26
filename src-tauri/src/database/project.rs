@@ -58,6 +58,20 @@ impl Database {
         Ok((row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?))
     }
 
+    /// Runs SQLite PRAGMA integrity_check to detect database corruption.
+    /// Returns Ok(true) if the database is healthy, or an error message if corrupted.
+    pub fn check_integrity(&self) -> Result<bool, String> {
+        let result: String = self
+            .conn
+            .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+            .map_err(|e| format!("Failed to run integrity check: {}", e))?;
+        if result == "ok" {
+            Ok(true)
+        } else {
+            Err(format!("Database integrity check failed: {}", result))
+        }
+    }
+
     pub fn update_project(&self, req: &UpdateProjectRequest) -> Result<Project, String> {
         let now = chrono::Utc::now().to_rfc3339();
 

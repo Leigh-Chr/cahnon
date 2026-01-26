@@ -12,19 +12,15 @@
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import {
-		eventApi,
-		timelineApi,
-		type Scene,
-		type TimelineEvent,
-		type TimelineConflict,
-	} from '$lib/api';
+
+	import { eventApi, type Scene, timelineApi, type TimelineConflict } from '$lib/api';
 	import { appState } from '$lib/stores';
+	import { showError } from '$lib/toast';
 	import { countWords, formatWordCount } from '$lib/utils';
-	import { Icon, Button, EmptyState, LoadingState } from './ui';
+
+	import { Button, EmptyState, Icon, LoadingState } from './ui';
 
 	let timelineScenes = $state<Scene[]>([]);
-	let _events = $state<TimelineEvent[]>([]);
 	let conflicts = $state<TimelineConflict[]>([]);
 	let viewMode = $state<'chronological' | 'narrative'>('chronological');
 	let showConflicts = $state(false);
@@ -45,9 +41,9 @@
 		isLoading = true;
 		try {
 			timelineScenes = await eventApi.getTimelineScenes();
-			_events = await eventApi.getAll();
 		} catch (e) {
 			console.error('Failed to load timeline data:', e);
+			showError('Failed to load timeline data');
 		}
 		isLoading = false;
 	}
@@ -59,6 +55,7 @@
 			showConflicts = true;
 		} catch (e) {
 			console.error('Failed to detect conflicts:', e);
+			showError('Failed to detect timeline conflicts');
 		}
 		isCheckingConflicts = false;
 	}

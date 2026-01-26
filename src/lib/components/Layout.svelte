@@ -9,127 +9,132 @@
   - Dialogs (export, import, settings, trash, snapshots)
 -->
 <script lang="ts">
-	import Toolbar from './Toolbar.svelte';
-	import Outline from './Outline.svelte';
-	import Editor from './Editor.svelte';
-	import ContextPanel from './ContextPanel.svelte';
-	import StatusBar from './StatusBar.svelte';
-	import QuickOpen from './QuickOpen.svelte';
-	import Corkboard from './Corkboard.svelte';
-	import BibleView from './BibleView.svelte';
-	import TimelineView from './TimelineView.svelte';
-	import IssuesView from './IssuesView.svelte';
-	import ExportDialog from './ExportDialog.svelte';
-	import TrashView from './TrashView.svelte';
-	import SnapshotsView from './SnapshotsView.svelte';
-	import ReviewGrid from './ReviewGrid.svelte';
-	import ImportDialog from './ImportDialog.svelte';
-	import SettingsDialog from './SettingsDialog.svelte';
 	import ArcsManager from './ArcsManager.svelte';
+	import BibleView from './BibleView.svelte';
+	import ContextPanel from './ContextPanel.svelte';
+	import Corkboard from './Corkboard.svelte';
+	import Editor from './Editor.svelte';
+	import ExportDialog from './ExportDialog.svelte';
+	import ImportDialog from './ImportDialog.svelte';
+	import IssuesView from './IssuesView.svelte';
+	import NameRegistryView from './NameRegistryView.svelte';
+	import Outline from './Outline.svelte';
+	import QuickOpen from './QuickOpen.svelte';
+	import ReviewGrid from './ReviewGrid.svelte';
+	import SettingsDialog from './SettingsDialog.svelte';
+	import SnapshotsView from './SnapshotsView.svelte';
+	import StatusBar from './StatusBar.svelte';
 	import TemplatesManager from './TemplatesManager.svelte';
+	import TimelineView from './TimelineView.svelte';
 	import ToastNotifications from './ToastNotifications.svelte';
+	import Toolbar from './Toolbar.svelte';
+	import TrashView from './TrashView.svelte';
 
 	let showReviewGrid = $state(false);
 	let showImportDialog = $state(false);
 	let showSettingsDialog = $state(false);
 	let showArcsManager = $state(false);
 	let showTemplatesManager = $state(false);
-	import { appState } from '$lib/stores';
 	import type { Scene } from '$lib/api';
-	import { isModKey } from '$lib/utils';
+	import { appState } from '$lib/stores';
 
 	function handleKeydown(event: KeyboardEvent) {
-		// Quick Open: Cmd/Ctrl + K
-		if (isModKey(event) && event.key === 'k') {
+		if (appState.matchesShortcut(event, 'quickOpen')) {
 			event.preventDefault();
 			appState.toggleQuickOpen();
 			return;
 		}
 
-		// Toggle Outline: Cmd/Ctrl + \
-		if (isModKey(event) && event.key === '\\') {
+		if (appState.matchesShortcut(event, 'toggleContextPanel')) {
 			event.preventDefault();
-			if (event.shiftKey) {
-				appState.toggleContextPanel();
-			} else {
-				appState.toggleOutline();
+			appState.toggleContextPanel();
+			return;
+		}
+
+		if (appState.matchesShortcut(event, 'toggleOutline')) {
+			event.preventDefault();
+			appState.toggleOutline();
+			return;
+		}
+
+		// View switching
+		const viewActions = [
+			'viewEditor',
+			'viewCorkboard',
+			'viewTimeline',
+			'viewBible',
+			'viewIssues',
+			'viewNames',
+		] as const;
+		const viewModes = ['editor', 'corkboard', 'timeline', 'bible', 'issues', 'names'] as const;
+		for (let i = 0; i < viewActions.length; i++) {
+			if (appState.matchesShortcut(event, viewActions[i])) {
+				event.preventDefault();
+				appState.setViewMode(viewModes[i]);
+				return;
 			}
-			return;
 		}
 
-		// View switching: Cmd/Ctrl + 1-5
-		if (isModKey(event) && ['1', '2', '3', '4', '5'].includes(event.key)) {
-			event.preventDefault();
-			const modes = ['editor', 'corkboard', 'timeline', 'bible', 'issues'] as const;
-			appState.setViewMode(modes[parseInt(event.key) - 1]);
-			return;
-		}
-
-		// Focus mode: Cmd/Ctrl + D
-		if (isModKey(event) && event.key === 'd') {
+		if (appState.matchesShortcut(event, 'toggleWorkMode')) {
 			event.preventDefault();
 			appState.toggleWorkMode();
 			return;
 		}
 
-		// Navigate to next scene: Cmd/Ctrl + Down
-		if (isModKey(event) && event.key === 'ArrowDown') {
+		if (appState.matchesShortcut(event, 'nextScene')) {
 			event.preventDefault();
 			navigateScene('next');
 			return;
 		}
 
-		// Navigate to previous scene: Cmd/Ctrl + Up
-		if (isModKey(event) && event.key === 'ArrowUp') {
+		if (appState.matchesShortcut(event, 'prevScene')) {
 			event.preventDefault();
 			navigateScene('prev');
 			return;
 		}
 
-		// Save: Cmd/Ctrl + S (prevent default, autosave handles it)
-		if (isModKey(event) && event.key === 's') {
+		if (appState.matchesShortcut(event, 'save')) {
 			event.preventDefault();
-			// Autosave is already handling saves
+			if (appState.hasUnsavedChanges) {
+				appState.triggerImmediateSave();
+			}
 			return;
 		}
 
-		// Export: Cmd/Ctrl + E
-		if (isModKey(event) && event.key === 'e') {
+		if (appState.matchesShortcut(event, 'export')) {
 			event.preventDefault();
 			appState.openExportDialog();
 			return;
 		}
 
-		// Review Grid: Cmd/Ctrl + G
-		if (isModKey(event) && event.key === 'g') {
+		if (appState.matchesShortcut(event, 'reviewGrid')) {
 			event.preventDefault();
 			showReviewGrid = !showReviewGrid;
 			return;
 		}
 
-		// Import: Cmd/Ctrl + I
-		if (isModKey(event) && event.key === 'i') {
+		if (appState.matchesShortcut(event, 'importDialog')) {
 			event.preventDefault();
 			showImportDialog = !showImportDialog;
 			return;
 		}
 
-		// Arcs Manager: Cmd/Ctrl + A
-		if (isModKey(event) && event.key === 'a' && !event.shiftKey) {
+		if (appState.matchesShortcut(event, 'arcsManager')) {
 			event.preventDefault();
 			showArcsManager = !showArcsManager;
 			return;
 		}
 
-		// Templates Manager: Cmd/Ctrl + T
-		if (isModKey(event) && event.key === 't') {
+		if (appState.matchesShortcut(event, 'templatesManager')) {
 			event.preventDefault();
 			showTemplatesManager = !showTemplatesManager;
 			return;
 		}
 
-		// Fullscreen focus mode: F11 or Cmd/Ctrl+Shift+F
-		if (event.key === 'F11' || (isModKey(event) && event.shiftKey && event.key === 'f')) {
+		if (
+			appState.matchesShortcut(event, 'fullscreen') ||
+			appState.matchesShortcut(event, 'focusMode')
+		) {
 			event.preventDefault();
 			appState.toggleFullscreenMode();
 			return;
@@ -225,6 +230,8 @@
 				<TimelineView />
 			{:else if appState.viewMode === 'issues'}
 				<IssuesView />
+			{:else if appState.viewMode === 'names'}
+				<NameRegistryView />
 			{/if}
 		</main>
 

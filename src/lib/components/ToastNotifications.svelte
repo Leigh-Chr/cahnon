@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { toasts, removeToast, type Toast } from '$lib/toast';
+	import { removeToast, type Toast, toasts } from '$lib/toast';
 
 	function getIcon(type: Toast['type']): string {
 		switch (type) {

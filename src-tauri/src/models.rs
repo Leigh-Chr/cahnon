@@ -256,13 +256,6 @@ pub struct SearchResult {
     pub parent_title: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub struct SearchRequest {
-    pub query: String,
-    pub scope: Option<Vec<String>>, // scenes, chapters, bible
-}
-
 // ============================================================================
 // Word Count Stats
 // ============================================================================
@@ -652,4 +645,81 @@ pub struct TimelineConflict {
 pub struct VersionDiff {
     pub text_a: String,
     pub text_b: String,
+}
+
+// ============================================================================
+// Name Registry
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NameRegistryEntry {
+    pub id: String,
+    pub canonical_name: String,
+    pub name_type: String,
+    pub bible_entry_id: Option<String>,
+    pub aliases: Option<String>,
+    pub is_confirmed: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateNameRegistryRequest {
+    pub canonical_name: String,
+    pub name_type: Option<String>,
+    pub bible_entry_id: Option<String>,
+    pub aliases: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateNameRegistryRequest {
+    pub canonical_name: Option<String>,
+    pub name_type: Option<String>,
+    pub bible_entry_id: Option<String>,
+    pub aliases: Option<String>,
+    pub is_confirmed: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NameMention {
+    pub id: String,
+    pub name_registry_id: String,
+    pub scene_id: String,
+    pub mention_text: String,
+    pub start_offset: i32,
+    pub end_offset: i32,
+    pub status: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateNameMentionRequest {
+    pub status: String,
+}
+
+// ============================================================================
+// Saved Filters
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedFilter {
+    pub id: String,
+    pub name: String,
+    pub filter_type: String,
+    pub filter_data: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSavedFilterRequest {
+    pub name: String,
+    pub filter_type: String,
+    pub filter_data: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSavedFilterRequest {
+    pub name: Option<String>,
+    pub filter_data: Option<String>,
 }

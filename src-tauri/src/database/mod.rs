@@ -23,7 +23,9 @@ mod cut;
 mod event;
 mod export;
 mod issue;
+mod name_registry;
 mod project;
+mod saved_filter;
 mod scene;
 mod schema;
 mod search;
@@ -41,6 +43,11 @@ use std::path::Path;
 pub(crate) static HTML_TAG_REGEX: Lazy<regex::Regex> =
     Lazy::new(|| regex::Regex::new(r"<[^>]+>").expect("Invalid HTML tag regex"));
 
+/// Compiled regex for converting HTML links to markdown format.
+pub(crate) static LINK_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new(r#"<a\s+href="([^"]+)"[^>]*>([^<]*)</a>"#).expect("Invalid link regex")
+});
+
 /// SQLite database wrapper for a Cahnon project.
 ///
 /// Provides methods for all database operations. The connection is
@@ -50,6 +57,26 @@ pub struct Database {
 }
 
 impl Database {
+    /// Enables foreign key enforcement and sets recommended pragmas.
+    fn configure_connection(conn: &Connection) -> Result<(), String> {
+        conn.execute_batch("PRAGMA foreign_keys = ON;")
+            .map_err(|e| format!("Failed to configure database connection: {}", e))?;
+
+        // Enable WAL mode and verify it was applied (may fail on network filesystems)
+        let journal_mode: String = conn
+            .query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
+            .map_err(|e| format!("Failed to set journal mode: {}", e))?;
+
+        if journal_mode.to_lowercase() != "wal" {
+            return Err(format!(
+                "Failed to enable WAL mode (got '{}'); the database may be on an unsupported filesystem",
+                journal_mode
+            ));
+        }
+
+        Ok(())
+    }
+
     /// Creates a new project database at the given path.
     ///
     /// Initializes the full schema and creates an empty project.
@@ -57,6 +84,7 @@ impl Database {
     pub fn create(path: &Path) -> Result<Self, String> {
         let conn = Connection::open(path).map_err(|e| e.to_string())?;
         let db = Database { conn };
+        Self::configure_connection(&db.conn)?;
         db.init_schema()?;
         Ok(db)
     }
@@ -71,6 +99,7 @@ impl Database {
         }
         let conn = Connection::open(path).map_err(|e| e.to_string())?;
         let db = Database { conn };
+        Self::configure_connection(&db.conn)?;
         db.run_migrations()?;
         Ok(db)
     }

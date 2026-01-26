@@ -5,8 +5,25 @@ use crate::models::{BibleEntry, Event, Scene};
 
 impl Database {
     pub fn export_markdown(&self) -> Result<String, String> {
+        self.export_markdown_with_options(None, None, true)
+    }
+
+    pub fn export_markdown_with_options(
+        &self,
+        chapter_ids: Option<&[String]>,
+        scene_separator: Option<&str>,
+        include_titles: bool,
+    ) -> Result<String, String> {
         let project = self.get_project()?;
-        let chapters = self.get_chapters()?;
+        let all_chapters = self.get_chapters()?;
+        let chapters: Vec<_> = match chapter_ids {
+            Some(ids) => all_chapters
+                .into_iter()
+                .filter(|c| ids.contains(&c.id))
+                .collect(),
+            None => all_chapters,
+        };
+        let separator = scene_separator.unwrap_or("###");
 
         let mut output = format!("# {}\n\n", project.title);
         Self::append_optional(&mut output, &project.author, "**By {}**\n\n");
@@ -18,8 +35,12 @@ impl Database {
             Self::append_optional(&mut output, &chapter.summary, "*{}*\n\n");
 
             let scenes = self.get_scenes(&chapter.id)?;
-            for scene in &scenes {
-                output.push_str(&format!("### {}\n\n", scene.title));
+            for (i, scene) in scenes.iter().enumerate() {
+                if include_titles {
+                    output.push_str(&format!("{} {}\n\n", separator, scene.title));
+                } else if i > 0 {
+                    output.push_str(&format!("{}\n\n", separator));
+                }
                 let plain_text = Self::html_to_markdown(&scene.text);
                 output.push_str(&format!("{}\n\n", plain_text.trim()));
             }
@@ -109,9 +130,8 @@ impl Database {
 
     /// Convert HTML links to markdown format
     fn convert_links_to_markdown(html: &str) -> String {
-        use regex::Regex;
-        let link_regex = Regex::new(r#"<a\s+href="([^"]+)"[^>]*>([^<]*)</a>"#).unwrap();
-        link_regex
+        use super::LINK_REGEX;
+        LINK_REGEX
             .replace_all(html, |caps: &regex::Captures| {
                 format!("[{}]({})", &caps[2], &caps[1])
             })
@@ -128,8 +148,24 @@ impl Database {
     }
 
     pub fn export_plain_text(&self) -> Result<String, String> {
+        self.export_plain_text_with_options(None, None)
+    }
+
+    pub fn export_plain_text_with_options(
+        &self,
+        chapter_ids: Option<&[String]>,
+        scene_separator: Option<&str>,
+    ) -> Result<String, String> {
         let project = self.get_project()?;
-        let chapters = self.get_chapters()?;
+        let all_chapters = self.get_chapters()?;
+        let chapters: Vec<_> = match chapter_ids {
+            Some(ids) => all_chapters
+                .into_iter()
+                .filter(|c| ids.contains(&c.id))
+                .collect(),
+            None => all_chapters,
+        };
+        let separator = scene_separator.unwrap_or("* * *");
 
         let mut output = format!("{}\n", project.title);
         output.push_str(&"=".repeat(project.title.len()));
@@ -146,7 +182,7 @@ impl Database {
             for scene in &scenes {
                 let plain_text = Self::html_to_plain(&scene.text);
                 output.push_str(&format!("{}\n\n", plain_text.trim()));
-                output.push_str("* * *\n\n");
+                output.push_str(&format!("{}\n\n", separator));
             }
         }
 
@@ -375,5 +411,241 @@ impl Database {
         } else {
             scene.time_start.as_ref().map(|ts| format!("{} - ...", ts))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- html_to_markdown ---
+
+    #[test]
+    fn test_html_to_markdown_plain_text() {
+        assert_eq!(Database::html_to_markdown("Hello world"), "Hello world");
+    }
+
+    #[test]
+    fn test_html_to_markdown_paragraphs() {
+        let html = "<p>First paragraph</p><p>Second paragraph</p>";
+        let md = Database::html_to_markdown(html);
+        assert!(md.contains("First paragraph"));
+        assert!(md.contains("Second paragraph"));
+    }
+
+    #[test]
+    fn test_html_to_markdown_bold() {
+        assert_eq!(Database::html_to_markdown("<strong>bold</strong>"), "**bold**");
+        assert_eq!(Database::html_to_markdown("<b>bold</b>"), "**bold**");
+    }
+
+    #[test]
+    fn test_html_to_markdown_italic() {
+        assert_eq!(Database::html_to_markdown("<em>italic</em>"), "*italic*");
+        assert_eq!(Database::html_to_markdown("<i>italic</i>"), "*italic*");
+    }
+
+    #[test]
+    fn test_html_to_markdown_headings() {
+        let md = Database::html_to_markdown("<h1>Title</h1>");
+        assert!(md.contains("# Title"));
+
+        let md = Database::html_to_markdown("<h2>Subtitle</h2>");
+        assert!(md.contains("## Subtitle"));
+
+        let md = Database::html_to_markdown("<h3>Section</h3>");
+        assert!(md.contains("### Section"));
+    }
+
+    #[test]
+    fn test_html_to_markdown_blockquote() {
+        let md = Database::html_to_markdown("<blockquote>A quote</blockquote>");
+        assert!(md.contains("> A quote"));
+    }
+
+    #[test]
+    fn test_html_to_markdown_code() {
+        assert_eq!(Database::html_to_markdown("<code>foo()</code>"), "`foo()`");
+    }
+
+    #[test]
+    fn test_html_to_markdown_mark() {
+        assert_eq!(Database::html_to_markdown("<mark>highlight</mark>"), "==highlight==");
+    }
+
+    #[test]
+    fn test_html_to_markdown_line_breaks() {
+        let md = Database::html_to_markdown("Line1<br>Line2");
+        assert!(md.contains("Line1\nLine2"));
+
+        let md = Database::html_to_markdown("Line1<br/>Line2");
+        assert!(md.contains("Line1\nLine2"));
+    }
+
+    #[test]
+    fn test_html_to_markdown_list() {
+        let html = "<ul><li>Item 1</li><li>Item 2</li></ul>";
+        let md = Database::html_to_markdown(html);
+        assert!(md.contains("- Item 1"));
+        assert!(md.contains("- Item 2"));
+    }
+
+    #[test]
+    fn test_html_to_markdown_horizontal_rule() {
+        let md = Database::html_to_markdown("Before<hr>After");
+        assert!(md.contains("---"));
+    }
+
+    #[test]
+    fn test_html_to_markdown_strips_unknown_tags() {
+        assert_eq!(Database::html_to_markdown("<div>Content</div>"), "Content");
+        assert_eq!(Database::html_to_markdown("<span class=\"foo\">Text</span>"), "Text");
+    }
+
+    #[test]
+    fn test_html_to_markdown_empty() {
+        assert_eq!(Database::html_to_markdown(""), "");
+    }
+
+    #[test]
+    fn test_html_to_markdown_collapses_blank_lines() {
+        let html = "<p>A</p><p></p><p></p><p>B</p>";
+        let md = Database::html_to_markdown(html);
+        // Should not have more than 2 consecutive newlines
+        assert!(!md.contains("\n\n\n\n"));
+    }
+
+    // --- convert_links_to_markdown ---
+
+    #[test]
+    fn test_convert_links_to_markdown() {
+        let html = r#"<a href="https://example.com">Click here</a>"#;
+        let result = Database::convert_links_to_markdown(html);
+        assert_eq!(result, "[Click here](https://example.com)");
+    }
+
+    #[test]
+    fn test_convert_links_to_markdown_no_links() {
+        let html = "Just plain text";
+        assert_eq!(Database::convert_links_to_markdown(html), "Just plain text");
+    }
+
+    #[test]
+    fn test_convert_links_to_markdown_multiple() {
+        let html = r#"<a href="https://a.com">A</a> and <a href="https://b.com">B</a>"#;
+        let result = Database::convert_links_to_markdown(html);
+        assert!(result.contains("[A](https://a.com)"));
+        assert!(result.contains("[B](https://b.com)"));
+    }
+
+    // --- html_to_plain ---
+
+    #[test]
+    fn test_html_to_plain_paragraphs() {
+        let result = Database::html_to_plain("<p>Hello</p><p>World</p>");
+        assert!(result.contains("Hello"));
+        assert!(result.contains("World"));
+    }
+
+    #[test]
+    fn test_html_to_plain_strips_all_tags() {
+        let result = Database::html_to_plain("<strong>Bold</strong> and <em>italic</em>");
+        assert_eq!(result, "Bold and italic");
+    }
+
+    #[test]
+    fn test_html_to_plain_br_to_newline() {
+        let result = Database::html_to_plain("Line1<br>Line2");
+        assert!(result.contains("Line1\nLine2"));
+    }
+
+    // --- append_optional ---
+
+    #[test]
+    fn test_append_optional_some() {
+        let mut output = String::new();
+        Database::append_optional(&mut output, &Some("Alice".to_string()), "By {}\n");
+        assert_eq!(output, "By Alice\n");
+    }
+
+    #[test]
+    fn test_append_optional_none() {
+        let mut output = String::new();
+        Database::append_optional(&mut output, &None, "By {}\n");
+        assert_eq!(output, "");
+    }
+
+    // --- append_non_empty ---
+
+    #[test]
+    fn test_append_non_empty_with_content() {
+        let mut output = String::new();
+        Database::append_non_empty(&mut output, &Some("aliases".to_string()), "*{}*\n");
+        assert_eq!(output, "*aliases*\n");
+    }
+
+    #[test]
+    fn test_append_non_empty_with_empty_string() {
+        let mut output = String::new();
+        Database::append_non_empty(&mut output, &Some("".to_string()), "*{}*\n");
+        assert_eq!(output, ""); // Empty string → nothing appended
+    }
+
+    #[test]
+    fn test_append_non_empty_none() {
+        let mut output = String::new();
+        Database::append_non_empty(&mut output, &None, "*{}*\n");
+        assert_eq!(output, "");
+    }
+
+    // --- format_time_range ---
+
+    #[test]
+    fn test_format_time_range_point() {
+        let result = Database::format_time_range(
+            &Some("1200".to_string()), &None, &None,
+        );
+        assert_eq!(result, "1200");
+    }
+
+    #[test]
+    fn test_format_time_range_start_and_end() {
+        let result = Database::format_time_range(
+            &None, &Some("1000".to_string()), &Some("1200".to_string()),
+        );
+        assert_eq!(result, "1000 - 1200");
+    }
+
+    #[test]
+    fn test_format_time_range_start_only() {
+        let result = Database::format_time_range(
+            &None, &Some("1000".to_string()), &None,
+        );
+        assert_eq!(result, "1000 - ...");
+    }
+
+    #[test]
+    fn test_format_time_range_nothing() {
+        let result = Database::format_time_range(&None, &None, &None);
+        assert_eq!(result, "No time set");
+    }
+
+    #[test]
+    fn test_format_time_range_point_takes_priority() {
+        // If time_point is set, it wins over start/end
+        let result = Database::format_time_range(
+            &Some("1200".to_string()), &Some("1000".to_string()), &Some("1100".to_string()),
+        );
+        assert_eq!(result, "1200");
+    }
+
+    // --- bible_type_config ---
+
+    #[test]
+    fn test_bible_type_config_has_six_types() {
+        let config = Database::bible_type_config();
+        assert_eq!(config.len(), 6);
+        assert_eq!(config[0], ("character", "Characters"));
+        assert_eq!(config[5], ("glossary", "Glossary"));
     }
 }

@@ -82,8 +82,14 @@ pub fn create_project(
     let project = db.create_project(&sanitized_request)?;
 
     // Store database and path
-    *state.db.lock().unwrap() = Some(db);
-    *state.current_project_path.lock().unwrap() = Some(path.clone());
+    *state
+        .db
+        .lock()
+        .map_err(|_| "Database lock poisoned".to_string())? = Some(db);
+    *state
+        .current_project_path
+        .lock()
+        .map_err(|_| "Path lock poisoned".to_string())? = Some(path.clone());
 
     // Update recent projects
     update_recent_projects(&path, &project.title);
@@ -103,6 +109,19 @@ pub fn open_project(path: String, state: State<AppState>) -> Result<Project, Str
         return Err("Project file does not exist".to_string());
     }
 
+    // Check for existing non-stale lock before opening
+    if let Some(lock_info) = read_lock_file(&path) {
+        if !is_lock_stale(&lock_info) {
+            // Lock exists from a different process — allow same PID (re-open)
+            if lock_info.pid != std::process::id() {
+                return Err(format!(
+                    "Project is locked by {} (PID {}). Close it there first or force acquire the lock.",
+                    lock_info.machine_name, lock_info.pid
+                ));
+            }
+        }
+    }
+
     let db = Database::open(&path)?;
     let project = db.get_project()?;
 
@@ -112,12 +131,21 @@ pub fn open_project(path: String, state: State<AppState>) -> Result<Project, Str
     // Track file modification time
     if let Ok(metadata) = fs::metadata(&path) {
         if let Ok(modified) = metadata.modified() {
-            *state.last_file_modified.lock().unwrap() = Some(modified);
+            *state
+                .last_file_modified
+                .lock()
+                .map_err(|_| "Lock poisoned".to_string())? = Some(modified);
         }
     }
 
-    *state.db.lock().unwrap() = Some(db);
-    *state.current_project_path.lock().unwrap() = Some(path.clone());
+    *state
+        .db
+        .lock()
+        .map_err(|_| "Database lock poisoned".to_string())? = Some(db);
+    *state
+        .current_project_path
+        .lock()
+        .map_err(|_| "Path lock poisoned".to_string())? = Some(path.clone());
 
     // Update recent projects
     update_recent_projects(&path, &project.title);
@@ -127,20 +155,29 @@ pub fn open_project(path: String, state: State<AppState>) -> Result<Project, Str
 
 #[tauri::command]
 pub fn close_project(state: State<AppState>) -> Result<(), String> {
-    // Release lock file
-    if let Some(ref path) = *state.current_project_path.lock().unwrap() {
+    // Release database first, then file lock (consistent ordering)
+    *state.db.lock().map_err(|_| "Lock poisoned".to_string())? = None;
+
+    // Now release lock file and clear path
+    let path = state
+        .current_project_path
+        .lock()
+        .map_err(|_| "Lock poisoned".to_string())?
+        .take();
+    if let Some(ref path) = path {
         remove_lock_file(path);
     }
 
-    *state.db.lock().unwrap() = None;
-    *state.current_project_path.lock().unwrap() = None;
-    *state.last_file_modified.lock().unwrap() = None;
+    *state
+        .last_file_modified
+        .lock()
+        .map_err(|_| "Lock poisoned".to_string())? = None;
     Ok(())
 }
 
 #[tauri::command]
 pub fn get_project(state: State<AppState>) -> Result<Project, String> {
-    let db = state.db.lock().unwrap();
+    let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.get_project()
 }
@@ -168,7 +205,7 @@ pub fn update_project(
         }
     }
 
-    let db = state.db.lock().unwrap();
+    let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.update_project(&sanitized_request)
 }
@@ -230,10 +267,9 @@ fn update_recent_projects(path: &Path, title: &str) {
         // Keep only 10 most recent
         projects.truncate(10);
 
-        let _ = fs::write(
-            &recent_file,
-            serde_json::to_string_pretty(&projects).unwrap_or_default(),
-        );
+        if let Ok(json) = serde_json::to_string_pretty(&projects) {
+            let _ = fs::write(&recent_file, json);
+        }
     }
 }
 
@@ -338,11 +374,14 @@ pub fn check_file_status(path: String, state: State<AppState>) -> Result<FileSta
     }
 
     let lock_info = read_lock_file(&path);
-    let has_lock = lock_info.is_some() && !is_lock_stale(lock_info.as_ref().unwrap());
+    let has_lock = lock_info.as_ref().is_some_and(|info| !is_lock_stale(info));
 
     // Check for external modifications
     let is_modified_externally = {
-        let last_modified = state.last_file_modified.lock().unwrap();
+        let last_modified = state
+            .last_file_modified
+            .lock()
+            .map_err(|_| "Lock poisoned".to_string())?;
         if let Some(last_mod) = *last_modified {
             if let Ok(metadata) = fs::metadata(&path) {
                 if let Ok(modified) = metadata.modified() {
@@ -387,4 +426,274 @@ pub fn force_acquire_lock(path: String) -> Result<(), String> {
     // Remove existing lock and create new one
     remove_lock_file(&path);
     create_lock_file(&path)
+}
+
+/// Checks the integrity of the currently open database file.
+/// Returns Ok(true) if healthy, or an error if corrupted.
+#[tauri::command]
+pub fn check_database_integrity(state: State<AppState>) -> Result<bool, String> {
+    let db = state.get_db()?;
+    let db = db.as_ref().ok_or("No project open")?;
+    db.check_integrity()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    // --- get_lock_path ---
+
+    #[test]
+    fn test_get_lock_path() {
+        let path = Path::new("/tmp/myproject.cahnon");
+        let lock = get_lock_path(path);
+        assert_eq!(lock, PathBuf::from("/tmp/myproject.cahnon.lock"));
+    }
+
+    #[test]
+    fn test_get_lock_path_no_extension() {
+        let path = Path::new("/tmp/myproject");
+        let lock = get_lock_path(path);
+        assert_eq!(lock, PathBuf::from("/tmp/myproject.cahnon.lock"));
+    }
+
+    #[test]
+    fn test_get_lock_path_nested() {
+        let path = Path::new("/home/user/docs/novel.cahnon");
+        let lock = get_lock_path(path);
+        assert_eq!(lock, PathBuf::from("/home/user/docs/novel.cahnon.lock"));
+    }
+
+    // --- is_lock_stale ---
+
+    #[test]
+    fn test_is_lock_stale_recent() {
+        let lock = LockInfo {
+            machine_name: "test".to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            pid: 1234,
+        };
+        assert!(!is_lock_stale(&lock));
+    }
+
+    #[test]
+    fn test_is_lock_stale_old() {
+        let old_time = chrono::Utc::now() - chrono::Duration::minutes(10);
+        let lock = LockInfo {
+            machine_name: "test".to_string(),
+            timestamp: old_time.to_rfc3339(),
+            pid: 1234,
+        };
+        assert!(is_lock_stale(&lock));
+    }
+
+    #[test]
+    fn test_is_lock_stale_exactly_5_minutes() {
+        let boundary = chrono::Utc::now() - chrono::Duration::minutes(5);
+        let lock = LockInfo {
+            machine_name: "test".to_string(),
+            timestamp: boundary.to_rfc3339(),
+            pid: 1234,
+        };
+        // 5 minutes is NOT > 5, so not stale
+        assert!(!is_lock_stale(&lock));
+    }
+
+    #[test]
+    fn test_is_lock_stale_just_over_5_minutes() {
+        let boundary = chrono::Utc::now() - chrono::Duration::minutes(6);
+        let lock = LockInfo {
+            machine_name: "test".to_string(),
+            timestamp: boundary.to_rfc3339(),
+            pid: 1234,
+        };
+        assert!(is_lock_stale(&lock));
+    }
+
+    #[test]
+    fn test_is_lock_stale_invalid_timestamp() {
+        let lock = LockInfo {
+            machine_name: "test".to_string(),
+            timestamp: "not-a-date".to_string(),
+            pid: 1234,
+        };
+        // Invalid timestamp → considered stale
+        assert!(is_lock_stale(&lock));
+    }
+
+    #[test]
+    fn test_is_lock_stale_empty_timestamp() {
+        let lock = LockInfo {
+            machine_name: "test".to_string(),
+            timestamp: "".to_string(),
+            pid: 1234,
+        };
+        assert!(is_lock_stale(&lock));
+    }
+
+    // --- is_conflict_file ---
+
+    #[test]
+    fn test_is_conflict_file_dropbox_pattern() {
+        assert!(is_conflict_file("novel (conflicted copy).cahnon", "novel"));
+    }
+
+    #[test]
+    fn test_is_conflict_file_google_drive_pattern() {
+        assert!(is_conflict_file("novel (1).cahnon", "novel"));
+    }
+
+    #[test]
+    fn test_is_conflict_file_onedrive_pattern() {
+        assert!(is_conflict_file("novel-conflict.cahnon", "novel"));
+    }
+
+    #[test]
+    fn test_is_conflict_file_no_cahnon_extension() {
+        assert!(!is_conflict_file("novel (conflicted copy).txt", "novel"));
+    }
+
+    #[test]
+    fn test_is_conflict_file_same_name_no_conflict() {
+        assert!(!is_conflict_file("novel.cahnon", "novel"));
+    }
+
+    #[test]
+    fn test_is_conflict_file_different_stem() {
+        assert!(!is_conflict_file("other (conflicted copy).cahnon", "novel"));
+    }
+
+    #[test]
+    fn test_is_conflict_file_parenthesis_conflict() {
+        assert!(is_conflict_file("novel(conflict).cahnon", "novel"));
+    }
+
+    #[test]
+    fn test_is_conflict_file_icloud_numbered() {
+        // iCloud pattern: "novel (2).cahnon"
+        assert!(is_conflict_file("novel (2).cahnon", "novel"));
+    }
+
+    // --- create_lock_file / read_lock_file / remove_lock_file ---
+
+    #[test]
+    fn test_create_and_read_lock_file() {
+        let temp = TempDir::new().unwrap();
+        let project_path = temp.path().join("test.cahnon");
+        fs::write(&project_path, "").unwrap();
+
+        create_lock_file(&project_path).unwrap();
+
+        let lock = read_lock_file(&project_path);
+        assert!(lock.is_some());
+        let lock = lock.unwrap();
+        assert!(!lock.machine_name.is_empty());
+        assert!(lock.pid > 0);
+        assert!(!is_lock_stale(&lock));
+    }
+
+    #[test]
+    fn test_read_lock_file_nonexistent() {
+        let temp = TempDir::new().unwrap();
+        let project_path = temp.path().join("nonexistent.cahnon");
+        let lock = read_lock_file(&project_path);
+        assert!(lock.is_none());
+    }
+
+    #[test]
+    fn test_remove_lock_file() {
+        let temp = TempDir::new().unwrap();
+        let project_path = temp.path().join("test.cahnon");
+        fs::write(&project_path, "").unwrap();
+
+        create_lock_file(&project_path).unwrap();
+        let lock_path = get_lock_path(&project_path);
+        assert!(lock_path.exists());
+
+        remove_lock_file(&project_path);
+        assert!(!lock_path.exists());
+    }
+
+    #[test]
+    fn test_remove_lock_file_nonexistent_is_noop() {
+        let temp = TempDir::new().unwrap();
+        let project_path = temp.path().join("test.cahnon");
+        // Should not panic
+        remove_lock_file(&project_path);
+    }
+
+    // --- find_conflict_files ---
+
+    #[test]
+    fn test_find_conflict_files_none() {
+        let temp = TempDir::new().unwrap();
+        let project_path = temp.path().join("novel.cahnon");
+        fs::write(&project_path, "").unwrap();
+
+        let conflicts = find_conflict_files(&project_path);
+        assert!(conflicts.is_empty());
+    }
+
+    #[test]
+    fn test_find_conflict_files_with_conflicts() {
+        let temp = TempDir::new().unwrap();
+        let project_path = temp.path().join("novel.cahnon");
+        fs::write(&project_path, "").unwrap();
+
+        // Create conflict files
+        fs::write(temp.path().join("novel (conflicted copy).cahnon"), "").unwrap();
+        fs::write(temp.path().join("novel-conflict.cahnon"), "").unwrap();
+        // Non-conflict file
+        fs::write(temp.path().join("other.cahnon"), "").unwrap();
+
+        let conflicts = find_conflict_files(&project_path);
+        assert_eq!(conflicts.len(), 2);
+    }
+
+    #[test]
+    fn test_find_conflict_files_no_parent() {
+        // Root path has no parent → empty vec
+        let path = Path::new("novel.cahnon");
+        // This should return empty (parent might be "" which is current dir, not None)
+        let _conflicts = find_conflict_files(path);
+        // Just checking it doesn't panic
+    }
+
+    // --- lock round-trip ---
+
+    #[test]
+    fn test_lock_roundtrip_create_read_stale_remove() {
+        let temp = TempDir::new().unwrap();
+        let project_path = temp.path().join("project.cahnon");
+        fs::write(&project_path, "").unwrap();
+
+        // No lock initially
+        assert!(read_lock_file(&project_path).is_none());
+
+        // Create lock
+        create_lock_file(&project_path).unwrap();
+
+        // Read lock - should be fresh
+        let lock = read_lock_file(&project_path).unwrap();
+        assert!(!is_lock_stale(&lock));
+        assert_eq!(lock.pid, std::process::id());
+
+        // Remove lock
+        remove_lock_file(&project_path);
+        assert!(read_lock_file(&project_path).is_none());
+    }
+
+    #[test]
+    fn test_read_lock_file_corrupted_json() {
+        let temp = TempDir::new().unwrap();
+        let project_path = temp.path().join("test.cahnon");
+        let lock_path = get_lock_path(&project_path);
+
+        // Write invalid JSON to lock file
+        fs::write(&lock_path, "not valid json {{{").unwrap();
+
+        let lock = read_lock_file(&project_path);
+        assert!(lock.is_none()); // Should return None for invalid JSON
+    }
 }

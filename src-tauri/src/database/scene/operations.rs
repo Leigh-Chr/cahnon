@@ -14,17 +14,27 @@ impl Database {
         split_position: i32,
         new_scene_title: Option<&str>,
     ) -> Result<(Scene, Scene), String> {
+        if split_position < 0 {
+            return Err("Split position cannot be negative".to_string());
+        }
+
         let original = self.get_scene(id)?;
         let text = &original.text;
 
-        // Split the text at the given position
+        // Split the text at the given character position (not byte position)
         let split_pos = split_position as usize;
-        if split_pos > text.len() {
+        let char_count = text.chars().count();
+        if split_pos > char_count {
             return Err("Split position is beyond text length".to_string());
         }
 
-        let first_part = &text[..split_pos];
-        let second_part = &text[split_pos..];
+        let byte_pos = text
+            .char_indices()
+            .nth(split_pos)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len());
+        let first_part = &text[..byte_pos];
+        let second_part = &text[byte_pos..];
 
         let now = chrono::Utc::now().to_rfc3339();
         let new_id = uuid::Uuid::new_v4().to_string();
@@ -32,59 +42,80 @@ impl Database {
             .unwrap_or(&format!("{} (continued)", original.title))
             .to_string();
 
-        // Update original scene with first part of text
+        // Use a transaction to ensure atomicity
         self.conn
-            .execute(
-                "UPDATE scenes SET text = ?1, updated_at = ?2 WHERE id = ?3",
-                params![first_part, now, id],
-            )
+            .execute("BEGIN TRANSACTION", [])
             .map_err(|e| e.to_string())?;
 
-        // Shift positions of scenes after the original
-        self.conn
-            .execute(
-                "UPDATE scenes SET position = position + 1, updated_at = ?1 WHERE chapter_id = ?2 AND position > ?3 AND deleted_at IS NULL",
-                params![now, original.chapter_id, original.position],
-            )
-            .map_err(|e| e.to_string())?;
+        let result = (|| -> Result<(), String> {
+            // Update original scene with first part of text
+            self.conn
+                .execute(
+                    "UPDATE scenes SET text = ?1, updated_at = ?2 WHERE id = ?3",
+                    params![first_part, now, id],
+                )
+                .map_err(|e| e.to_string())?;
 
-        // Create new scene with second part of text
-        self.conn
-            .execute(
-                "INSERT INTO scenes (id, chapter_id, title, summary, text, status, pov, tags, notes, todos, word_target, time_point, time_start, time_end, on_timeline, position, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
-                params![
-                    new_id,
-                    original.chapter_id,
-                    new_title,
-                    Option::<String>::None, // New scene starts without summary
-                    second_part,
-                    original.status,
-                    original.pov,
-                    original.tags,
-                    Option::<String>::None, // New scene starts without notes
-                    Option::<String>::None, // New scene starts without todos
-                    Option::<i32>::None,    // No word target for new scene
-                    Option::<String>::None, // No time_point
-                    Option::<String>::None, // No time_start
-                    Option::<String>::None, // No time_end
-                    original.on_timeline as i32,
-                    original.position + 1,
-                    now,
-                    now
-                ],
-            )
-            .map_err(|e| e.to_string())?;
+            // Shift positions of scenes after the original
+            self.conn
+                .execute(
+                    "UPDATE scenes SET position = position + 1, updated_at = ?1 WHERE chapter_id = ?2 AND position > ?3 AND deleted_at IS NULL",
+                    params![now, original.chapter_id, original.position],
+                )
+                .map_err(|e| e.to_string())?;
 
-        // Copy associations to the new scene (they might apply to both)
-        self.conn
-            .execute(
-                "INSERT OR IGNORE INTO canonical_associations (id, scene_id, bible_entry_id, created_at)
-             SELECT ?1 || '-' || bible_entry_id, ?2, bible_entry_id, ?3
-             FROM canonical_associations WHERE scene_id = ?4",
-                params![new_id, new_id, now, id],
-            )
-            .map_err(|e| e.to_string())?;
+            // Create new scene with second part of text
+            self.conn
+                .execute(
+                    "INSERT INTO scenes (id, chapter_id, title, summary, text, status, pov, tags, notes, todos, word_target, time_point, time_start, time_end, on_timeline, position, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+                    params![
+                        new_id,
+                        original.chapter_id,
+                        new_title,
+                        Option::<String>::None, // New scene starts without summary
+                        second_part,
+                        original.status,
+                        original.pov,
+                        original.tags,
+                        Option::<String>::None, // New scene starts without notes
+                        Option::<String>::None, // New scene starts without todos
+                        Option::<i32>::None,    // No word target for new scene
+                        Option::<String>::None, // No time_point
+                        Option::<String>::None, // No time_start
+                        Option::<String>::None, // No time_end
+                        original.on_timeline as i32,
+                        original.position + 1,
+                        now,
+                        now
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+
+            // Copy associations to the new scene (they might apply to both)
+            self.conn
+                .execute(
+                    "INSERT OR IGNORE INTO canonical_associations (id, scene_id, bible_entry_id, created_at)
+                 SELECT ?1 || '-' || bible_entry_id, ?2, bible_entry_id, ?3
+                 FROM canonical_associations WHERE scene_id = ?4",
+                    params![new_id, new_id, now, id],
+                )
+                .map_err(|e| e.to_string())?;
+
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            }
+            Err(e) => {
+                if let Err(rollback_err) = self.conn.execute("ROLLBACK", []) {
+                    eprintln!("Failed to rollback transaction: {}", rollback_err);
+                }
+                return Err(e);
+            }
+        }
 
         let updated_original = self.get_scene(id)?;
         let new_scene = self.get_scene(&new_id)?;
@@ -107,9 +138,29 @@ impl Database {
         let combined_text = Self::combine_scene_texts(&scenes);
         let merged_notes = Self::combine_scene_notes(&scenes);
 
-        self.update_merged_scene(target_scene, &combined_text, &merged_notes, &now)?;
-        self.transfer_associations_to_target(target_scene, &scenes[1..], &now)?;
-        self.soft_delete_merged_scenes(&scenes[1..], &now)?;
+        // Use a transaction to ensure atomicity
+        self.conn
+            .execute("BEGIN TRANSACTION", [])
+            .map_err(|e| e.to_string())?;
+
+        let result = (|| -> Result<(), String> {
+            self.update_merged_scene(target_scene, &combined_text, &merged_notes, &now)?;
+            self.transfer_associations_to_target(target_scene, &scenes[1..], &now)?;
+            self.soft_delete_merged_scenes(&scenes[1..], &now)?;
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            }
+            Err(e) => {
+                if let Err(rollback_err) = self.conn.execute("ROLLBACK", []) {
+                    eprintln!("Failed to rollback transaction: {}", rollback_err);
+                }
+                return Err(e);
+            }
+        }
 
         self.get_scene(&target_scene.id)
     }
@@ -215,33 +266,56 @@ impl Database {
             original.text
         };
 
-        self.conn
-            .execute(
-                "INSERT INTO scenes (id, chapter_id, title, summary, text, status, pov, tags, notes, todos, word_target, time_point, time_start, time_end, on_timeline, position, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
-                params![
-                    new_id,
-                    original.chapter_id,
-                    new_title,
-                    original.summary,
-                    text,
-                    original.status,
-                    original.pov,
-                    original.tags,
-                    original.notes,
-                    original.todos,
-                    original.word_target,
-                    original.time_point,
-                    original.time_start,
-                    original.time_end,
-                    original.on_timeline as i32,
-                    original.position + 1,
-                    now,
-                    now
-                ],
-            )
-            .map_err(|e| e.to_string())?;
+        self.conn.execute("BEGIN", []).map_err(|e| e.to_string())?;
 
-        self.get_scene(&new_id)
+        let result = (|| -> Result<(), String> {
+            // Shift positions of scenes after the original to make room
+            self.conn
+                .execute(
+                    "UPDATE scenes SET position = position + 1, updated_at = ?1 WHERE chapter_id = ?2 AND position > ?3 AND deleted_at IS NULL",
+                    params![now, original.chapter_id, original.position],
+                )
+                .map_err(|e| e.to_string())?;
+
+            self.conn
+                .execute(
+                    "INSERT INTO scenes (id, chapter_id, title, summary, text, status, pov, tags, notes, todos, word_target, time_point, time_start, time_end, on_timeline, position, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+                    params![
+                        new_id,
+                        original.chapter_id,
+                        new_title,
+                        original.summary,
+                        text,
+                        original.status,
+                        original.pov,
+                        original.tags,
+                        original.notes,
+                        original.todos,
+                        original.word_target,
+                        original.time_point,
+                        original.time_start,
+                        original.time_end,
+                        original.on_timeline as i32,
+                        original.position + 1,
+                        now,
+                        now
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+                self.get_scene(&new_id)
+            }
+            Err(e) => {
+                let _ = self.conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
     }
 }

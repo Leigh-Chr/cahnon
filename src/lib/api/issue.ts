@@ -7,6 +7,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+
 import type { Issue } from './types';
 
 /**
@@ -38,6 +39,11 @@ export const issueApi = {
 	 */
 	update: (id: string, request: { status?: string; resolution_note?: string }) =>
 		invoke<Issue>('update_issue', { id, request }),
+
+	/**
+	 * Delete an issue and its links.
+	 */
+	delete: (id: string) => invoke<void>('delete_issue', { id }),
 
 	/**
 	 * Link a scene to an issue.

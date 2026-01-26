@@ -20,11 +20,18 @@ export interface Toast {
 class ToastState {
 	items = $state<Toast[]>([]);
 
+	private static readonly MAX_TOASTS = 10;
+
 	add(toast: Omit<Toast, 'id'>): string {
 		const id = crypto.randomUUID();
 		const newToast: Toast = { ...toast, id };
 
-		this.items = [...this.items, newToast];
+		// Evict oldest toasts if at capacity
+		if (this.items.length >= ToastState.MAX_TOASTS) {
+			this.items = [...this.items.slice(-(ToastState.MAX_TOASTS - 1)), newToast];
+		} else {
+			this.items = [...this.items, newToast];
+		}
 
 		// Auto-remove after duration (default 5s, errors stay longer)
 		const duration = toast.duration ?? (toast.type === 'error' ? 8000 : 5000);

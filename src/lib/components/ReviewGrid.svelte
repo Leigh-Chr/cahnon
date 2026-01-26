@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { appState } from '$lib/stores';
-	import { sceneStatuses, statusColors, countWords, formatWordCount } from '$lib/utils';
-	import { showError } from '$lib/toast';
 	import type { Scene } from '$lib/api';
+	import { appState } from '$lib/stores';
+	import { showError } from '$lib/toast';
+	import { countWords, formatWordCount, sceneStatuses, statusColors } from '$lib/utils';
 
 	interface Props {
 		isOpen?: boolean;
@@ -182,15 +182,6 @@
 			console.error('Failed to update payoff of:', e);
 			showError('Failed to update scene');
 		}
-	}
-
-	function _getSceneTitleById(sceneId: string | null): string {
-		if (!sceneId) return '—';
-		for (const [_, chapterScenes] of appState.scenes.entries()) {
-			const found = chapterScenes.find((s) => s.id === sceneId);
-			if (found) return found.title;
-		}
-		return '—';
 	}
 
 	function getTotalStats() {

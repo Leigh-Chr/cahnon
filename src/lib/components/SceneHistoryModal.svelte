@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { historyApi, type SceneHistoryEntry } from '$lib/api';
+	import { showError, showSuccess } from '$lib/toast';
 	import { countWords, formatWordCount } from '$lib/utils';
-	import { showSuccess, showError } from '$lib/toast';
-	import { Icon, Button, EmptyState, LoadingState } from './ui';
+
+	import { Button, EmptyState, Icon, LoadingState } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -18,6 +19,11 @@
 	let isLoading = $state(true);
 	let selectedEntry = $state<SceneHistoryEntry | null>(null);
 	let isRestoring = $state(false);
+	let compareMode = $state(false);
+	let compareEntryA = $state<SceneHistoryEntry | null>(null);
+	let compareEntryB = $state<SceneHistoryEntry | null>(null);
+	let diffResult = $state<{ text_a: string; text_b: string } | null>(null);
+	let isLoadingDiff = $state(false);
 
 	$effect(() => {
 		if (isOpen && sceneId) {
@@ -38,7 +44,46 @@
 	function close() {
 		isOpen = false;
 		selectedEntry = null;
+		compareMode = false;
+		compareEntryA = null;
+		compareEntryB = null;
+		diffResult = null;
 		onclose?.();
+	}
+
+	function toggleCompareMode() {
+		compareMode = !compareMode;
+		if (!compareMode) {
+			compareEntryA = null;
+			compareEntryB = null;
+			diffResult = null;
+		}
+	}
+
+	function selectForCompare(entry: SceneHistoryEntry) {
+		if (!compareEntryA) {
+			compareEntryA = entry;
+		} else if (!compareEntryB && entry.id !== compareEntryA.id) {
+			compareEntryB = entry;
+			loadDiff();
+		} else {
+			// Reset selection
+			compareEntryA = entry;
+			compareEntryB = null;
+			diffResult = null;
+		}
+	}
+
+	async function loadDiff() {
+		if (!compareEntryA || !compareEntryB) return;
+		isLoadingDiff = true;
+		try {
+			diffResult = await historyApi.compareVersions(sceneId, compareEntryA.id, compareEntryB.id);
+		} catch (e) {
+			console.error('Failed to compare versions:', e);
+			showError('Failed to compare versions');
+		}
+		isLoadingDiff = false;
 	}
 
 	async function restoreVersion() {
@@ -58,11 +103,13 @@
 
 	function formatDate(dateStr: string): string {
 		const date = new Date(dateStr);
+		if (isNaN(date.getTime())) return dateStr;
 		return date.toLocaleString();
 	}
 
 	function formatRelativeDate(dateStr: string): string {
 		const date = new Date(dateStr);
+		if (isNaN(date.getTime())) return dateStr;
 		const now = new Date();
 		const diffMs = now.getTime() - date.getTime();
 		const diffMins = Math.floor(diffMs / 60000);
@@ -77,6 +124,7 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		if (!isOpen) return;
 		if (event.key === 'Escape') {
 			close();
 		}
@@ -97,7 +145,18 @@
 			tabindex="-1"
 		>
 			<div class="modal-header">
-				<h2 id="history-title">Scene History</h2>
+				<div class="header-left">
+					<h2 id="history-title">Scene History</h2>
+					{#if history.length >= 2}
+						<Button
+							variant={compareMode ? 'primary' : 'ghost'}
+							size="sm"
+							onclick={toggleCompareMode}
+						>
+							{compareMode ? 'Exit Compare' : 'Compare'}
+						</Button>
+					{/if}
+				</div>
 				<Button variant="icon" onclick={close} title="Close">
 					<Icon name="close" size={20} />
 				</Button>
@@ -115,13 +174,36 @@
 				{:else}
 					<div class="history-layout">
 						<div class="history-list">
-							<div class="list-header">Versions ({history.length})</div>
+							<div class="list-header">
+								{#if compareMode}
+									Select two versions to compare
+								{:else}
+									Versions ({history.length})
+								{/if}
+							</div>
 							{#each history as entry (entry.id)}
 								<button
 									class="history-item"
-									class:selected={selectedEntry?.id === entry.id}
-									onclick={() => (selectedEntry = entry)}
+									class:selected={!compareMode && selectedEntry?.id === entry.id}
+									class:compare-a={compareMode && compareEntryA?.id === entry.id}
+									class:compare-b={compareMode && compareEntryB?.id === entry.id}
+									onclick={() => {
+										if (compareMode) {
+											selectForCompare(entry);
+										} else {
+											selectedEntry = entry;
+										}
+									}}
 								>
+									{#if compareMode}
+										<span class="compare-badge">
+											{#if compareEntryA?.id === entry.id}
+												A
+											{:else if compareEntryB?.id === entry.id}
+												B
+											{/if}
+										</span>
+									{/if}
 									<div class="item-date">{formatRelativeDate(entry.created_at)}</div>
 									<div class="item-meta">
 										<span>{formatWordCount(countWords(entry.text))} words</span>
@@ -132,7 +214,46 @@
 						</div>
 
 						<div class="preview-panel">
-							{#if selectedEntry}
+							{#if compareMode}
+								{#if isLoadingDiff}
+									<LoadingState message="Comparing versions..." />
+								{:else if diffResult}
+									<div class="preview-header">
+										<div class="preview-info">
+											<span class="preview-date">Version A vs Version B</span>
+											<span class="preview-words">
+												{formatWordCount(countWords(diffResult.text_a))} vs {formatWordCount(
+													countWords(diffResult.text_b)
+												)} words
+											</span>
+										</div>
+									</div>
+									<div class="diff-view">
+										<div class="diff-column">
+											<div class="diff-column-header">Version A</div>
+											<div class="diff-column-content">
+												<pre>{diffResult.text_a || '(empty)'}</pre>
+											</div>
+										</div>
+										<div class="diff-column">
+											<div class="diff-column-header">Version B</div>
+											<div class="diff-column-content">
+												<pre>{diffResult.text_b || '(empty)'}</pre>
+											</div>
+										</div>
+									</div>
+								{:else}
+									<div class="no-selection">
+										<p>
+											{#if !compareEntryA}
+												Select the first version (A)
+											{:else}
+												Now select the second version (B)
+											{/if}
+										</p>
+									</div>
+								{/if}
+							{:else if selectedEntry}
 								<div class="preview-header">
 									<div class="preview-info">
 										<span class="preview-date">{formatDate(selectedEntry.created_at)}</span>
@@ -221,6 +342,12 @@
 	.modal-header h2 {
 		font-size: var(--font-size-lg);
 		font-weight: 600;
+	}
+
+	.header-left {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-md);
 	}
 
 	.modal-content {
@@ -365,5 +492,78 @@
 		gap: var(--spacing-sm);
 		padding: var(--spacing-md) var(--spacing-lg);
 		border-top: 1px solid var(--color-border);
+	}
+
+	/* Compare mode styles */
+	.compare-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		font-size: var(--font-size-xs);
+		font-weight: 700;
+		flex-shrink: 0;
+	}
+
+	.history-item.compare-a {
+		background-color: var(--color-accent-light);
+	}
+
+	.history-item.compare-a .compare-badge {
+		background-color: var(--color-accent);
+		color: white;
+	}
+
+	.history-item.compare-b {
+		background-color: oklch(80% 0.1 150);
+	}
+
+	.history-item.compare-b .compare-badge {
+		background-color: oklch(50% 0.15 150);
+		color: white;
+	}
+
+	.diff-view {
+		display: flex;
+		flex: 1;
+		overflow: hidden;
+	}
+
+	.diff-column {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.diff-column:first-child {
+		border-right: 1px solid var(--color-border);
+	}
+
+	.diff-column-header {
+		padding: var(--spacing-sm) var(--spacing-md);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text-secondary);
+		background-color: var(--color-bg-secondary);
+		border-bottom: 1px solid var(--color-border-light);
+	}
+
+	.diff-column-content {
+		flex: 1;
+		overflow-y: auto;
+		padding: var(--spacing-md);
+	}
+
+	.diff-column-content pre {
+		font-family: var(--font-serif);
+		font-size: var(--font-size-sm);
+		line-height: 1.8;
+		color: var(--color-text-primary);
+		white-space: pre-wrap;
+		word-break: break-word;
+		margin: 0;
 	}
 </style>

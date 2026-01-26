@@ -8,11 +8,25 @@
  */
 
 import { untrack } from 'svelte';
-import type { Project, Chapter, Scene, BibleEntry, WordCounts } from '$lib/api';
-import { projectApi, chapterApi, sceneApi, bibleApi, statsApi } from '$lib/api';
 import { SvelteMap } from 'svelte/reactivity';
-import type { ViewMode, WorkMode, EditorSettings, FocusSettings } from './types';
-import { defaultEditorSettings, defaultFocusSettings } from './types';
+
+import type { BibleEntry, Chapter, Project, Scene, WordCounts } from '$lib/api';
+import { bibleApi, chapterApi, projectApi, sceneApi, snapshotApi, statsApi } from '$lib/api';
+import { showError } from '$lib/toast.svelte';
+
+import type {
+	EditorSettings,
+	FocusSettings,
+	KeyboardShortcuts,
+	ShortcutBinding,
+	ViewMode,
+	WorkMode,
+} from './types';
+import { defaultEditorSettings, defaultFocusSettings, defaultKeyboardShortcuts } from './types';
+
+const AUTOSAVE_INTERVAL_MS = 30_000; // 30 seconds
+const SAVE_RETRY_MAX_ATTEMPTS = 3;
+const SAVE_RETRY_DELAY_MS = 2_000;
 
 /**
  * Central application state using Svelte 5 runes.
@@ -96,6 +110,9 @@ class AppState {
 	colorMode = $state<'light' | 'dark' | 'system'>('system');
 	themePalette = $state<'cool' | 'warm'>('cool');
 
+	// Keyboard shortcuts
+	keyboardShortcuts = $state<KeyboardShortcuts>({ ...defaultKeyboardShortcuts });
+
 	// -------------------------------------------------------------------------
 	// Derived State (Getters)
 	// -------------------------------------------------------------------------
@@ -123,6 +140,16 @@ class AppState {
 	}
 
 	// -------------------------------------------------------------------------
+	// Autosave & Retry
+	// -------------------------------------------------------------------------
+	private _pendingSave: (() => Promise<void>) | null = null;
+	private _isSaving = false;
+	private _autosaveIntervalId: ReturnType<typeof setInterval> | null = null;
+	private _windowFocusHandler: (() => void) | null = null;
+	private _colorSchemeHandler: ((e: MediaQueryListEvent) => void) | null = null;
+	private _colorSchemeQuery: MediaQueryList | null = null;
+
+	// -------------------------------------------------------------------------
 	// Initialization
 	// -------------------------------------------------------------------------
 
@@ -131,6 +158,8 @@ class AppState {
 			this.initializeFromLocalStorage();
 			this.setupStorageSync();
 			this.setupSystemColorSchemeListener();
+			this.setupAutosaveTimer();
+			this.setupWindowFocusDetection();
 		}
 	}
 
@@ -169,6 +198,18 @@ class AppState {
 				console.error('Failed to parse focus settings:', e);
 			}
 		}
+
+		// Keyboard shortcuts
+		const savedShortcuts = localStorage.getItem('keyboardShortcuts');
+		if (savedShortcuts) {
+			try {
+				const parsed = JSON.parse(savedShortcuts);
+				// Merge with defaults to handle newly added shortcuts
+				this.keyboardShortcuts = { ...defaultKeyboardShortcuts, ...parsed };
+			} catch (e) {
+				console.error('Failed to parse keyboard shortcuts:', e);
+			}
+		}
 	}
 
 	private setupStorageSync() {
@@ -201,17 +242,120 @@ class AppState {
 				const focusSettings = this.focusSettings;
 				localStorage.setItem('focusSettings', JSON.stringify(focusSettings));
 			});
+
+			// Sync keyboard shortcuts
+			$effect(() => {
+				const shortcuts = this.keyboardShortcuts;
+				localStorage.setItem('keyboardShortcuts', JSON.stringify(shortcuts));
+			});
 		});
 	}
 
 	private setupSystemColorSchemeListener() {
-		const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-		mediaQuery.addEventListener('change', () => {
+		this._colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+		this._colorSchemeHandler = () => {
 			// Re-apply if using system mode
 			if (this.colorMode === 'system') {
 				this.applyColorMode();
 			}
-		});
+		};
+		this._colorSchemeQuery.addEventListener('change', this._colorSchemeHandler);
+	}
+
+	/** Periodic autosave every 30 seconds when there are unsaved changes. */
+	private setupAutosaveTimer() {
+		this._autosaveIntervalId = setInterval(() => {
+			if (this.hasUnsavedChanges && this._pendingSave && !this._isSaving) {
+				this._guardedSave();
+			}
+		}, AUTOSAVE_INTERVAL_MS);
+	}
+
+	/** Register a callback to trigger autosave (called by editor). */
+	registerAutosaveCallback(callback: () => Promise<void>) {
+		this._pendingSave = callback;
+	}
+
+	/** Trigger an immediate save (e.g., Cmd+S). */
+	triggerImmediateSave() {
+		if (this._pendingSave && !this._isSaving) {
+			this._guardedSave();
+		}
+	}
+
+	/** Execute a save with a concurrency guard to prevent overlapping saves. */
+	private async _guardedSave() {
+		if (this._isSaving || !this._pendingSave) return;
+		this._isSaving = true;
+		try {
+			await this._pendingSave();
+		} finally {
+			this._isSaving = false;
+		}
+	}
+
+	/** On window focus, check for external modification of the project file. */
+	private setupWindowFocusDetection() {
+		this._windowFocusHandler = async () => {
+			if (!this.projectPath) return;
+			try {
+				const status = await projectApi.checkFileStatus(this.projectPath);
+				if (status.is_modified_externally) {
+					const reload = confirm(
+						'The project file has been modified externally.\n\n' +
+							'Would you like to reload the project to get the latest changes?\n' +
+							'Click Cancel to keep your current version.'
+					);
+					if (reload) {
+						await this.loadManuscript();
+						await this.loadBible();
+						await this.loadStats();
+						this.hasUnsavedChanges = false;
+					}
+				}
+			} catch {
+				// Silently ignore - file status check is best-effort
+			}
+		};
+		window.addEventListener('focus', this._windowFocusHandler);
+	}
+
+	/** Clean up all event listeners and timers. */
+	destroy() {
+		if (this._autosaveIntervalId !== null) {
+			clearInterval(this._autosaveIntervalId);
+			this._autosaveIntervalId = null;
+		}
+		if (this._windowFocusHandler) {
+			window.removeEventListener('focus', this._windowFocusHandler);
+			this._windowFocusHandler = null;
+		}
+		if (this._colorSchemeQuery && this._colorSchemeHandler) {
+			this._colorSchemeQuery.removeEventListener('change', this._colorSchemeHandler);
+			this._colorSchemeHandler = null;
+			this._colorSchemeQuery = null;
+		}
+	}
+
+	/** Save with automatic retry on failure. */
+	async saveWithRetry(saveFn: () => Promise<void>, context = 'save'): Promise<boolean> {
+		for (let attempt = 1; attempt <= SAVE_RETRY_MAX_ATTEMPTS; attempt++) {
+			try {
+				await saveFn();
+				return true;
+			} catch (e) {
+				console.error(`${context} failed (attempt ${attempt}/${SAVE_RETRY_MAX_ATTEMPTS}):`, e);
+				if (attempt < SAVE_RETRY_MAX_ATTEMPTS) {
+					await new Promise((r) => setTimeout(r, SAVE_RETRY_DELAY_MS));
+				}
+			}
+		}
+		// All retries failed
+		this.error = `Failed to ${context} after ${SAVE_RETRY_MAX_ATTEMPTS} attempts. Your changes are preserved in memory.`;
+		showError(
+			`Failed to ${context} after ${SAVE_RETRY_MAX_ATTEMPTS} attempts. Your changes are preserved in memory.`
+		);
+		return false;
 	}
 
 	private applyColorMode() {
@@ -299,12 +443,40 @@ class AppState {
 			const p = await projectApi.open(path);
 			this.project = p;
 			this.projectPath = path;
+
+			// Check database integrity on open
+			try {
+				await projectApi.checkDatabaseIntegrity();
+			} catch (integrityError) {
+				const msg =
+					integrityError instanceof Error ? integrityError.message : String(integrityError);
+				const proceed = confirm(
+					`Warning: Database integrity check detected an issue:\n\n${msg}\n\n` +
+						`The file may be corrupted. It is recommended to create a backup before continuing.\n\n` +
+						`Continue opening the project anyway?`
+				);
+				if (!proceed) {
+					await projectApi.close();
+					this.project = null;
+					this.projectPath = null;
+					this.isLoading = false;
+					return;
+				}
+			}
+
+			// Cleanup expired pre_bulk snapshots (30-day retention)
+			try {
+				await snapshotApi.cleanupExpired();
+			} catch {
+				// Non-critical, ignore
+			}
+
 			await this.loadManuscript();
 			await this.loadBible();
 			await this.loadStats();
 			this.hasUnsavedChanges = false;
 		} catch (e) {
-			this.error = e as string;
+			this.error = e instanceof Error ? e.message : String(e);
 			throw e;
 		} finally {
 			this.isLoading = false;
@@ -324,7 +496,7 @@ class AppState {
 			this.wordCounts = { total: 0, by_chapter: [], by_status: [] };
 			this.hasUnsavedChanges = false;
 		} catch (e) {
-			this.error = e as string;
+			this.error = e instanceof Error ? e.message : String(e);
 			throw e;
 		} finally {
 			this.isLoading = false;
@@ -382,6 +554,13 @@ class AppState {
 			if (firstScenes && firstScenes.length > 0) {
 				this.selectedSceneId = firstScenes[0].id;
 			}
+		}
+	}
+
+	async reloadScenes() {
+		for (const chapter of this.chapters) {
+			const chapterScenes = await sceneApi.getByChapter(chapter.id);
+			this.scenes.set(chapter.id, chapterScenes);
 		}
 	}
 
@@ -446,7 +625,15 @@ class AppState {
 		return scene;
 	}
 
-	async updateScene(id: string, data: Partial<Scene>) {
+	private _saveVersion = 0;
+
+	/** Mark content as changed. Returns a version token for use with updateScene. */
+	markUnsaved(): number {
+		this.hasUnsavedChanges = true;
+		return ++this._saveVersion;
+	}
+
+	async updateScene(id: string, data: Partial<Scene>, saveVersion?: number) {
 		const scene = await sceneApi.update(id, data);
 		for (const [chapterId, sceneList] of this.scenes.entries()) {
 			const idx = sceneList.findIndex((sc) => sc.id === id);
@@ -457,7 +644,10 @@ class AppState {
 				break;
 			}
 		}
-		this.hasUnsavedChanges = false;
+		// Only clear hasUnsavedChanges if no new changes happened since this save started
+		if (saveVersion === undefined || saveVersion === this._saveVersion) {
+			this.hasUnsavedChanges = false;
+		}
 		return scene;
 	}
 
@@ -533,6 +723,29 @@ class AppState {
 
 	setThemePalette(palette: 'cool' | 'warm') {
 		this.themePalette = palette;
+	}
+
+	/** Check if a keyboard event matches a named shortcut. */
+	matchesShortcut(event: KeyboardEvent, action: keyof KeyboardShortcuts): boolean {
+		const binding = this.keyboardShortcuts[action];
+		if (!binding) return false;
+
+		const isMac = navigator.platform.includes('Mac');
+		const modPressed = isMac ? event.metaKey : event.ctrlKey;
+
+		return (
+			event.key === binding.key && modPressed === binding.mod && event.shiftKey === binding.shift
+		);
+	}
+
+	/** Update a single keyboard shortcut binding. */
+	setShortcut(action: keyof KeyboardShortcuts, binding: ShortcutBinding) {
+		this.keyboardShortcuts = { ...this.keyboardShortcuts, [action]: binding };
+	}
+
+	/** Reset all keyboard shortcuts to defaults. */
+	resetShortcuts() {
+		this.keyboardShortcuts = { ...defaultKeyboardShortcuts };
 	}
 
 	/** @deprecated Use setColorMode instead */

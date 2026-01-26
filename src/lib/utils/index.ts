@@ -82,7 +82,7 @@ export function formatShortcut(key: string, withMod = true, withShift = false): 
 }
 
 // Debounce utility
-export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
+export function debounce<T extends (...args: never[]) => unknown>(
 	fn: T,
 	delay: number
 ): (...args: Parameters<T>) => void {
@@ -101,6 +101,7 @@ export function generateId(): string {
 // Format date for display
 export function formatDate(dateString: string): string {
 	const date = new Date(dateString);
+	if (isNaN(date.getTime())) return dateString;
 	return date.toLocaleDateString(undefined, {
 		year: 'numeric',
 		month: 'short',
@@ -111,6 +112,7 @@ export function formatDate(dateString: string): string {
 // Format relative time
 export function formatRelativeTime(dateString: string): string {
 	const date = new Date(dateString);
+	if (isNaN(date.getTime())) return dateString;
 	const now = new Date();
 	const diffMs = now.getTime() - date.getTime();
 	const diffMins = Math.floor(diffMs / 60000);

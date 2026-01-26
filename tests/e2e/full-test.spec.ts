@@ -1,4 +1,4 @@
-import { expect, browser, $, $$ } from '@wdio/globals';
+import { $, $$, browser, expect } from '@wdio/globals';
 import * as path from 'path';
 
 const SCREENSHOT_DIR = './tests/e2e/screenshots';

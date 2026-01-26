@@ -140,6 +140,67 @@ impl Database {
 
     pub fn delete_chapter(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
+
+        // Collect scene IDs in this chapter for junction cleanup
+        let scene_ids: Vec<String> = {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL")
+                .map_err(|e| e.to_string())?;
+            let result = stmt
+                .query_map(params![id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            result
+        };
+
+        // Clean up junction tables for all scenes in this chapter
+        for scene_id in &scene_ids {
+            self.conn
+                .execute(
+                    "DELETE FROM canonical_associations WHERE scene_id = ?1",
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM scene_arcs WHERE scene_id = ?1",
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM event_scenes WHERE scene_id = ?1",
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM issue_scenes WHERE scene_id = ?1",
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM scene_steps WHERE scene_id = ?1",
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM annotations WHERE scene_id = ?1",
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM name_mentions WHERE scene_id = ?1",
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+
         self.conn
             .execute(
                 "UPDATE chapters SET deleted_at = ?1 WHERE id = ?2",
@@ -147,7 +208,7 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        // Also soft-delete all scenes in this chapter
+        // Soft-delete all scenes in this chapter
         self.conn
             .execute(
                 "UPDATE scenes SET deleted_at = ?1 WHERE chapter_id = ?2",
@@ -160,14 +221,32 @@ impl Database {
 
     pub fn reorder_chapters(&self, ids: &[String]) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
-        for (i, id) in ids.iter().enumerate() {
-            self.conn
-                .execute(
-                    "UPDATE chapters SET position = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![i as i32, now, id],
-                )
-                .map_err(|e| e.to_string())?;
+
+        self.conn
+            .execute("BEGIN TRANSACTION", [])
+            .map_err(|e| e.to_string())?;
+
+        let result = (|| -> Result<(), String> {
+            for (i, id) in ids.iter().enumerate() {
+                self.conn
+                    .execute(
+                        "UPDATE chapters SET position = ?1, updated_at = ?2 WHERE id = ?3",
+                        params![i as i32, now, id],
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = self.conn.execute("ROLLBACK", []);
+                Err(e)
+            }
         }
-        Ok(())
     }
 }

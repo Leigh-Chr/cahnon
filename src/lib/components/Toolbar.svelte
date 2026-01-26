@@ -22,6 +22,7 @@
 		{ id: 'timeline', label: 'Timeline', shortcut: '3' },
 		{ id: 'bible', label: 'Bible', shortcut: '4' },
 		{ id: 'issues', label: 'Issues', shortcut: '5' },
+		{ id: 'names', label: 'Names', shortcut: '6' },
 	] as const;
 
 	interface Props {

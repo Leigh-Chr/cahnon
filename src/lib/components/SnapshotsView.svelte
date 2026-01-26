@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { snapshotApi, type Snapshot } from '$lib/api';
+	import { type Snapshot, snapshotApi } from '$lib/api';
 	import { appState } from '$lib/stores';
-	import { showSuccess, showError } from '$lib/toast';
-	import { Icon, Button, EmptyState, LoadingState, FormGroup, FormActions } from './ui';
+	import { showError, showSuccess } from '$lib/toast';
+
+	import { Button, EmptyState, FormActions, FormGroup, Icon, LoadingState } from './ui';
 
 	// Type for parsed snapshot data
 	interface SnapshotData {
-		chapters?: unknown[];
-		scenes?: unknown[];
+		chapters?: Array<{ id: string; title: string }>;
+		scenes?: Array<{ id: string; title: string; chapter_id: string }>;
 		bible_entries?: unknown[];
 		arcs?: unknown[];
 	}
@@ -25,6 +26,98 @@
 	let isRestoring = $state(false);
 	let showCreateForm = $state(false);
 	let selectedSnapshot = $state<Snapshot | null>(null);
+	let showScenePicker = $state(false);
+	let isRestoringScene = $state(false);
+
+	// Compare mode
+	let compareMode = $state(false);
+	let compareBase = $state<Snapshot | null>(null);
+	let compareTarget = $state<Snapshot | null>(null);
+
+	interface DiffResult {
+		addedScenes: Array<{ id: string; title: string }>;
+		removedScenes: Array<{ id: string; title: string }>;
+		modifiedScenes: Array<{ id: string; title: string }>;
+		addedChapters: Array<{ id: string; title: string }>;
+		removedChapters: Array<{ id: string; title: string }>;
+	}
+
+	let diffResult = $state<DiffResult | null>(null);
+
+	function computeDiff(baseData: SnapshotData, targetData: SnapshotData): DiffResult {
+		const baseScenes = new Map((baseData.scenes ?? []).map((s) => [s.id, s]));
+		const targetScenes = new Map((targetData.scenes ?? []).map((s) => [s.id, s]));
+		const baseChapters = new Map(
+			(baseData.chapters ?? []).map((c) => [c.id, c as { id: string; title: string }])
+		);
+		const targetChapters = new Map(
+			(targetData.chapters ?? []).map((c) => [c.id, c as { id: string; title: string }])
+		);
+
+		const addedScenes: Array<{ id: string; title: string }> = [];
+		const removedScenes: Array<{ id: string; title: string }> = [];
+		const modifiedScenes: Array<{ id: string; title: string }> = [];
+
+		for (const [id, scene] of targetScenes) {
+			if (!baseScenes.has(id)) {
+				addedScenes.push({ id, title: scene.title });
+			}
+		}
+		for (const [id, scene] of baseScenes) {
+			if (!targetScenes.has(id)) {
+				removedScenes.push({ id, title: scene.title });
+			} else {
+				const target = targetScenes.get(id)!;
+				if (scene.title !== target.title) {
+					modifiedScenes.push({ id, title: `${scene.title} → ${target.title}` });
+				}
+			}
+		}
+
+		const addedChapters: Array<{ id: string; title: string }> = [];
+		const removedChapters: Array<{ id: string; title: string }> = [];
+
+		for (const [id, chapter] of targetChapters) {
+			if (!baseChapters.has(id)) {
+				addedChapters.push({ id, title: chapter.title });
+			}
+		}
+		for (const [id, chapter] of baseChapters) {
+			if (!targetChapters.has(id)) {
+				removedChapters.push({ id, title: chapter.title });
+			}
+		}
+
+		return { addedScenes, removedScenes, modifiedScenes, addedChapters, removedChapters };
+	}
+
+	function startCompare() {
+		compareMode = true;
+		compareBase = null;
+		compareTarget = null;
+		diffResult = null;
+	}
+
+	function selectForCompare(snapshot: Snapshot) {
+		if (!compareBase) {
+			compareBase = snapshot;
+		} else if (!compareTarget && snapshot.id !== compareBase.id) {
+			compareTarget = snapshot;
+			// Compute diff
+			const baseData = parseSnapshotData(compareBase.data);
+			const targetData = parseSnapshotData(snapshot.data);
+			if (baseData && targetData) {
+				diffResult = computeDiff(baseData, targetData);
+			}
+		}
+	}
+
+	function exitCompare() {
+		compareMode = false;
+		compareBase = null;
+		compareTarget = null;
+		diffResult = null;
+	}
 
 	// Create form
 	let newName = $state('');
@@ -108,23 +201,13 @@
 		return t?.label || type;
 	}
 
-	function _getTypeIcon(type: string): string {
-		const icons: Record<string, string> = {
-			manual:
-				'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z M17 21v-8H7v8 M7 3v5h8',
-			milestone: 'M3 3v18h18 M18.7 8l-5.1 5.2-2.8-2.7L7 14.3',
-			pre_bulk:
-				'M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83',
-		};
-		return icons[type] || icons.manual;
-	}
-
 	function close() {
 		selectedSnapshot = null;
 		onclose?.();
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		if (!isOpen) return;
 		if (event.key === 'Escape') {
 			if (selectedSnapshot) {
 				selectedSnapshot = null;
@@ -160,6 +243,30 @@
 			console.error('Failed to delete snapshot:', e);
 			showError('Failed to delete snapshot');
 		}
+	}
+
+	async function restoreSceneFromSnapshot(sceneId: string, sceneTitle: string) {
+		if (!selectedSnapshot) return;
+		if (
+			!confirm(
+				`Restore scene "${sceneTitle}" from this snapshot?\n\n` +
+					'This will replace the current scene content with the snapshot version.'
+			)
+		) {
+			return;
+		}
+
+		isRestoringScene = true;
+		try {
+			await snapshotApi.restoreScene(selectedSnapshot.id, sceneId);
+			await appState.reloadScenes();
+			showSuccess(`Scene "${sceneTitle}" restored from snapshot`);
+			showScenePicker = false;
+		} catch (e) {
+			console.error('Failed to restore scene:', e);
+			showError('Failed to restore scene from snapshot');
+		}
+		isRestoringScene = false;
 	}
 
 	async function restoreSnapshot(snapshot: Snapshot) {
@@ -210,10 +317,17 @@
 			<div class="panel-header">
 				<h2 id="snapshots-title">Snapshots</h2>
 				<div class="header-actions">
-					<Button variant="primary" onclick={() => (showCreateForm = true)}>
-						<Icon name="plus" size={16} />
-						New Snapshot
-					</Button>
+					{#if compareMode}
+						<Button variant="ghost" onclick={exitCompare}>Exit Compare</Button>
+					{:else}
+						<Button variant="secondary" onclick={startCompare} disabled={snapshots.length < 2}>
+							Compare
+						</Button>
+						<Button variant="primary" onclick={() => (showCreateForm = true)}>
+							<Icon name="plus" size={16} />
+							New Snapshot
+						</Button>
+					{/if}
 					<Button variant="icon" onclick={close} title="Close">
 						<Icon name="close" size={20} />
 					</Button>
@@ -313,6 +427,28 @@
 							{/if}
 						{/if}
 
+						{#if showScenePicker && selectedSnapshot?.data}
+							{@const pickerData = parseSnapshotData(selectedSnapshot.data)}
+							{#if pickerData?.scenes}
+								<div class="scene-picker">
+									<h4>Select scene to restore</h4>
+									<div class="scene-picker-list">
+										{#each pickerData.scenes as scene (scene.id)}
+											<button
+												class="scene-pick-btn"
+												onclick={() => restoreSceneFromSnapshot(scene.id, scene.title)}
+												disabled={isRestoringScene}
+											>
+												<span class="scene-pick-title">{scene.title}</span>
+												<Icon name="refresh" size={14} />
+											</button>
+										{/each}
+									</div>
+									<Button variant="ghost" onclick={() => (showScenePicker = false)}>Cancel</Button>
+								</div>
+							{/if}
+						{/if}
+
 						<div class="detail-actions">
 							<Button
 								variant="primary"
@@ -321,6 +457,14 @@
 							>
 								<Icon name="refresh" size={16} />
 								{isRestoring ? 'Restoring...' : 'Restore Full Project'}
+							</Button>
+							<Button
+								variant="secondary"
+								onclick={() => (showScenePicker = !showScenePicker)}
+								disabled={isRestoring}
+							>
+								<Icon name="file" size={16} />
+								Restore Single Scene
 							</Button>
 							<Button
 								variant="danger"
@@ -342,6 +486,104 @@
 						actionLabel="Create First Snapshot"
 						onaction={() => (showCreateForm = true)}
 					/>
+				{:else if compareMode}
+					<div class="compare-view">
+						{#if !diffResult}
+							<div class="compare-instructions">
+								{#if !compareBase}
+									<p>Select the <strong>base</strong> snapshot to compare from:</p>
+								{:else}
+									<p>
+										Base: <strong>{compareBase.name}</strong><br />
+										Now select the <strong>target</strong> snapshot:
+									</p>
+								{/if}
+							</div>
+							<div class="snapshots-list">
+								{#each snapshots as snapshot (snapshot.id)}
+									<button
+										class="snapshot-item"
+										class:selected-compare={compareBase?.id === snapshot.id}
+										onclick={() => selectForCompare(snapshot)}
+										disabled={compareBase?.id === snapshot.id}
+									>
+										<div class="snapshot-icon">
+											<Icon name="file" size={20} />
+										</div>
+										<div class="snapshot-info">
+											<div class="snapshot-name">{snapshot.name}</div>
+											<div class="snapshot-meta">
+												<span class="type">{getTypeLabel(snapshot.snapshot_type)}</span>
+												<span class="date">{formatRelativeDate(snapshot.created_at)}</span>
+											</div>
+										</div>
+										{#if compareBase?.id === snapshot.id}
+											<span class="compare-badge">Base</span>
+										{/if}
+									</button>
+								{/each}
+							</div>
+						{:else}
+							<div class="diff-header">
+								<h3>Comparison</h3>
+								<p class="diff-subtitle">
+									{compareBase?.name} → {compareTarget?.name}
+								</p>
+							</div>
+							<div class="diff-sections">
+								{#if diffResult.addedChapters.length > 0}
+									<div class="diff-section">
+										<h4 class="diff-added">+ Added Chapters ({diffResult.addedChapters.length})</h4>
+										{#each diffResult.addedChapters as ch (ch.id)}
+											<div class="diff-item added">{ch.title}</div>
+										{/each}
+									</div>
+								{/if}
+								{#if diffResult.removedChapters.length > 0}
+									<div class="diff-section">
+										<h4 class="diff-removed">
+											- Removed Chapters ({diffResult.removedChapters.length})
+										</h4>
+										{#each diffResult.removedChapters as ch (ch.id)}
+											<div class="diff-item removed">{ch.title}</div>
+										{/each}
+									</div>
+								{/if}
+								{#if diffResult.addedScenes.length > 0}
+									<div class="diff-section">
+										<h4 class="diff-added">+ Added Scenes ({diffResult.addedScenes.length})</h4>
+										{#each diffResult.addedScenes as scene (scene.id)}
+											<div class="diff-item added">{scene.title}</div>
+										{/each}
+									</div>
+								{/if}
+								{#if diffResult.removedScenes.length > 0}
+									<div class="diff-section">
+										<h4 class="diff-removed">
+											- Removed Scenes ({diffResult.removedScenes.length})
+										</h4>
+										{#each diffResult.removedScenes as scene (scene.id)}
+											<div class="diff-item removed">{scene.title}</div>
+										{/each}
+									</div>
+								{/if}
+								{#if diffResult.modifiedScenes.length > 0}
+									<div class="diff-section">
+										<h4 class="diff-modified">
+											~ Modified Scenes ({diffResult.modifiedScenes.length})
+										</h4>
+										{#each diffResult.modifiedScenes as scene (scene.id)}
+											<div class="diff-item modified">{scene.title}</div>
+										{/each}
+									</div>
+								{/if}
+								{#if diffResult.addedChapters.length === 0 && diffResult.removedChapters.length === 0 && diffResult.addedScenes.length === 0 && diffResult.removedScenes.length === 0 && diffResult.modifiedScenes.length === 0}
+									<p class="no-diff">No structural differences found between snapshots.</p>
+								{/if}
+							</div>
+							<Button variant="ghost" onclick={exitCompare}>Done</Button>
+						{/if}
+					</div>
 				{:else if !showCreateForm}
 					<div class="snapshots-list">
 						{#each snapshots as snapshot (snapshot.id)}
@@ -451,9 +693,19 @@
 		transition: all var(--transition-fast);
 	}
 
-	.snapshot-item:hover {
+	.snapshot-item:hover:not(:disabled) {
 		border-color: var(--color-accent);
 		background-color: var(--color-bg-hover);
+	}
+
+	.snapshot-item:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	.snapshot-item.selected-compare {
+		border-color: var(--color-accent);
+		background-color: var(--color-accent-light);
 	}
 
 	.snapshot-icon {
@@ -577,6 +829,146 @@
 	.detail-actions {
 		margin-top: var(--spacing-lg);
 		display: flex;
+		flex-wrap: wrap;
 		gap: var(--spacing-sm);
+	}
+
+	.scene-picker {
+		background-color: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		padding: var(--spacing-md);
+	}
+
+	.scene-picker h4 {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.scene-picker-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		max-height: 200px;
+		overflow-y: auto;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.scene-pick-btn {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border-radius: var(--border-radius-sm);
+		text-align: left;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+		transition: background-color var(--transition-fast);
+	}
+
+	.scene-pick-btn:hover:not(:disabled) {
+		background-color: var(--color-bg-hover);
+	}
+
+	.scene-pick-btn:disabled {
+		opacity: 0.5;
+	}
+
+	.scene-pick-title {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* Compare mode */
+	.compare-view {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-md);
+	}
+
+	.compare-instructions {
+		padding: var(--spacing-md);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-md);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.compare-badge {
+		padding: 2px 8px;
+		background-color: var(--color-accent);
+		color: white;
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+	}
+
+	.diff-header h3 {
+		font-size: var(--font-size-lg);
+		font-weight: 600;
+	}
+
+	.diff-subtitle {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
+	}
+
+	.diff-sections {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-md);
+	}
+
+	.diff-section {
+		background-color: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		padding: var(--spacing-md);
+	}
+
+	.diff-section h4 {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.diff-added {
+		color: var(--color-success);
+	}
+
+	.diff-removed {
+		color: var(--color-error);
+	}
+
+	.diff-modified {
+		color: var(--color-warning, #e09100);
+	}
+
+	.diff-item {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.diff-item.added {
+		background-color: oklch(0.95 0.05 145);
+	}
+
+	.diff-item.removed {
+		background-color: oklch(0.95 0.05 25);
+	}
+
+	.diff-item.modified {
+		background-color: oklch(0.95 0.05 85);
+	}
+
+	.no-diff {
+		text-align: center;
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-lg);
 	}
 </style>

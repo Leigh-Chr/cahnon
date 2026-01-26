@@ -24,21 +24,21 @@ pub fn create_chapter(
         position: request.position,
     };
 
-    let db = state.db.lock().unwrap();
+    let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.create_chapter(&sanitized_request)
 }
 
 #[tauri::command]
 pub fn get_chapters(state: State<AppState>) -> Result<Vec<Chapter>, String> {
-    let db = state.db.lock().unwrap();
+    let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.get_chapters()
 }
 
 #[tauri::command]
 pub fn get_chapter(id: String, state: State<AppState>) -> Result<Chapter, String> {
-    let db = state.db.lock().unwrap();
+    let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.get_chapter(&id)
 }
@@ -71,21 +71,21 @@ pub fn update_chapter(
         }
     }
 
-    let db = state.db.lock().unwrap();
+    let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.update_chapter(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_chapter(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.db.lock().unwrap();
+    let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.delete_chapter(&id)
 }
 
 #[tauri::command]
 pub fn reorder_chapters(ids: Vec<String>, state: State<AppState>) -> Result<(), String> {
-    let db = state.db.lock().unwrap();
+    let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.reorder_chapters(&ids)
 }

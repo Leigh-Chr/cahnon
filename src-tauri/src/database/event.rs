@@ -147,6 +147,15 @@ impl Database {
 
     pub fn delete_event(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
+
+        // Clean up junction tables to avoid orphaned records
+        self.conn
+            .execute("DELETE FROM event_scenes WHERE event_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM event_bible WHERE event_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+
         self.conn
             .execute(
                 "UPDATE events SET deleted_at = ?1 WHERE id = ?2",
@@ -158,10 +167,12 @@ impl Database {
 
     // Event-Scene linking
     pub fn link_scene_to_event(&self, scene_id: &str, event_id: &str) -> Result<(), String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
         self.conn
             .execute(
-                "INSERT OR IGNORE INTO event_scenes (event_id, scene_id) VALUES (?1, ?2)",
-                params![event_id, scene_id],
+                "INSERT OR IGNORE INTO event_scenes (id, event_id, scene_id, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params![id, event_id, scene_id, now],
             )
             .map_err(|e| e.to_string())?;
         Ok(())

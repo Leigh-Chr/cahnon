@@ -322,3 +322,47 @@ export interface VersionDiff {
 	text_a: string;
 	text_b: string;
 }
+
+// =============================================================================
+// Name Registry Types
+// =============================================================================
+
+export interface NameRegistryEntry {
+	id: string;
+	canonical_name: string;
+	/** Type: character, location */
+	name_type: string;
+	bible_entry_id: string | null;
+	/** Comma-separated aliases */
+	aliases: string | null;
+	is_confirmed: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface NameMention {
+	id: string;
+	name_registry_id: string;
+	scene_id: string;
+	mention_text: string;
+	start_offset: number;
+	end_offset: number;
+	/** Status: pending, accepted, ignored */
+	status: string;
+	created_at: string;
+}
+
+// =============================================================================
+// Saved Filter Types
+// =============================================================================
+
+export interface SavedFilter {
+	id: string;
+	name: string;
+	/** Type: outline, corkboard, timeline */
+	filter_type: string;
+	/** JSON-encoded filter configuration */
+	filter_data: string;
+	created_at: string;
+	updated_at: string;
+}

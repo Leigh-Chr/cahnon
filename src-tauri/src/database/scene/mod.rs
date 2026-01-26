@@ -6,7 +6,7 @@
 //! - `operations`: Split, merge, and duplicate operations
 //! - `mapping`: Row mapping helpers
 
-mod crud;
+pub(crate) mod crud;
 mod history;
 mod mapping;
 mod operations;

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { appState } from '$lib/stores';
-	import { formatWordCount, countWords } from '$lib/utils';
+	import { countWords, formatWordCount } from '$lib/utils';
 
 	// Session tracking
 	let sessionStartWordCount = $state(0);

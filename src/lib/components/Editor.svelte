@@ -14,21 +14,24 @@
   - Configurable typography (font, size, line height, width)
 -->
 <script lang="ts">
-	import { onDestroy, untrack } from 'svelte';
 	import { Editor } from '@tiptap/core';
-	import StarterKit from '@tiptap/starter-kit';
-	import Placeholder from '@tiptap/extension-placeholder';
 	import CharacterCount from '@tiptap/extension-character-count';
-	import Typography from '@tiptap/extension-typography';
 	import Highlight from '@tiptap/extension-highlight';
-	import { appState, saveRecoveryDraft, getRecoveryDraft, clearRecoveryDraft } from '$lib/stores';
+	import Placeholder from '@tiptap/extension-placeholder';
+	import Typography from '@tiptap/extension-typography';
+	import StarterKit from '@tiptap/starter-kit';
+	import { onDestroy, untrack } from 'svelte';
+
+	import { cutApi, sceneApi, searchApi } from '$lib/api';
+	import { appState, clearRecoveryDraft, getRecoveryDraft, saveRecoveryDraft } from '$lib/stores';
+	import { showError, showSuccess } from '$lib/toast';
 	import { countWords, debounce, sceneStatuses, statusColors } from '$lib/utils';
-	import SceneHistoryModal from './SceneHistoryModal.svelte';
-	import CutLibrary from './CutLibrary.svelte';
-	import FindReplace from './FindReplace.svelte';
-	import { cutApi, sceneApi } from '$lib/api';
 	import { isModKey } from '$lib/utils';
-	import { showSuccess, showError } from '$lib/toast';
+
+	import CutLibrary from './CutLibrary.svelte';
+	import type { FindReplaceScope } from './FindReplace.svelte';
+	import FindReplace from './FindReplace.svelte';
+	import SceneHistoryModal from './SceneHistoryModal.svelte';
 
 	// Derived values for proper reactivity tracking in templates
 	let selectedScene = $derived(appState.selectedScene);
@@ -112,6 +115,7 @@
 	// Find and Replace
 	let showFindReplace = $state(false);
 	let showReplace = $state(false);
+	let findReplaceScope = $state<FindReplaceScope>('scene');
 	let findReplaceHandle = $state<
 		{ updateMatchInfo: (current: number, total: number) => void } | undefined
 	>(undefined);
@@ -154,15 +158,27 @@
 		canRedo = editor?.can().redo() ?? false;
 	}
 
-	const saveScene = debounce(async (sceneId: string, text: string) => {
+	const saveScene = debounce(async (sceneId: string, text: string, saveVersion?: number) => {
 		if (!isUpdating) {
 			// Save recovery draft to localStorage (in case of crash)
 			saveRecoveryDraft(sceneId, text);
-			await appState.updateScene(sceneId, { text });
-			// Clear recovery draft after successful save
-			clearRecoveryDraft();
+			const saved = await appState.saveWithRetry(async () => {
+				await appState.updateScene(sceneId, { text }, saveVersion);
+			}, 'save scene');
+			if (saved) {
+				// Clear recovery draft after successful save
+				clearRecoveryDraft();
+			}
 		}
 	}, 1000);
+
+	// Register autosave callback so the periodic timer can trigger saves
+	appState.registerAutosaveCallback(async () => {
+		if (editor && currentSceneId && appState.hasUnsavedChanges) {
+			const version = appState.markUnsaved();
+			await saveScene(currentSceneId, editor.getHTML(), version);
+		}
+	});
 
 	/** Check for and optionally restore a recovery draft for the given scene */
 	function checkRecoveryDraft(sceneId: string, targetEditor: Editor) {
@@ -176,7 +192,7 @@
 				isUpdating = true;
 				targetEditor.commands.setContent(recoveryDraft.text);
 				isUpdating = false;
-				appState.hasUnsavedChanges = true;
+				appState.markUnsaved();
 				showSuccess('Draft recovered');
 			}
 			clearRecoveryDraft();
@@ -211,9 +227,9 @@
 			},
 			onUpdate: ({ editor }) => {
 				if (!isUpdating && currentSceneId) {
-					appState.hasUnsavedChanges = true;
+					const version = appState.markUnsaved();
 					// Capture scene ID at edit time to prevent saving to wrong scene
-					saveScene(currentSceneId, editor.getHTML());
+					saveScene(currentSceneId, editor.getHTML(), version);
 				}
 				updateCanStates();
 			},
@@ -277,6 +293,10 @@
 		}
 	}
 
+	function escapeRegex(str: string): string {
+		return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	}
+
 	function handleFind(data: { query: string; caseSensitive: boolean; wholeWord: boolean }) {
 		if (!editor) return;
 
@@ -296,7 +316,8 @@
 		const content = editor.state.doc.textContent;
 		let regex: RegExp;
 		try {
-			const pattern = wholeWord ? `\\b${query}\\b` : query;
+			const escaped = escapeRegex(query);
+			const pattern = wholeWord ? `\\b${escaped}\\b` : escaped;
 			regex = new RegExp(pattern, caseSensitive ? 'g' : 'gi');
 		} catch {
 			findReplaceHandle?.updateMatchInfo(0, 0);
@@ -348,20 +369,61 @@
 		handleFind({ query: find, caseSensitive, wholeWord });
 	}
 
-	function handleReplaceAll(data: {
+	async function handleReplaceAll(data: {
 		find: string;
 		replace: string;
 		caseSensitive: boolean;
 		wholeWord: boolean;
+		scope: FindReplaceScope;
 	}) {
 		if (!editor) return;
 
-		const { find, replace, caseSensitive, wholeWord } = data;
+		const { find, replace, caseSensitive, wholeWord, scope } = data;
 
+		if (scope === 'chapter' || scope === 'manuscript') {
+			// Multi-scene replace via backend
+			try {
+				const chapterId =
+					scope === 'chapter' ? (appState.selectedChapterId ?? undefined) : undefined;
+				const count = await searchApi.findReplaceInScenes({
+					find,
+					replace,
+					caseSensitive,
+					wholeWord,
+					chapterId,
+				});
+				if (count > 0) {
+					// Reload scenes since backend changed them
+					await appState.reloadScenes();
+					// Refresh editor content if current scene was affected
+					if (currentSceneId) {
+						const scene = appState.selectedScene;
+						if (scene) {
+							isUpdating = true;
+							editor.commands.setContent(scene.text);
+							isUpdating = false;
+						}
+					}
+					showSuccess(`Replaced in ${count} scene${count !== 1 ? 's' : ''}`);
+				} else {
+					showSuccess('No matches found');
+				}
+			} catch (e) {
+				showError(e instanceof Error ? e.message : 'Replace failed');
+			}
+			// Clear search
+			searchMarks = [];
+			currentSearchIndex = 0;
+			findReplaceHandle?.updateMatchInfo(0, 0);
+			return;
+		}
+
+		// Scene-level replace (existing behavior)
 		const content = editor.getHTML();
 		let regex: RegExp;
 		try {
-			const pattern = wholeWord ? `\\b${find}\\b` : find;
+			const escaped = escapeRegex(find);
+			const pattern = wholeWord ? `\\b${escaped}\\b` : escaped;
 			regex = new RegExp(pattern, caseSensitive ? 'g' : 'gi');
 		} catch {
 			return;
@@ -371,9 +433,9 @@
 		isUpdating = true;
 		editor.commands.setContent(newContent);
 		isUpdating = false;
-		appState.hasUnsavedChanges = true;
+		const version = appState.markUnsaved();
 		if (currentSceneId) {
-			saveScene(currentSceneId, newContent);
+			saveScene(currentSceneId, newContent, version);
 		}
 
 		// Clear search
@@ -714,6 +776,7 @@
 			bind:handle={findReplaceHandle}
 			bind:isOpen={showFindReplace}
 			bind:showReplace
+			bind:scope={findReplaceScope}
 			onfind={handleFind}
 			onnext={handleFindNext}
 			onprev={handleFindPrev}

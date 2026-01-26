@@ -7,7 +7,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Project, RecentProject, FileStatus } from './types';
+
+import type { FileStatus, Project, RecentProject } from './types';
 
 /**
  * API for project-level operations.
@@ -40,8 +41,11 @@ export const projectApi = {
 
 	get: () => invoke<Project>('get_project'),
 
-	update: (request: Partial<Pick<Project, 'title' | 'author' | 'description' | 'word_target'>>) =>
-		invoke<Project>('update_project', { request }),
+	update: (
+		request: Partial<
+			Pick<Project, 'title' | 'author' | 'description' | 'word_target' | 'daily_word_target'>
+		>
+	) => invoke<Project>('update_project', { request }),
 
 	getRecent: () => invoke<RecentProject[]>('get_recent_projects'),
 
@@ -52,4 +56,6 @@ export const projectApi = {
 	releaseLock: (path: string) => invoke<void>('release_lock', { path }),
 
 	forceAcquireLock: (path: string) => invoke<void>('force_acquire_lock', { path }),
+
+	checkDatabaseIntegrity: () => invoke<boolean>('check_database_integrity'),
 };

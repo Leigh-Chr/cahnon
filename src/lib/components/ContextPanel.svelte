@@ -13,24 +13,25 @@
   - Status chart showing scene status distribution
 -->
 <script lang="ts">
-	import { appState } from '$lib/stores';
+	import type { Annotation, BibleEntry } from '$lib/api';
 	import {
-		associationApi,
-		arcApi,
-		templateApi,
-		eventApi,
 		type Arc,
+		arcApi,
+		associationApi,
+		eventApi,
+		templateApi,
 		type TemplateStep,
 		type TimelineEvent,
 	} from '$lib/api';
-	import type { BibleEntry, Annotation } from '$lib/api';
-	import { bibleEntryTypes, countWords, formatWordCount } from '$lib/utils';
-	import AnnotationsPanel from './AnnotationsPanel.svelte';
-	import StatusChart from './StatusChart.svelte';
-	import RevisionChecklist from './RevisionChecklist.svelte';
 	import { sceneApi } from '$lib/api';
+	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
-	import { Icon, Button } from './ui';
+	import { bibleEntryTypes, countWords, formatWordCount } from '$lib/utils';
+
+	import AnnotationsPanel from './AnnotationsPanel.svelte';
+	import RevisionChecklist from './RevisionChecklist.svelte';
+	import StatusChart from './StatusChart.svelte';
+	import { Button, Icon } from './ui';
 
 	interface Props {
 		onSelectAnnotation?: ((annotation: Annotation) => void) | null;
@@ -62,15 +63,25 @@
 
 	async function saveNotes() {
 		if (selectedScene) {
-			await appState.updateScene(selectedScene.id, { notes: editedNotes || null });
-			isEditingNotes = false;
+			try {
+				await appState.updateScene(selectedScene.id, { notes: editedNotes || null });
+				isEditingNotes = false;
+			} catch (e) {
+				console.error('Failed to save notes:', e);
+				showError('Failed to save notes');
+			}
 		}
 	}
 
 	async function saveTodos() {
 		if (selectedScene) {
-			await appState.updateScene(selectedScene.id, { todos: editedTodos || null });
-			isEditingTodos = false;
+			try {
+				await appState.updateScene(selectedScene.id, { todos: editedTodos || null });
+				isEditingTodos = false;
+			} catch (e) {
+				console.error('Failed to save TODOs:', e);
+				showError('Failed to save TODOs');
+			}
 		}
 	}
 
@@ -160,6 +171,7 @@
 			isAddingArc = false;
 		} catch (e) {
 			console.error('Failed to link scene to arc:', e);
+			showError('Failed to link arc');
 		}
 	}
 
@@ -170,6 +182,7 @@
 			await loadSceneArcs();
 		} catch (e) {
 			console.error('Failed to unlink scene from arc:', e);
+			showError('Failed to unlink arc');
 		}
 	}
 
@@ -202,6 +215,7 @@
 			isSelectingStep = false;
 		} catch (e) {
 			console.error('Failed to assign scene to step:', e);
+			showError('Failed to assign template step');
 		}
 	}
 
@@ -218,17 +232,27 @@
 
 	async function addAssociation(entry: BibleEntry) {
 		if (selectedSceneId) {
-			await associationApi.create(selectedSceneId, entry.id);
-			await loadAssociations();
-			searchQuery = '';
-			isAddingAssociation = false;
+			try {
+				await associationApi.create(selectedSceneId, entry.id);
+				await loadAssociations();
+				searchQuery = '';
+				isAddingAssociation = false;
+			} catch (e) {
+				console.error('Failed to add association:', e);
+				showError('Failed to link entry');
+			}
 		}
 	}
 
 	async function removeAssociation(entryId: string) {
 		if (selectedSceneId) {
-			await associationApi.delete(selectedSceneId, entryId);
-			await loadAssociations();
+			try {
+				await associationApi.delete(selectedSceneId, entryId);
+				await loadAssociations();
+			} catch (e) {
+				console.error('Failed to remove association:', e);
+				showError('Failed to unlink entry');
+			}
 		}
 	}
 
@@ -247,6 +271,17 @@
 					<span class="stat-value">{formatWordCount(countWords(selectedScene.text))}</span>
 					<span class="stat-label">Scene</span>
 				</div>
+				{#if appState.wordCounts && appState.selectedChapterId}
+					{@const chapterStats = appState.wordCounts.by_chapter.find(
+						(c) => c.chapter_id === appState.selectedChapterId
+					)}
+					{#if chapterStats}
+						<div class="stat">
+							<span class="stat-value">{formatWordCount(chapterStats.word_count)}</span>
+							<span class="stat-label">Chapter</span>
+						</div>
+					{/if}
+				{/if}
 				{#if appState.wordCounts}
 					<div class="stat">
 						<span class="stat-value">{formatWordCount(appState.wordCounts.total)}</span>
@@ -270,7 +305,7 @@
 						<Button
 							variant="icon"
 							size="sm"
-							onclick={() => {
+							onclick={async () => {
 								const newTarget = prompt(
 									'Set word target for this scene:',
 									String(selectedScene?.word_target || '')
@@ -278,7 +313,12 @@
 								if (newTarget !== null && selectedScene) {
 									const target = newTarget.trim() === '' ? null : parseInt(newTarget);
 									if (target === null || !isNaN(target)) {
-										appState.updateScene(selectedScene.id, { word_target: target });
+										try {
+											await appState.updateScene(selectedScene.id, { word_target: target });
+										} catch (e) {
+											console.error('Failed to set word target:', e);
+											showError('Failed to set word target');
+										}
 									}
 								}
 							}}
@@ -290,12 +330,17 @@
 				{:else}
 					<button
 						class="set-target-btn"
-						onclick={() => {
+						onclick={async () => {
 							const newTarget = prompt('Set word target for this scene:');
 							if (newTarget !== null && selectedScene) {
 								const target = parseInt(newTarget);
 								if (!isNaN(target) && target > 0) {
-									appState.updateScene(selectedScene.id, { word_target: target });
+									try {
+										await appState.updateScene(selectedScene.id, { word_target: target });
+									} catch (e) {
+										console.error('Failed to set word target:', e);
+										showError('Failed to set word target');
+									}
 								}
 							}
 						}}
@@ -586,9 +631,14 @@
 			<!-- Revision Checklist Section -->
 			<section class="panel-section">
 				<RevisionChecklist
-					checklist={selectedScene.revision_checklist
-						? JSON.parse(selectedScene.revision_checklist)
-						: {}}
+					checklist={(() => {
+						if (!selectedScene.revision_checklist) return {};
+						try {
+							return JSON.parse(selectedScene.revision_checklist);
+						} catch {
+							return {};
+						}
+					})()}
 					onchange={async (checklist) => {
 						if (selectedSceneId) {
 							try {

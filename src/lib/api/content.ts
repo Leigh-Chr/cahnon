@@ -7,7 +7,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Template, TemplateStep, Annotation, Snapshot, Cut, Scene, Chapter } from './types';
+
+import type { Annotation, Chapter, Cut, Scene, Snapshot, Template, TemplateStep } from './types';
 
 /**
  * API for writing template operations.
@@ -89,6 +90,13 @@ export const snapshotApi = {
 	delete: (id: string) => invoke<void>('delete_snapshot', { id }),
 
 	restore: (id: string) => invoke<void>('restore_snapshot', { id }),
+
+	cleanupExpired: () => invoke<number>('cleanup_expired_snapshots'),
+
+	getScenes: (id: string) => invoke<Scene[]>('get_snapshot_scenes', { id }),
+
+	restoreScene: (snapshotId: string, sceneId: string) =>
+		invoke<Scene>('restore_scene_from_snapshot', { snapshotId, sceneId }),
 };
 
 /**

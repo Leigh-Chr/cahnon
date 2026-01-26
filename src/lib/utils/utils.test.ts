@@ -1,18 +1,21 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import {
-	countWords,
-	formatWordCount,
-	stripHtml,
-	truncate,
-	debounce,
-	generateId,
-	formatDate,
-	formatRelativeTime,
-	statusColors,
-	sceneStatuses,
-	chapterStatuses,
 	bibleEntryTypes,
 	bibleStatuses,
+	chapterStatuses,
+	countWords,
+	debounce,
+	formatDate,
+	formatRelativeTime,
+	formatShortcut,
+	formatWordCount,
+	generateId,
+	isModKey,
+	sceneStatuses,
+	statusColors,
+	stripHtml,
+	truncate,
 } from './index';
 
 describe('countWords', () => {
@@ -233,5 +236,129 @@ describe('Status constants', () => {
 		expect(statusColors['planned']).toBeDefined();
 		expect(statusColors['draft']).toBeDefined();
 		expect(statusColors['done']).toBeDefined();
+	});
+});
+
+describe('isModKey', () => {
+	const originalPlatform = navigator.platform;
+
+	afterEach(() => {
+		Object.defineProperty(navigator, 'platform', {
+			value: originalPlatform,
+			configurable: true,
+		});
+	});
+
+	it('should return metaKey on Mac', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'MacIntel',
+			configurable: true,
+		});
+		const event = new KeyboardEvent('keydown', { metaKey: true, ctrlKey: false });
+		expect(isModKey(event)).toBe(true);
+	});
+
+	it('should not return ctrlKey as mod on Mac', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'MacIntel',
+			configurable: true,
+		});
+		const event = new KeyboardEvent('keydown', { metaKey: false, ctrlKey: true });
+		expect(isModKey(event)).toBe(false);
+	});
+
+	it('should return ctrlKey on non-Mac', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'Win32',
+			configurable: true,
+		});
+		const event = new KeyboardEvent('keydown', { metaKey: false, ctrlKey: true });
+		expect(isModKey(event)).toBe(true);
+	});
+
+	it('should not return metaKey as mod on non-Mac', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'Linux x86_64',
+			configurable: true,
+		});
+		const event = new KeyboardEvent('keydown', { metaKey: true, ctrlKey: false });
+		expect(isModKey(event)).toBe(false);
+	});
+
+	it('should return false when no modifier is pressed', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'Win32',
+			configurable: true,
+		});
+		const event = new KeyboardEvent('keydown', { metaKey: false, ctrlKey: false });
+		expect(isModKey(event)).toBe(false);
+	});
+});
+
+describe('formatShortcut', () => {
+	const originalPlatform = navigator.platform;
+
+	afterEach(() => {
+		Object.defineProperty(navigator, 'platform', {
+			value: originalPlatform,
+			configurable: true,
+		});
+	});
+
+	it('should format with Ctrl on non-Mac', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'Win32',
+			configurable: true,
+		});
+		expect(formatShortcut('s')).toBe('Ctrl+S');
+	});
+
+	it('should format with command symbol on Mac', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'MacIntel',
+			configurable: true,
+		});
+		expect(formatShortcut('s')).toBe('\u2318S');
+	});
+
+	it('should include shift on non-Mac', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'Win32',
+			configurable: true,
+		});
+		expect(formatShortcut('z', true, true)).toBe('Ctrl+Shift+Z');
+	});
+
+	it('should include shift symbol on Mac', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'MacIntel',
+			configurable: true,
+		});
+		expect(formatShortcut('z', true, true)).toBe('\u2318\u21E7Z');
+	});
+
+	it('should format without mod key', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'Win32',
+			configurable: true,
+		});
+		expect(formatShortcut('f1', false)).toBe('F1');
+	});
+
+	it('should uppercase the key', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'Win32',
+			configurable: true,
+		});
+		expect(formatShortcut('a')).toBe('Ctrl+A');
+		expect(formatShortcut('A')).toBe('Ctrl+A');
+	});
+
+	it('should handle shift without mod', () => {
+		Object.defineProperty(navigator, 'platform', {
+			value: 'Win32',
+			configurable: true,
+		});
+		expect(formatShortcut('tab', false, true)).toBe('Shift+TAB');
 	});
 });

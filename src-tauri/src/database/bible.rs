@@ -15,14 +15,31 @@ impl Database {
     // ========================================================================
 
     pub fn create_bible_entry(&self, req: &CreateBibleEntryRequest) -> Result<BibleEntry, String> {
+        const VALID_ENTRY_TYPES: &[&str] = &[
+            "character",
+            "location",
+            "object",
+            "faction",
+            "concept",
+            "glossary",
+        ];
+        if !VALID_ENTRY_TYPES.contains(&req.entry_type.as_str()) {
+            return Err(format!(
+                "Invalid entry type '{}'. Must be one of: {}",
+                req.entry_type,
+                VALID_ENTRY_TYPES.join(", ")
+            ));
+        }
+
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         let status = req.status.clone().unwrap_or_else(|| "draft".to_string());
+        let custom_fields = Self::default_custom_fields(&req.entry_type);
 
         self.conn
             .execute(
-                "INSERT INTO bible_entries (id, entry_type, name, aliases, short_description, full_description, status, tags, color, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                "INSERT INTO bible_entries (id, entry_type, name, aliases, short_description, full_description, status, tags, color, custom_fields, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     id,
                     req.entry_type,
@@ -33,6 +50,7 @@ impl Database {
                     status,
                     req.tags,
                     req.color,
+                    custom_fields,
                     now,
                     now
                 ],
@@ -40,6 +58,31 @@ impl Database {
             .map_err(|e| e.to_string())?;
 
         self.get_bible_entry(&id)
+    }
+
+    /// Returns default custom fields JSON for a given entry type per spec 6.3-6.4.
+    fn default_custom_fields(entry_type: &str) -> Option<String> {
+        let fields = match entry_type {
+            "character" => serde_json::json!({
+                "role": "",
+                "voice_notes": ""
+            }),
+            "location" => serde_json::json!({
+                "parent_location": ""
+            }),
+            "faction" => serde_json::json!({
+                "faction_type": "",
+                "members": "",
+                "headquarters": ""
+            }),
+            "glossary" => serde_json::json!({
+                "pronunciation": "",
+                "etymology": "",
+                "language": ""
+            }),
+            _ => return None,
+        };
+        Some(fields.to_string())
     }
 
     pub fn get_bible_entries(&self, entry_type: Option<&str>) -> Result<Vec<BibleEntry>, String> {
@@ -115,6 +158,7 @@ impl Database {
         Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
     }
 
+    #[allow(clippy::type_complexity)]
     fn map_bible_entry_description(
         row: &rusqlite::Row,
     ) -> rusqlite::Result<(Option<String>, Option<String>, String, Option<String>)> {
@@ -141,6 +185,7 @@ impl Database {
         ))
     }
 
+    #[allow(clippy::type_complexity)]
     fn map_bible_entry_media(
         row: &rusqlite::Row,
     ) -> rusqlite::Result<(
@@ -195,7 +240,9 @@ impl Database {
         add_field!(req.full_description, "full_description");
         add_field!(req.status, "status");
         add_field!(req.tags, "tags");
+        add_field!(req.image_path, "image_path");
         add_field!(req.notes, "notes");
+        add_field!(req.todos, "todos");
         add_field!(req.color, "color");
         add_field!(req.custom_fields, "custom_fields");
 
@@ -225,6 +272,34 @@ impl Database {
 
     pub fn delete_bible_entry(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
+
+        // Clean up junction tables to avoid orphaned records
+        self.conn
+            .execute(
+                "DELETE FROM canonical_associations WHERE bible_entry_id = ?1",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "DELETE FROM bible_relationships WHERE source_id = ?1 OR target_id = ?1",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "DELETE FROM event_bible WHERE bible_entry_id = ?1",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "DELETE FROM issue_bible WHERE bible_entry_id = ?1",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
+
+        // Soft-delete the entry itself
         self.conn
             .execute(
                 "UPDATE bible_entries SET deleted_at = ?1 WHERE id = ?2",
@@ -235,6 +310,11 @@ impl Database {
     }
 
     pub fn search_bible(&self, query: &str) -> Result<Vec<BibleEntry>, String> {
+        let sanitized = Self::sanitize_fts5_query(query);
+        if sanitized.is_empty() {
+            return Ok(Vec::new());
+        }
+
         let mut stmt = self
             .conn
             .prepare(
@@ -248,7 +328,7 @@ impl Database {
             .map_err(|e| e.to_string())?;
 
         let entries = stmt
-            .query_map(params![query], Self::map_bible_entry)
+            .query_map(params![sanitized], Self::map_bible_entry)
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;

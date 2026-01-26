@@ -7,6 +7,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+
 import type { Chapter, Scene, SceneHistoryEntry, VersionDiff } from './types';
 
 /**

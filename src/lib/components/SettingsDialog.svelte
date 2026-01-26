@@ -1,7 +1,12 @@
 <script lang="ts">
-	import { appState } from '$lib/stores';
 	import { projectApi } from '$lib/api';
-	import { Icon, Button } from './ui';
+	import { appState } from '$lib/stores';
+	import type { KeyboardShortcuts, ShortcutBinding } from '$lib/stores/types';
+	import { shortcutLabels } from '$lib/stores/types';
+	import { showError } from '$lib/toast';
+	import { isModKey } from '$lib/utils';
+
+	import { Button, Icon } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -29,6 +34,7 @@
 			appState.project = updated;
 		} catch (e) {
 			console.error('Failed to update project:', e);
+			showError('Failed to update project settings');
 		}
 	}
 
@@ -76,10 +82,65 @@
 			lineHeight: 1.8,
 			textWidth: 700,
 		};
+		appState.resetShortcuts();
 	}
+
+	// Keyboard shortcut recording
+	let recordingAction = $state<keyof KeyboardShortcuts | null>(null);
+
+	function startRecording(action: keyof KeyboardShortcuts) {
+		recordingAction = action;
+	}
+
+	function handleShortcutKeydown(event: KeyboardEvent) {
+		if (!recordingAction) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		// Ignore modifier-only presses
+		if (['Control', 'Meta', 'Shift', 'Alt'].includes(event.key)) return;
+
+		// Escape cancels recording
+		if (event.key === 'Escape') {
+			recordingAction = null;
+			return;
+		}
+
+		const binding: ShortcutBinding = {
+			key: event.key,
+			mod: isModKey(event),
+			shift: event.shiftKey,
+		};
+
+		appState.setShortcut(recordingAction, binding);
+		recordingAction = null;
+	}
+
+	function formatBinding(binding: ShortcutBinding): string {
+		const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
+		const parts: string[] = [];
+		if (binding.mod) parts.push(isMac ? '⌘' : 'Ctrl');
+		if (binding.shift) parts.push(isMac ? '⇧' : 'Shift');
+
+		// Format the key nicely
+		let keyLabel = binding.key;
+		if (keyLabel === 'ArrowDown') keyLabel = '↓';
+		else if (keyLabel === 'ArrowUp') keyLabel = '↑';
+		else if (keyLabel === 'ArrowLeft') keyLabel = '←';
+		else if (keyLabel === 'ArrowRight') keyLabel = '→';
+		else if (keyLabel === '\\') keyLabel = '\\';
+		else if (keyLabel.length === 1) keyLabel = keyLabel.toUpperCase();
+
+		parts.push(keyLabel);
+		return parts.join(isMac ? '' : '+');
+	}
+
+	const shortcutActions = Object.keys(shortcutLabels) as (keyof KeyboardShortcuts)[];
 
 	function handleClose() {
 		isOpen = false;
+		recordingAction = null;
 		onclose?.();
 	}
 
@@ -204,6 +265,35 @@
 							<option value="warm">Ambre (Warm Terracotta)</option>
 						</select>
 						<span class="hint">Cool blue tones or warm earthy tones</span>
+					</div>
+				</section>
+
+				<section class="settings-section">
+					<h3>Keyboard Shortcuts</h3>
+					<p class="shortcuts-hint">Click a shortcut to reassign it. Press Escape to cancel.</p>
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="shortcuts-list" onkeydown={handleShortcutKeydown}>
+						{#each shortcutActions as action (action)}
+							<div class="shortcut-row">
+								<span class="shortcut-label">{shortcutLabels[action]}</span>
+								<button
+									class="shortcut-key"
+									class:recording={recordingAction === action}
+									onclick={() => startRecording(action)}
+								>
+									{#if recordingAction === action}
+										Press keys...
+									{:else}
+										{formatBinding(appState.keyboardShortcuts[action])}
+									{/if}
+								</button>
+							</div>
+						{/each}
+					</div>
+					<div class="shortcuts-footer">
+						<Button variant="ghost" size="sm" onclick={() => appState.resetShortcuts()}>
+							Reset Shortcuts to Defaults
+						</Button>
 					</div>
 				</section>
 
@@ -363,5 +453,73 @@
 		justify-content: space-between;
 		padding: var(--spacing-md) var(--spacing-lg);
 		border-top: 1px solid var(--color-border-light);
+	}
+
+	.shortcuts-hint {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin-bottom: var(--spacing-md);
+	}
+
+	.shortcuts-list {
+		max-height: 300px;
+		overflow-y: auto;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.shortcut-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.shortcut-row:last-child {
+		border-bottom: none;
+	}
+
+	.shortcut-label {
+		font-size: var(--font-size-sm);
+	}
+
+	.shortcut-key {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		font-family: monospace;
+		background-color: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		cursor: pointer;
+		min-width: 80px;
+		text-align: center;
+		transition: all var(--transition-fast);
+	}
+
+	.shortcut-key:hover {
+		background-color: var(--color-bg-hover);
+		border-color: var(--color-accent);
+	}
+
+	.shortcut-key.recording {
+		background-color: var(--color-accent-light);
+		border-color: var(--color-accent);
+		color: var(--color-accent);
+		animation: pulse-border 1s infinite;
+	}
+
+	@keyframes pulse-border {
+		0%,
+		100% {
+			border-color: var(--color-accent);
+		}
+		50% {
+			border-color: transparent;
+		}
+	}
+
+	.shortcuts-footer {
+		margin-top: var(--spacing-sm);
 	}
 </style>
