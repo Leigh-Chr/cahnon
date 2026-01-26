@@ -154,11 +154,11 @@
 		canRedo = editor?.can().redo() ?? false;
 	}
 
-	const saveScene = debounce(async (text: string) => {
-		if (appState.selectedScene && !isUpdating) {
+	const saveScene = debounce(async (sceneId: string, text: string) => {
+		if (!isUpdating) {
 			// Save recovery draft to localStorage (in case of crash)
-			saveRecoveryDraft(appState.selectedScene.id, text);
-			await appState.updateScene(appState.selectedScene.id, { text });
+			saveRecoveryDraft(sceneId, text);
+			await appState.updateScene(sceneId, { text });
 			// Clear recovery draft after successful save
 			clearRecoveryDraft();
 		}
@@ -210,9 +210,10 @@
 				},
 			},
 			onUpdate: ({ editor }) => {
-				if (!isUpdating) {
+				if (!isUpdating && currentSceneId) {
 					appState.hasUnsavedChanges = true;
-					saveScene(editor.getHTML());
+					// Capture scene ID at edit time to prevent saving to wrong scene
+					saveScene(currentSceneId, editor.getHTML());
 				}
 				updateCanStates();
 			},
@@ -371,7 +372,9 @@
 		editor.commands.setContent(newContent);
 		isUpdating = false;
 		appState.hasUnsavedChanges = true;
-		saveScene(newContent);
+		if (currentSceneId) {
+			saveScene(currentSceneId, newContent);
+		}
 
 		// Clear search
 		searchMarks = [];
@@ -387,8 +390,8 @@
 
 	// Autosave on window blur
 	function handleWindowBlur() {
-		if (editor && appState.selectedScene && appState.hasUnsavedChanges) {
-			saveScene(editor.getHTML());
+		if (editor && currentSceneId && appState.hasUnsavedChanges) {
+			saveScene(currentSceneId, editor.getHTML());
 		}
 	}
 

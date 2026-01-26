@@ -151,7 +151,10 @@
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = `export.${extensions[exportFormat]}`;
+		// Use project title for filename, sanitized for filesystem
+		const projectName = appState.project?.title || 'export';
+		const safeFilename = projectName.replace(/[<>:"/\\|?*]/g, '_').trim();
+		a.download = `${safeFilename}.${extensions[exportFormat]}`;
 		document.body.appendChild(a);
 		a.click();
 		document.body.removeChild(a);

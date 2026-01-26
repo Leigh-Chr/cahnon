@@ -30,6 +30,7 @@
 			]);
 		} catch (e) {
 			console.error('Failed to load trash:', e);
+			showError('Failed to load trash');
 		}
 		isLoading = false;
 	}

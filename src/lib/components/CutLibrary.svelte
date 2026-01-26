@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { cutApi, type Cut } from '$lib/api';
 	import { countWords, formatWordCount } from '$lib/utils';
+	import { showError, showSuccess } from '$lib/toast';
 	import { Icon, Button, EmptyState, LoadingState } from './ui';
 
 	interface Props {
@@ -25,6 +26,7 @@
 			cuts = await cutApi.getAll();
 		} catch (e) {
 			console.error('Failed to load cuts:', e);
+			showError('Failed to load cut library');
 		}
 		isLoading = false;
 	}
@@ -35,6 +37,7 @@
 			cuts = cuts.filter((c) => c.id !== cutId);
 		} catch (e) {
 			console.error('Failed to delete cut:', e);
+			showError('Failed to delete cut');
 		}
 	}
 
@@ -44,8 +47,14 @@
 		}
 	}
 
-	function copyToClipboard(text: string) {
-		navigator.clipboard.writeText(text);
+	async function copyToClipboard(text: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			showSuccess('Copied to clipboard');
+		} catch (e) {
+			console.error('Failed to copy to clipboard:', e);
+			showError('Failed to copy to clipboard');
+		}
 	}
 
 	function formatDate(dateStr: string): string {

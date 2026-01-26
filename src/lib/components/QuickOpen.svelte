@@ -143,7 +143,7 @@
 			appState.setViewMode('editor');
 		} else if (result.type === 'bible' || result.type === 'bible_entry') {
 			appState.setViewMode('bible');
-			// TODO: select the bible entry
+			appState.selectedBibleEntryId = result.id;
 		}
 		close();
 	}

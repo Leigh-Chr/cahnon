@@ -63,3 +63,11 @@ export function showSuccess(message: string, action?: Toast['action']) {
 export function showError(message: string, action?: Toast['action']) {
 	return showToast({ type: 'error', message, action });
 }
+
+export function showWarning(message: string, action?: Toast['action']) {
+	return showToast({ type: 'warning', message, action });
+}
+
+export function showInfo(message: string, action?: Toast['action']) {
+	return showToast({ type: 'info', message, action });
+}

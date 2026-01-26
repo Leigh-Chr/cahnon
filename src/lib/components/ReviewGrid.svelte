@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores';
 	import { sceneStatuses, statusColors, countWords, formatWordCount } from '$lib/utils';
+	import { showError } from '$lib/toast';
 	import type { Scene } from '$lib/api';
 
 	interface Props {
@@ -112,35 +113,75 @@
 	}
 
 	async function updateSceneStatus(scene: Scene, status: string) {
-		await appState.updateScene(scene.id, { status });
+		try {
+			await appState.updateScene(scene.id, { status });
+		} catch (e) {
+			console.error('Failed to update scene status:', e);
+			showError('Failed to update scene');
+		}
 	}
 
 	async function updateSceneConflict(scene: Scene, hasConflict: boolean | null) {
-		await appState.updateScene(scene.id, { has_conflict: hasConflict });
+		try {
+			await appState.updateScene(scene.id, { has_conflict: hasConflict });
+		} catch (e) {
+			console.error('Failed to update scene conflict:', e);
+			showError('Failed to update scene');
+		}
 	}
 
 	async function updateSceneChange(scene: Scene, hasChange: boolean | null) {
-		await appState.updateScene(scene.id, { has_change: hasChange });
+		try {
+			await appState.updateScene(scene.id, { has_change: hasChange });
+		} catch (e) {
+			console.error('Failed to update scene change:', e);
+			showError('Failed to update scene');
+		}
 	}
 
 	async function updateSceneTension(scene: Scene, tension: string | null) {
-		await appState.updateScene(scene.id, { tension });
+		try {
+			await appState.updateScene(scene.id, { tension });
+		} catch (e) {
+			console.error('Failed to update scene tension:', e);
+			showError('Failed to update scene');
+		}
 	}
 
 	async function updateScenePovGoal(scene: Scene, povGoal: string) {
-		await appState.updateScene(scene.id, { pov_goal: povGoal || null });
+		try {
+			await appState.updateScene(scene.id, { pov_goal: povGoal || null });
+		} catch (e) {
+			console.error('Failed to update POV goal:', e);
+			showError('Failed to update scene');
+		}
 	}
 
 	async function updateSceneRevisionNotes(scene: Scene, notes: string) {
-		await appState.updateScene(scene.id, { revision_notes: notes || null });
+		try {
+			await appState.updateScene(scene.id, { revision_notes: notes || null });
+		} catch (e) {
+			console.error('Failed to update revision notes:', e);
+			showError('Failed to update scene');
+		}
 	}
 
 	async function updateSceneSetupFor(scene: Scene, targetSceneId: string | null) {
-		await appState.updateScene(scene.id, { setup_for_scene_id: targetSceneId });
+		try {
+			await appState.updateScene(scene.id, { setup_for_scene_id: targetSceneId });
+		} catch (e) {
+			console.error('Failed to update setup for:', e);
+			showError('Failed to update scene');
+		}
 	}
 
 	async function updateScenePayoffOf(scene: Scene, targetSceneId: string | null) {
-		await appState.updateScene(scene.id, { payoff_of_scene_id: targetSceneId });
+		try {
+			await appState.updateScene(scene.id, { payoff_of_scene_id: targetSceneId });
+		} catch (e) {
+			console.error('Failed to update payoff of:', e);
+			showError('Failed to update scene');
+		}
 	}
 
 	function _getSceneTitleById(sceneId: string | null): string {

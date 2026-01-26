@@ -49,6 +49,7 @@
 			snapshots = await snapshotApi.getAll();
 		} catch (e) {
 			console.error('Failed to load snapshots:', e);
+			showError('Failed to load snapshots');
 		}
 		isLoading = false;
 	}

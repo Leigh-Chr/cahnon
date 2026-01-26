@@ -12,6 +12,7 @@
 <script lang="ts">
 	import { templateApi, type Template, type TemplateStep } from '$lib/api';
 	import { appState } from '$lib/stores';
+	import { showError } from '$lib/toast';
 	import { Button, FormGroup, FormActions, Icon, EmptyState } from './ui';
 
 	interface Props {
@@ -80,6 +81,7 @@
 			}
 		} catch (e) {
 			console.error('Failed to load templates:', e);
+			showError('Failed to load templates');
 		} finally {
 			isLoading = false;
 		}
@@ -90,6 +92,7 @@
 			steps = await templateApi.getSteps(templateId);
 		} catch (e) {
 			console.error('Failed to load steps:', e);
+			showError('Failed to load template steps');
 			steps = [];
 		}
 	}
@@ -100,6 +103,7 @@
 			await loadTemplates();
 		} catch (e) {
 			console.error('Failed to initialize built-in templates:', e);
+			showError('Failed to initialize templates');
 		}
 	}
 
@@ -112,6 +116,7 @@
 			}));
 		} catch (e) {
 			console.error('Failed to activate template:', e);
+			showError('Failed to activate template');
 		}
 	}
 
@@ -126,6 +131,7 @@
 			isCreatingTemplate = false;
 		} catch (e) {
 			console.error('Failed to create template:', e);
+			showError('Failed to create template');
 		}
 	}
 
@@ -134,7 +140,7 @@
 		if (!template) return;
 
 		if (template.is_builtin) {
-			alert('Cannot delete built-in templates.');
+			showError('Cannot delete built-in templates');
 			return;
 		}
 
@@ -149,6 +155,7 @@
 			}
 		} catch (e) {
 			console.error('Failed to delete template:', e);
+			showError('Failed to delete template');
 		}
 	}
 
@@ -205,6 +212,7 @@
 			cancelEditStep();
 		} catch (e) {
 			console.error('Failed to save step:', e);
+			showError('Failed to save step');
 		}
 	}
 
@@ -216,6 +224,7 @@
 			steps = steps.filter((s) => s.id !== stepId);
 		} catch (e) {
 			console.error('Failed to delete step:', e);
+			showError('Failed to delete step');
 		}
 	}
 

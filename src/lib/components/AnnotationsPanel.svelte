@@ -7,6 +7,7 @@
 	 */
 
 	import { annotationApi, type Annotation } from '$lib/api';
+	import { showError } from '$lib/toast';
 	import { Icon, Button, FormActions } from './ui';
 
 	interface Props {
@@ -51,6 +52,7 @@
 			annotations = await annotationApi.getByScene(sceneId);
 		} catch (e) {
 			console.error('Failed to load annotations:', e);
+			showError('Failed to load annotations');
 			annotations = [];
 		}
 		isLoading = false;
@@ -70,6 +72,7 @@
 			resetNewForm();
 		} catch (e) {
 			console.error('Failed to create annotation:', e);
+			showError('Failed to create annotation');
 		}
 	}
 
@@ -100,6 +103,7 @@
 			annotations = annotations.map((a) => (a.id === updated.id ? updated : a));
 		} catch (e) {
 			console.error('Failed to update annotation:', e);
+			showError('Failed to update annotation');
 		}
 	}
 
@@ -109,6 +113,7 @@
 			annotations = annotations.filter((a) => a.id !== annotationId);
 		} catch (e) {
 			console.error('Failed to delete annotation:', e);
+			showError('Failed to delete annotation');
 		}
 	}
 

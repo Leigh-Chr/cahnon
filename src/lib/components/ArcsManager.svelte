@@ -12,6 +12,7 @@
 <script lang="ts">
 	import { arcApi, type Arc } from '$lib/api';
 	import { appState } from '$lib/stores';
+	import { showError } from '$lib/toast';
 	import { Button, FormGroup, FormActions, Icon, EmptyState } from './ui';
 
 	interface Props {
@@ -71,6 +72,7 @@
 			arcs = await arcApi.getAll();
 		} catch (e) {
 			console.error('Failed to load arcs:', e);
+			showError('Failed to load arcs');
 		} finally {
 			isLoading = false;
 		}
@@ -140,6 +142,7 @@
 			isEditing = false;
 		} catch (e) {
 			console.error('Failed to save arc:', e);
+			showError('Failed to save arc');
 		}
 	}
 
@@ -154,6 +157,7 @@
 			}
 		} catch (e) {
 			console.error('Failed to delete arc:', e);
+			showError('Failed to delete arc');
 		}
 	}
 

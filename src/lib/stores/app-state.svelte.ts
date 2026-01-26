@@ -261,6 +261,17 @@ class AppState {
 
 	/** Opens a project file and loads all data. */
 	async loadProject(path: string) {
+		// Check for unsaved changes in current project
+		if (this.project && this.hasUnsavedChanges) {
+			const confirmed = confirm(
+				'You have unsaved changes in the current project. Are you sure you want to open a different project?\n\n' +
+					'Any unsaved changes will be lost.'
+			);
+			if (!confirmed) {
+				return;
+			}
+		}
+
 		this.isLoading = true;
 		this.error = null;
 		try {
@@ -291,6 +302,7 @@ class AppState {
 			await this.loadManuscript();
 			await this.loadBible();
 			await this.loadStats();
+			this.hasUnsavedChanges = false;
 		} catch (e) {
 			this.error = e as string;
 			throw e;
@@ -310,6 +322,7 @@ class AppState {
 			this.scenes = new SvelteMap();
 			this.bibleEntries = [];
 			this.wordCounts = { total: 0, by_chapter: [], by_status: [] };
+			this.hasUnsavedChanges = false;
 		} catch (e) {
 			this.error = e as string;
 			throw e;
@@ -318,7 +331,18 @@ class AppState {
 		}
 	}
 
-	async closeProject() {
+	async closeProject(force = false): Promise<boolean> {
+		// Check for unsaved changes unless force closing
+		if (!force && this.hasUnsavedChanges) {
+			const confirmed = confirm(
+				'You have unsaved changes. Are you sure you want to close this project?\n\n' +
+					'Any unsaved changes will be lost.'
+			);
+			if (!confirmed) {
+				return false;
+			}
+		}
+
 		// Release lock before closing
 		if (this.projectPath) {
 			try {
@@ -336,6 +360,8 @@ class AppState {
 		this.selectedChapterId = null;
 		this.selectedSceneId = null;
 		this.wordCounts = null;
+		this.hasUnsavedChanges = false;
+		return true;
 	}
 
 	async loadManuscript() {
