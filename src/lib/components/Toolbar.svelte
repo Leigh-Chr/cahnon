@@ -81,6 +81,9 @@
 		{#if appState.project}
 			<span class="project-title">
 				{appState.project.title}
+				{#if appState.isDemo}
+					<span class="demo-badge">Demo</span>
+				{/if}
 				{#if appState.hasUnsavedChanges}
 					<span class="unsaved-indicator" title="Unsaved changes">•</span>
 				{/if}
@@ -262,6 +265,20 @@
 		color: var(--color-warning);
 		font-size: var(--font-size-lg);
 		vertical-align: middle;
+	}
+
+	.demo-badge {
+		display: inline-block;
+		padding: 1px 6px;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		background-color: var(--color-accent-light);
+		color: var(--color-accent);
+		border-radius: var(--border-radius-sm);
+		vertical-align: middle;
+		margin-left: var(--spacing-xs);
 	}
 
 	.toolbar-btn {

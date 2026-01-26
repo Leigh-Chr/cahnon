@@ -8,6 +8,8 @@
 
 # User data files
 *.cahnon
+*.cahnon.lock
+!test-data.cahnon
 
 # Tool config
 .claude/

@@ -60,6 +60,7 @@ class AppState {
 	project = $state<Project | null>(null);
 	projectPath = $state<string | null>(null);
 	hasUnsavedChanges = $state(false);
+	isDemo = $state(false);
 
 	// -------------------------------------------------------------------------
 	// Manuscript State
@@ -504,8 +505,8 @@ class AppState {
 	}
 
 	async closeProject(force = false): Promise<boolean> {
-		// Check for unsaved changes unless force closing
-		if (!force && this.hasUnsavedChanges) {
+		// Check for unsaved changes unless force closing (skip for demo)
+		if (!force && !this.isDemo && this.hasUnsavedChanges) {
 			const confirmed = confirm(
 				'You have unsaved changes. Are you sure you want to close this project?\n\n' +
 					'Any unsaved changes will be lost.'
@@ -515,8 +516,8 @@ class AppState {
 			}
 		}
 
-		// Release lock before closing
-		if (this.projectPath) {
+		// Release lock before closing (not needed for demo)
+		if (this.projectPath && !this.isDemo) {
 			try {
 				await projectApi.releaseLock(this.projectPath);
 			} catch (e) {
@@ -526,6 +527,7 @@ class AppState {
 		await projectApi.close();
 		this.project = null;
 		this.projectPath = null;
+		this.isDemo = false;
 		this.chapters = [];
 		this.scenes = new SvelteMap();
 		this.bibleEntries = [];
@@ -534,6 +536,27 @@ class AppState {
 		this.wordCounts = null;
 		this.hasUnsavedChanges = false;
 		return true;
+	}
+
+	async loadDemoProject() {
+		this.isLoading = true;
+		this.error = null;
+		try {
+			const p = await projectApi.openDemo();
+			this.project = p;
+			this.projectPath = null;
+			this.isDemo = true;
+
+			await this.loadManuscript();
+			await this.loadBible();
+			await this.loadStats();
+			this.hasUnsavedChanges = false;
+		} catch (e) {
+			this.error = e instanceof Error ? e.message : String(e);
+			throw e;
+		} finally {
+			this.isLoading = false;
+		}
 	}
 
 	async loadManuscript() {

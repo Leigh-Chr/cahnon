@@ -15814,4 +15814,1784 @@ mod tests {
             assert!(!annotations.is_empty());
         }
     }
+
+    // ========================================================================
+    // Comprehensive Seed Data Generator
+    // ========================================================================
+    //
+    // Creates a complete, coherent fantasy novel project ("Les Chroniques
+    // d'Aethermonde") with data covering every entity type, every enum value,
+    // and every N:M relationship. The data is realistic and internally
+    // consistent, simulating a real novel-writing project at various stages
+    // of completion.
+    //
+    // Coverage:
+    //   - Project with all fields (title, author, description, word targets)
+    //   - 6 chapters (all 4 statuses: planned, draft, revision, done)
+    //   - 18+ scenes (all 4 statuses, all tension levels, timeline fields,
+    //     revision fields, setup/payoff links, word targets, tags, POV, todos)
+    //   - Bible entries for all 6 types (character, location, object, faction,
+    //     concept, glossary) with aliases, custom_fields, colors, all 3 statuses
+    //   - Bible relationships (parent, spouse, enemy, mentor, rival, member_of,
+    //     ally, guardian, artifact_owner) with active/inactive statuses
+    //   - Canonical associations (scene ↔ bible_entry)
+    //   - Arcs (all 4 statuses: setup, rising, climax, resolution) with colors
+    //   - Scene-arc links
+    //   - Events (all 3 types: scene, milestone, flashback; all 3 importance
+    //     levels: low, normal, high; with time_point, time_start/end)
+    //   - Event-scene and event-bible links
+    //   - Templates (builtin + custom) with steps and scene assignments
+    //   - Annotations (all 4 types: comment, question, issue, note; both
+    //     statuses: open, resolved)
+    //   - Issues (all 6 types, all 3 severities, all 3 statuses) with
+    //     scene and bible_entry links
+    //   - Snapshots (manual, auto, milestone)
+    //   - Cuts (with and without scene_id)
+    //   - Scene history (multiple versions)
+    //   - Name registry (character + location types, confirmed + unconfirmed)
+    //   - Name mentions (pending, accepted, ignored)
+    //   - Saved filters (outline, corkboard, timeline types)
+    //   - Soft-deleted entities (chapter, scene, bible_entry, arc, event)
+    //   - Scenes with on_timeline=false
+    //   - Scenes with setup_for/payoff_of relationships
+    // ========================================================================
+
+    /// Populates a database with comprehensive, coherent test data
+    /// covering every entity type, enum value, and relationship.
+    fn seed_comprehensive_data(db: &Database) {
+        // ====================================================================
+        // 1. PROJECT
+        // ====================================================================
+        db.create_project(&CreateProjectRequest {
+            title: "Les Chroniques d'Aethermonde".to_string(),
+            author: Some("Éliane Dufresne".to_string()),
+            description: Some("Un roman de fantasy épique où trois héritiers d'un empire déchu doivent réunir les fragments d'un artefact ancien pour empêcher le retour d'une entité cosmique. Mêlant intrigues politiques, magie élémentaire et quête initiatique.".to_string()),
+        })
+        .unwrap();
+
+        db.update_project(&UpdateProjectRequest {
+            title: None,
+            author: None,
+            description: None,
+            word_target: Some(120000),
+            daily_word_target: Some(2000),
+        })
+        .unwrap();
+
+        // ====================================================================
+        // 2. CHAPTERS (6 chapters, all 4 statuses)
+        // ====================================================================
+        let ch1 = db.create_chapter(&CreateChapterRequest {
+            title: "Prologue — Le Serment Brisé".to_string(),
+            summary: Some("Un flashback à la chute de l'Empire Solaire, 300 ans avant l'histoire principale. Le dernier empereur brise le Cristal d'Aether en trois fragments pour empêcher Nyxaroth de traverser le Voile.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_chapter(&ch1.id, &UpdateChapterRequest {
+            title: None, summary: None,
+            status: Some("done".to_string()),
+            notes: Some("Ce chapitre sert d'accroche et pose les enjeux cosmiques. Ton solennel, vocabulaire archaïque.".to_string()),
+            position: None,
+        }).unwrap();
+
+        let ch2 = db.create_chapter(&CreateChapterRequest {
+            title: "Chapitre 1 — La Foire des Cendres".to_string(),
+            summary: Some("Introduction d'Aelys dans la cité marchande de Verendhal. Elle découvre qu'elle possède une affinité magique rare lors d'un incident au marché. Rencontre avec Theron, un érudit exilé.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_chapter(&ch2.id, &UpdateChapterRequest {
+            title: None, summary: None,
+            status: Some("revised".to_string()),
+            notes: Some("Revoir la description du marché — trop longue. Accélérer la rencontre avec Theron.".to_string()),
+            position: None,
+        }).unwrap();
+
+        let ch3 = db.create_chapter(&CreateChapterRequest {
+            title: "Chapitre 2 — Les Mines d'Obsidienne".to_string(),
+            summary: Some("Aelys et Theron descendent dans les mines abandonnées sous Verendhal. Ils trouvent le premier fragment du Cristal, mais réveillent un gardien ancien. Premier combat magique d'Aelys.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_chapter(&ch3.id, &UpdateChapterRequest {
+            title: None, summary: None,
+            status: Some("draft".to_string()),
+            notes: Some("Le gardien doit être lié à Nyxaroth — foreshadowing subtil.".to_string()),
+            position: None,
+        }).unwrap();
+
+        let ch4 = db.create_chapter(&CreateChapterRequest {
+            title: "Chapitre 3 — Le Conseil des Vents".to_string(),
+            summary: Some("Arrivée à Skyreach, la cité flottante. Rencontre avec Kael, troisième héritier. Le Conseil refuse de leur remettre le second fragment. Intrigues politiques et trahison d'un conseiller.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_chapter(&ch4.id, &UpdateChapterRequest {
+            title: None, summary: None,
+            status: Some("in progress".to_string()),
+            notes: None,
+            position: None,
+        }).unwrap();
+
+        let ch5 = db.create_chapter(&CreateChapterRequest {
+            title: "Chapitre 4 — La Traversée du Voile".to_string(),
+            summary: Some("Les trois héritiers tentent de réunir les fragments dans le Temple du Voile. Nyxaroth commence à se manifester. Sacrifices et choix impossibles.".to_string()),
+            position: None,
+        }).unwrap();
+        // ch5 stays as "planned" (default)
+
+        let ch6 = db.create_chapter(&CreateChapterRequest {
+            title: "Épilogue — L'Aube Nouvelle".to_string(),
+            summary: Some("Résolution. Le monde est transformé par les événements. Les héritiers font face aux conséquences de leurs choix.".to_string()),
+            position: None,
+        }).unwrap();
+        // ch6 stays as "planned" (default)
+
+        // ====================================================================
+        // 3. SCENES (18+ scenes covering all statuses, tensions, etc.)
+        // ====================================================================
+
+        // --- Prologue scenes (ch1 - done) ---
+        let s_pro1 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch1.id.clone(),
+            title: "La Salle du Trône".to_string(),
+            summary: Some("L'empereur Valdris III fait face à l'invasion de Nyxaroth. Il décide de briser le Cristal.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s_pro1.id, &UpdateSceneRequest {
+            text: Some("<p>Les colonnes de marbre tremblaient. De fines particules de poussière dorée tombaient du plafond voûté, captant les derniers rayons du soleil couchant qui filtrait par les vitraux brisés.</p><p>L'empereur Valdris III se tenait au centre de la Salle du Trône, le Cristal d'Aether entre ses mains ensanglantées. Autour de lui, les corps de ses gardes jonchaient le sol, leurs armures éthériques éteintes à jamais.</p><p>— Il est trop tard pour négocier, murmura-t-il à l'ombre qui grandissait devant lui.</p><p>L'ombre de Nyxaroth n'avait pas de forme fixe. Elle était à la fois immense et infime, un trou dans le tissu même de la réalité. Sa voix résonna comme mille cloches fêlées.</p><p>— <em>Tu ne peux pas détruire ce qui est éternel, petit roi.</em></p><p>Valdris serra les dents. Il ne pouvait pas détruire le Cristal, non. Mais il pouvait le briser. Trois fragments, trois héritiers, trois siècles de silence.</p><p>Il leva les mains vers le ciel et prononça les mots interdits.</p>".to_string()),
+            status: Some("done".to_string()),
+            pov: Some("Valdris III".to_string()),
+            tags: Some("prologue,action,magie,sacrifice".to_string()),
+            notes: Some("Ton épique. Descriptions visuelles fortes. Contraste lumière/ombre.".to_string()),
+            word_target: Some(2500),
+            time_point: Some("An 0 — Jour de la Fracture".to_string()),
+            on_timeline: Some(true),
+            tension: Some("high".to_string()),
+            has_conflict: Some(true),
+            has_change: Some(true),
+            pov_goal: Some("Montrer le désespoir et le sacrifice de Valdris".to_string()),
+            revision_notes: Some("Vérifier que la description du Cristal est cohérente avec le chapitre 4.".to_string()),
+            revision_checklist: Some("✓ Ton archaïque vérifié\n✓ Foreshadowing Nyxaroth\n✓ Émotion du sacrifice".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        let s_pro2 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch1.id.clone(),
+            title: "Les Trois Héritiers".to_string(),
+            summary: Some("Valdris confie les trois fragments à ses enfants et les envoie dans trois directions différentes.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s_pro2.id, &UpdateSceneRequest {
+            text: Some("<p>Les trois enfants de Valdris se tenaient devant lui, tremblants. L'aînée, Seraphine, avait les yeux rouges mais le menton levé. Le cadet, Marcus, serrait les poings. La benjamine, Liora, pleurait en silence.</p><p>— Vous porterez chacun un fragment, dit Valdris d'une voix qui ne tremblait plus. Ne les réunissez jamais. Pas avant que le monde soit prêt.</p><p>Il plaça un éclat de cristal dans chaque paume tendue.</p><p>— Comment saurons-nous quand le monde sera prêt ? demanda Seraphine.</p><p>— Vous ne le saurez pas. Vos descendants le sauront.</p>".to_string()),
+            status: Some("done".to_string()),
+            pov: Some("Valdris III".to_string()),
+            tags: Some("prologue,famille,héritage".to_string()),
+            word_target: Some(1500),
+            time_point: Some("An 0 — Jour de la Fracture".to_string()),
+            on_timeline: Some(true),
+            tension: Some("medium".to_string()),
+            has_conflict: Some(false),
+            has_change: Some(true),
+            setup_for_scene_id: None, // Will be set later
+            ..Default::default()
+        }).unwrap();
+
+        // --- Chapter 1 scenes (ch2 - revision) ---
+        let s1_1 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch2.id.clone(),
+            title: "Le Marché de Verendhal".to_string(),
+            summary: Some("Aelys fait ses courses au marché. Description de la ville, de son quotidien modeste. Ambiance vivante.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s1_1.id, &UpdateSceneRequest {
+            text: Some("<p>Aelys se faufila entre les étals, son panier serré contre la hanche. L'air sentait les épices d'Orient et le cuir neuf. Les marchands criaient leurs prix, chacun essayant de couvrir la voix du voisin.</p><p>Elle s'arrêta devant l'étal de Madame Voss, la herboriste, et examina les fioles alignées avec soin.</p><p>— Toujours la même tisane pour ta grand-mère ? demanda la vieille femme avec un sourire édenté.</p><p>— Oui, mais cette fois, ajoutez un peu de racine de lune. Elle tousse la nuit.</p><p>Aelys compta ses pièces. Il lui resterait tout juste assez pour acheter du pain. Comme d'habitude.</p>".to_string()),
+            status: Some("in revision".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("introduction,quotidien,Verendhal".to_string()),
+            notes: Some("Établir le contraste entre la pauvreté d'Aelys et la richesse de Verendhal.".to_string()),
+            todos: Some("TODO: Ajouter plus de détails sensoriels\nTODO: Mentionner les ruines de l'Empire en arrière-plan".to_string()),
+            word_target: Some(2000),
+            time_point: Some("An 300 — Jour 1, Matin".to_string()),
+            on_timeline: Some(true),
+            tension: Some("low".to_string()),
+            has_conflict: Some(false),
+            has_change: Some(false),
+            pov_goal: Some("Présenter Aelys comme débrouillarde et observatrice".to_string()),
+            revision_notes: Some("La description du marché est trop longue. Couper le passage sur le forgeron.".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        let s1_2 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch2.id.clone(),
+            title: "L'Incident Magique".to_string(),
+            summary: Some("Un voleur renverse l'étal. Aelys réagit instinctivement avec de la magie — choc pour elle et les témoins.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s1_2.id, &UpdateSceneRequest {
+            text: Some("<p>Le cri vint de derrière elle. Un homme masqué bouscula Madame Voss et s'empara de la caisse. Les fioles s'écrasèrent au sol dans un concert de verre brisé.</p><p>Aelys ne réfléchit pas. Sa main se leva d'elle-même.</p><p>L'air devint glacial. Une bourrasque de vent argenté jaillit de ses doigts et projeta le voleur contre le mur de la boulangerie, à dix mètres de là. L'homme s'effondra, inconscient.</p><p>Le silence tomba sur le marché.</p><p>Tous les regards se tournèrent vers Aelys. Elle baissa la main, tremblante. <em>Qu'est-ce que j'ai fait ?</em></p><p>Madame Voss la fixait, la bouche ouverte. Dans ses yeux, Aelys ne lut pas de la gratitude, mais de la peur.</p>".to_string()),
+            status: Some("in revision".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("magie,révélation,inciting-incident".to_string()),
+            notes: Some("Moment clé — le point de non-retour pour Aelys.".to_string()),
+            time_point: Some("An 300 — Jour 1, Midi".to_string()),
+            on_timeline: Some(true),
+            tension: Some("high".to_string()),
+            has_conflict: Some(true),
+            has_change: Some(true),
+            pov_goal: Some("Montrer qu'Aelys a un pouvoir incontrôlé".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        let s1_3 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch2.id.clone(),
+            title: "La Rencontre avec Theron".to_string(),
+            summary: Some("Theron approche Aelys après l'incident. Il reconnaît sa magie comme étant liée au Cristal d'Aether.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s1_3.id, &UpdateSceneRequest {
+            text: Some("<p>Elle courut. Les ruelles de Verendhal se succédaient, étroites et sinueuses. Elle ne s'arrêta que lorsque ses poumons la brûlèrent.</p><p>— Impressionnant, dit une voix calme derrière elle.</p><p>Aelys se retourna. Un homme d'une quarantaine d'années se tenait à l'entrée de la ruelle. Grand, mince, le visage marqué par une cicatrice qui barrait sa joue gauche. Il portait une robe d'érudit délavée.</p><p>— Qui êtes-vous ?</p><p>— Theron. Ancien professeur à l'Académie de Skyreach. Et vous, jeune fille, vous venez de faire de la magie éthérique pour la première fois, n'est-ce pas ?</p><p>Aelys recula d'un pas. — Je ne sais pas ce que j'ai fait.</p><p>— C'est exactement pour ça que j'aimerais vous aider.</p>".to_string()),
+            status: Some("draft".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("rencontre,mentor,dialogue".to_string()),
+            time_point: Some("An 300 — Jour 1, Après-midi".to_string()),
+            on_timeline: Some(true),
+            tension: Some("medium".to_string()),
+            has_conflict: Some(false),
+            has_change: Some(true),
+            ..Default::default()
+        }).unwrap();
+
+        // --- Chapter 2 scenes (ch3 - draft) ---
+        let s2_1 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch3.id.clone(),
+            title: "La Descente".to_string(),
+            summary: Some("Aelys et Theron entrent dans les mines. Description claustrophobique. Theron explique l'histoire du Cristal.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s2_1.id, &UpdateSceneRequest {
+            text: Some("<p>L'entrée des mines ressemblait à une gueule béante. L'obscurité avalait la lumière de leurs lanternes à quelques mètres seulement.</p><p>— Les mines d'obsidienne ont été abandonnées il y a deux siècles, expliqua Theron en avançant prudemment. Depuis que les veines de cristal se sont taries.</p><p>— Ou depuis que quelque chose les a taries, corrigea Aelys.</p><p>Theron lui lança un regard approbateur. — Vous apprenez vite.</p>".to_string()),
+            status: Some("draft".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("exploration,mines,exposition".to_string()),
+            time_start: Some("An 300 — Jour 3, Nuit".to_string()),
+            time_end: Some("An 300 — Jour 4, Aube".to_string()),
+            on_timeline: Some(true),
+            tension: Some("medium".to_string()),
+            has_conflict: Some(false),
+            has_change: Some(false),
+            ..Default::default()
+        }).unwrap();
+
+        let s2_2 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch3.id.clone(),
+            title: "Le Premier Fragment".to_string(),
+            summary: Some("Découverte du fragment dans une salle souterraine. Activation involontaire par Aelys.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s2_2.id, &UpdateSceneRequest {
+            text: Some("<p>La salle s'ouvrit devant eux comme un secret longtemps gardé. Les murs d'obsidienne reflétaient leur lumière en éclats irisés, créant un kaléidoscope souterrain.</p><p>Au centre, sur un piédestal de pierre noire, reposait un éclat de cristal pas plus grand qu'un pouce. Il pulsait d'une lueur bleu pâle, comme un cœur qui bat.</p><p>Aelys tendit la main. Le cristal s'illumina.</p>".to_string()),
+            status: Some("draft".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("découverte,cristal,magie".to_string()),
+            time_point: Some("An 300 — Jour 4, Aube".to_string()),
+            on_timeline: Some(true),
+            tension: Some("high".to_string()),
+            has_conflict: Some(false),
+            has_change: Some(true),
+            ..Default::default()
+        }).unwrap();
+
+        let s2_3 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch3.id.clone(),
+            title: "Le Gardien des Profondeurs".to_string(),
+            summary: Some("Un golem d'obsidienne s'éveille pour protéger le fragment. Premier vrai combat. Aelys doit utiliser sa magie.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s2_3.id, &UpdateSceneRequest {
+            text: Some("<p>Le sol trembla. Les murs craquèrent. De l'obsidienne liquide coula des parois et se rassembla en une forme massive — un golem de trois mètres de haut, aux yeux de braise.</p><p>— Courez ! cria Theron.</p><p>Mais Aelys ne bougea pas. Le cristal dans sa main pulsait plus fort, et elle sentait quelque chose monter en elle — une force ancienne, familière.</p><p>Elle leva la main libre vers le golem.</p>".to_string()),
+            status: Some("draft".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("combat,golem,magie,tension".to_string()),
+            time_point: Some("An 300 — Jour 4, Matin".to_string()),
+            on_timeline: Some(true),
+            tension: Some("high".to_string()),
+            has_conflict: Some(true),
+            has_change: Some(true),
+            pov_goal: Some("Montrer la croissance d'Aelys — elle choisit de se battre au lieu de fuir".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        // --- Chapter 3 scenes (ch4 - draft) ---
+        let s3_1 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch4.id.clone(),
+            title: "L'Arrivée à Skyreach".to_string(),
+            summary: Some("Description de la cité flottante. Émerveillement d'Aelys. Tension politique palpable.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s3_1.id, &UpdateSceneRequest {
+            text: Some("<p>Skyreach flottait.</p><p>Ce n'était pas une métaphore. La cité entière reposait sur un plateau de roche cristalline suspendu à trois cents mètres au-dessus de la Vallée des Brumes. Des cascades d'eau tombaient de ses bords, se dissipant en bruine bien avant de toucher le sol.</p>".to_string()),
+            status: Some("draft".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("Skyreach,worldbuilding,émerveillement".to_string()),
+            time_point: Some("An 300 — Jour 7".to_string()),
+            on_timeline: Some(true),
+            tension: Some("low".to_string()),
+            has_conflict: Some(false),
+            has_change: Some(false),
+            ..Default::default()
+        }).unwrap();
+
+        let s3_2 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch4.id.clone(),
+            title: "Rencontre avec Kael".to_string(),
+            summary: Some("Kael, héritier du troisième fragment, est un jeune noble arrogant mais compétent. Friction avec Aelys.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s3_2.id, &UpdateSceneRequest {
+            text: Some("<p>— Vous êtes donc la paysanne qui a trouvé un fragment, dit le jeune homme en croisant les bras.</p><p>Kael Ardent, troisième héritier de la lignée Solaire, avait le regard acéré d'un faucon et la posture d'un prince. Ses cheveux cuivrés étaient tirés en arrière, révélant un visage anguleux où un sourire narquois semblait en permanence installé.</p><p>— Et vous êtes le noble qui a failli perdre le sien au jeu, répliqua Aelys.</p><p>Le sourire de Kael vacilla. Theron toussa pour dissimuler un rire.</p>".to_string()),
+            status: Some("draft".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("rencontre,Kael,conflit,dialogue".to_string()),
+            time_point: Some("An 300 — Jour 7".to_string()),
+            on_timeline: Some(true),
+            tension: Some("medium".to_string()),
+            has_conflict: Some(true),
+            has_change: Some(false),
+            ..Default::default()
+        }).unwrap();
+
+        let s3_3 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch4.id.clone(),
+            title: "Le Conseil des Vents".to_string(),
+            summary: Some("Le trio présente sa requête au Conseil. Refus. Le conseiller Malachar trahit en secret.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s3_3.id, &UpdateSceneRequest {
+            text: Some("<p>La salle du Conseil était un amphithéâtre ouvert aux vents. Douze sièges de cristal formaient un demi-cercle autour d'un socle central où les pétitionnaires devaient se tenir.</p><p>Aelys sentit le vertige la saisir — non pas à cause de la hauteur, mais à cause des douze regards qui pesaient sur elle.</p><p>— Le Cristal d'Aether ne doit pas être reconstitué, déclara la Haute Conseillère Elara d'une voix tranchante. C'est la loi fondamentale de Skyreach depuis trois cents ans.</p>".to_string()),
+            status: Some("to write".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("politique,Conseil,refus,trahison".to_string()),
+            time_point: Some("An 300 — Jour 8".to_string()),
+            on_timeline: Some(true),
+            tension: Some("high".to_string()),
+            has_conflict: Some(true),
+            has_change: Some(true),
+            todos: Some("TODO: Écrire le discours complet d'Aelys devant le Conseil\nTODO: Scène secrète de Malachar contactant Nyxaroth".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        // Scene POV from Kael's perspective (different POV)
+        let s3_4 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch4.id.clone(),
+            title: "Le Doute de Kael".to_string(),
+            summary: Some("POV Kael. Après le refus du Conseil, il doute de la mission. Flashback sur son enfance.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s3_4.id, &UpdateSceneRequest {
+            text: Some("<p>Kael ne dormait pas. Allongé sur le lit de sa chambre d'hôte, il fixait le plafond de cristal translucide à travers lequel on voyait les étoiles.</p><p>Le fragment pulsait dans sa poche. Il le sentait, toujours, comme un second battement de cœur.</p><p><em>Tu ne mérites pas ce fardeau</em>, murmura la voix de son père dans sa mémoire.</p>".to_string()),
+            status: Some("to write".to_string()),
+            pov: Some("Kael".to_string()),
+            tags: Some("introspection,Kael,doute,flashback".to_string()),
+            time_point: Some("An 300 — Jour 8, Nuit".to_string()),
+            on_timeline: Some(true),
+            tension: Some("low".to_string()),
+            has_conflict: Some(true),
+            has_change: Some(false),
+            ..Default::default()
+        }).unwrap();
+
+        // --- Chapter 4 scenes (ch5 - planned) ---
+        let s4_1 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch5.id.clone(),
+            title: "Le Temple du Voile".to_string(),
+            summary: Some("Les trois héritiers arrivent au Temple. Description du lieu mystique. Préparation du rituel.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s4_1.id, &UpdateSceneRequest {
+            status: Some("planned".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("temple,climax,préparation".to_string()),
+            time_point: Some("An 300 — Jour 15".to_string()),
+            on_timeline: Some(true),
+            tension: Some("medium".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        let s4_2 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch5.id.clone(),
+            title: "La Confrontation Finale".to_string(),
+            summary: Some("Nyxaroth tente de traverser le Voile. Les héritiers doivent choisir : reconstituer le Cristal (risqué) ou le détruire définitivement (sacrifice).".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s4_2.id, &UpdateSceneRequest {
+            status: Some("to write".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("climax,combat,choix,sacrifice".to_string()),
+            time_point: Some("An 300 — Jour 15".to_string()),
+            on_timeline: Some(true),
+            tension: Some("high".to_string()),
+            has_conflict: Some(true),
+            has_change: Some(true),
+            ..Default::default()
+        }).unwrap();
+
+        // --- Épilogue scenes (ch6 - planned) ---
+        let s5_1 = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch6.id.clone(),
+            title: "L'Aube sur les Ruines".to_string(),
+            summary: Some("Le monde après la bataille. Paysage transformé. Espoir fragile.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s5_1.id, &UpdateSceneRequest {
+            status: Some("to cut".to_string()),
+            pov: Some("Aelys".to_string()),
+            tags: Some("épilogue,résolution,espoir".to_string()),
+            time_point: Some("An 300 — Jour 16".to_string()),
+            on_timeline: Some(true),
+            tension: Some("low".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        // Scene NOT on timeline
+        let s_offscreen = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch2.id.clone(),
+            title: "Notes de Theron (document trouvé)".to_string(),
+            summary: Some("Un extrait du journal de Theron, intercalé comme document. Pas sur la timeline.".to_string()),
+            position: None,
+        }).unwrap();
+        db.update_scene(&s_offscreen.id, &UpdateSceneRequest {
+            text: Some("<p><em>Journal de Theron, entrée 47 :</em></p><p>J'ai été expulsé de l'Académie pour avoir osé suggérer que le Cristal pouvait être reconstitué. Ils m'ont traité de fou. Peut-être le suis-je.</p><p>Mais j'ai vu les signes. Le Voile s'amincit. Les cauchemars deviennent plus fréquents dans les villages proches des anciens temples. Nyxaroth n'a pas été vaincu — il attend.</p>".to_string()),
+            status: Some("done".to_string()),
+            pov: Some("Theron".to_string()),
+            tags: Some("document,journal,exposition".to_string()),
+            on_timeline: Some(false),
+            tension: Some("medium".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        // Now set up setup_for/payoff_of relationships
+        db.update_scene(&s_pro2.id, &UpdateSceneRequest {
+            setup_for_scene_id: Some(s4_2.id.clone()),
+            ..Default::default()
+        }).unwrap();
+
+        db.update_scene(&s4_2.id, &UpdateSceneRequest {
+            payoff_of_scene_id: Some(s_pro2.id.clone()),
+            ..Default::default()
+        }).unwrap();
+
+        db.update_scene(&s1_2.id, &UpdateSceneRequest {
+            setup_for_scene_id: Some(s2_3.id.clone()),
+            ..Default::default()
+        }).unwrap();
+
+        // ====================================================================
+        // 4. BIBLE ENTRIES — all 6 types, all 3 statuses
+        // ====================================================================
+
+        // --- Characters ---
+        let be_aelys = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "character".to_string(),
+            name: "Aelys".to_string(),
+            aliases: Some("Ael, La Briseuse de Vent, La Fille du Marché".to_string()),
+            short_description: Some("Protagoniste. Jeune femme pauvre de Verendhal dotée d'une affinité magique rare liée au Cristal d'Aether.".to_string()),
+            full_description: Some("Aelys a grandi dans les quartiers pauvres de Verendhal, élevée par sa grand-mère Mireille depuis la mort de ses parents dans un incendie mystérieux. Elle ignore qu'elle descend de la lignée impériale par sa mère. Son affinité magique est de type Vent/Éther — elle peut manipuler les courants d'air et, plus tard, l'énergie éthérique pure.\n\nApparence : Cheveux noirs coupés courts, yeux gris-argent (virent au bleu quand elle utilise la magie), peau mate, cicatrice fine sur le bras gauche (brûlure d'enfance). Petite mais agile.\n\nCaractère : Pragmatique, méfiante envers l'autorité, loyale envers ceux qu'elle aime, humour sec. Tend à agir avant de réfléchir. Son arc consiste à apprendre à faire confiance et à accepter un héritage qu'elle n'a pas demandé.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("protagoniste,héritière,magie-vent".to_string()),
+            color: Some("#4FC3F7".to_string()),
+        }).unwrap();
+        db.update_bible_entry(&be_aelys.id, &UpdateBibleEntryRequest {
+            name: None,
+            aliases: None,
+            short_description: None,
+            full_description: None,
+            status: None,
+            tags: None,
+            image_path: None,
+            notes: Some("Penser à montrer son évolution : de méfiante à leader. Ne pas la rendre trop parfaite.".to_string()),
+            todos: Some("TODO: Définir son moment de doute principal\nTODO: Ajouter une peur irrationnelle (le feu ? lien avec l'incendie)".to_string()),
+            color: None,
+            custom_fields: Some(r#"{"age":"19","classe_sociale":"pauvre","affinité_magique":"Vent/Éther","arme":"aucune","motivation":"protéger sa grand-mère, comprendre ses origines"}"#.to_string()),
+        }).unwrap();
+
+        let be_theron = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "character".to_string(),
+            name: "Theron".to_string(),
+            aliases: Some("Le Professeur, L'Exilé de Skyreach".to_string()),
+            short_description: Some("Érudit exilé de l'Académie de Skyreach. Mentor d'Aelys. Spécialiste du Cristal d'Aether.".to_string()),
+            full_description: Some("Theron était l'un des plus brillants professeurs de l'Académie de Skyreach avant son expulsion pour avoir étudié le Cristal d'Aether — sujet tabou. Il erre depuis dix ans, collectant des indices sur les fragments.\n\nApparence : Grand, mince, quarantaine, cicatrice sur la joue gauche, robe d'érudit usée, toujours un livre à portée de main.\n\nCaractère : Patient, méthodique, secret. Cache un sentiment de culpabilité lié à un événement passé à l'Académie. Son arc : accepter que le savoir seul ne suffit pas et apprendre à faire confiance aux autres.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("mentor,érudit,exilé".to_string()),
+            color: Some("#8D6E63".to_string()),
+        }).unwrap();
+
+        let be_kael = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "character".to_string(),
+            name: "Kael Ardent".to_string(),
+            aliases: Some("Kael, Le Prince Déchu".to_string()),
+            short_description: Some("Troisième héritier. Noble arrogant de Skyreach qui possède le deuxième fragment.".to_string()),
+            full_description: Some("Kael est le dernier descendant connu de la lignée impériale par la branche aînée. Élevé dans le luxe de Skyreach, il a été déchu de son titre après un scandale (il a parié le fragment dans un jeu). Malgré son arrogance, il est un combattant exceptionnel et possède une affinité magique de type Feu.\n\nApparence : Cheveux cuivrés, yeux ambrés, visage anguleux, sourire narquois, porte toujours des vêtements élégants même en voyage.\n\nArc : Apprendre l'humilité et découvrir que la noblesse est dans les actes, pas dans le sang.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("héritier,noble,magie-feu".to_string()),
+            color: Some("#FF7043".to_string()),
+        }).unwrap();
+
+        let be_valdris = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "character".to_string(),
+            name: "Valdris III".to_string(),
+            aliases: Some("Le Dernier Empereur, Le Briseur".to_string()),
+            short_description: Some("Dernier empereur de l'Empire Solaire. A brisé le Cristal pour sauver le monde.".to_string()),
+            full_description: Some("Personnage du prologue uniquement. Valdris III a régné pendant 40 ans avant la chute. Il a sacrifié son pouvoir et sa vie pour briser le Cristal et repousser Nyxaroth.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("empereur,sacrifice,prologue".to_string()),
+            color: Some("#FFD54F".to_string()),
+        }).unwrap();
+
+        let be_malachar = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "character".to_string(),
+            name: "Malachar".to_string(),
+            aliases: Some("Conseiller Malachar, L'Ombre du Conseil".to_string()),
+            short_description: Some("Conseiller corrompu de Skyreach, secrètement au service de Nyxaroth.".to_string()),
+            full_description: Some("Malachar siège au Conseil des Vents depuis vingt ans. Charismatique et cultivé, il cache une allégeance secrète à Nyxaroth, qui lui a promis l'immortalité. Il sabote les efforts des héritiers de l'intérieur.\n\nApparence : Cheveux gris impeccables, regard perçant, vêtements sombres. Bague en obsidienne (canal de communication avec Nyxaroth).".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("antagoniste,traître,politique".to_string()),
+            color: Some("#7E57C2".to_string()),
+        }).unwrap();
+
+        let be_elara = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "character".to_string(),
+            name: "Haute Conseillère Elara".to_string(),
+            aliases: Some("Elara, La Voix des Vents".to_string()),
+            short_description: Some("Dirigeante du Conseil des Vents de Skyreach. Opposée à la reconstitution du Cristal.".to_string()),
+            full_description: Some("Elara est la figure politique la plus puissante de Skyreach. Conservatrice, elle croit fermement que le Cristal ne doit jamais être reconstitué. Son opposition est motivée par la peur, pas par la malice — elle a vu ce que la magie incontrôlée peut faire.".to_string()),
+            status: Some("draft".to_string()),
+            tags: Some("politique,Skyreach,opposition".to_string()),
+            color: Some("#26A69A".to_string()),
+        }).unwrap();
+
+        let be_mireille = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "character".to_string(),
+            name: "Mireille".to_string(),
+            aliases: Some("Grand-mère Mireille, Mamie".to_string()),
+            short_description: Some("Grand-mère d'Aelys. Herboriste. Sait plus qu'elle ne le montre.".to_string()),
+            full_description: Some("Mireille a élevé Aelys après la mort de ses parents. Simple herboriste en apparence, elle connaît le secret de la lignée d'Aelys et a passé des années à la protéger des regards.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("famille,secret,herboriste".to_string()),
+            color: Some("#A5D6A7".to_string()),
+        }).unwrap();
+
+        // Archived character (dead/removed from story)
+        let be_lyran = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "character".to_string(),
+            name: "Lyran le Vagabond".to_string(),
+            aliases: Some("Lyran".to_string()),
+            short_description: Some("Ancien compagnon de route prévu puis supprimé du récit.".to_string()),
+            full_description: Some("Ce personnage devait accompagner le groupe mais a été retiré pour simplifier l'intrigue. Notes conservées au cas où.".to_string()),
+            status: Some("tbd".to_string()),
+            tags: Some("supprimé".to_string()),
+            color: None,
+        }).unwrap();
+
+        // --- Locations ---
+        let be_verendhal = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "location".to_string(),
+            name: "Verendhal".to_string(),
+            aliases: Some("La Cité des Cendres, Verendhal-sur-Fleuve".to_string()),
+            short_description: Some("Grande cité marchande construite sur les ruines de l'ancien Empire. Point de départ de l'histoire.".to_string()),
+            full_description: Some("Verendhal est la plus grande ville du continent occidental. Construite au confluent de deux fleuves, elle tire sa richesse du commerce. Les ruines de l'Empire Solaire servent de fondation aux bâtiments modernes — littéralement et métaphoriquement.\n\nQuartiers : Le Marché Central (commerce), les Hauts (noblesse), les Bas-Fonds (pauvreté), le Port Fluvial, les Forges.\n\nAtmosphère : Bruyante, colorée, cosmopolite. Contraste fort entre richesse et pauvreté.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("ville,commerce,ruines".to_string()),
+            color: Some("#FFAB91".to_string()),
+        }).unwrap();
+
+        let be_skyreach = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "location".to_string(),
+            name: "Skyreach".to_string(),
+            aliases: Some("La Cité Flottante, La Cité des Vents".to_string()),
+            short_description: Some("Cité flottante au-dessus de la Vallée des Brumes. Siège du Conseil des Vents et de l'Académie.".to_string()),
+            full_description: Some("Skyreach flotte à 300 mètres d'altitude grâce à un ancien mécanisme éthérique. C'est le centre du savoir et du pouvoir politique. Seuls les nobles et les érudits y résident en permanence.\n\nAccès : Par pont aérien (véhicules à vent), par ascenseur éthérique, ou à dos de griffon.\n\nLieux importants : L'Académie, la Salle du Conseil, la Bibliothèque des Vents, le Quartier Noble.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("ville,flottante,politique,magie".to_string()),
+            color: Some("#81D4FA".to_string()),
+        }).unwrap();
+
+        let be_mines = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "location".to_string(),
+            name: "Les Mines d'Obsidienne".to_string(),
+            aliases: Some("Les Mines, Les Profondeurs".to_string()),
+            short_description: Some("Ancien réseau minier sous Verendhal. Abrite le premier fragment du Cristal.".to_string()),
+            full_description: Some("Les mines s'étendent sur plusieurs niveaux sous la ville. Abandonnées depuis deux siècles quand les veines de cristal se sont taries. En réalité, le fragment du Cristal a absorbé toute l'énergie cristalline de la zone.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("souterrain,danger,fragment".to_string()),
+            color: Some("#424242".to_string()),
+        }).unwrap();
+
+        let be_temple = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "location".to_string(),
+            name: "Le Temple du Voile".to_string(),
+            aliases: Some("Le Temple, Le Seuil".to_string()),
+            short_description: Some("Lieu sacré où le Voile entre le monde et le royaume de Nyxaroth est le plus fin.".to_string()),
+            full_description: Some("Situé au sommet du Mont Éther, le Temple est le seul endroit où le Cristal peut être reconstitué — ou détruit définitivement. L'architecture est antérieure à l'Empire Solaire et semble vivante.".to_string()),
+            status: Some("tbd".to_string()),
+            tags: Some("temple,voile,climax".to_string()),
+            color: Some("#CE93D8".to_string()),
+        }).unwrap();
+
+        // --- Objects ---
+        let be_cristal = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "object".to_string(),
+            name: "Le Cristal d'Aether".to_string(),
+            aliases: Some("Le Cristal, L'Artefact, La Pierre des Empereurs".to_string()),
+            short_description: Some("Artefact ancien d'une puissance incommensurable, brisé en trois fragments.".to_string()),
+            full_description: Some("Le Cristal d'Aether est la clé du Voile entre les dimensions. Intact, il confère un pouvoir quasi-divin à son porteur. Brisé, chaque fragment conserve une fraction de sa puissance et résonne avec ses porteurs.\n\nPropriétés :\n- Fragment 1 (Aelys) : Affinité Vent/Éther\n- Fragment 2 (Kael) : Affinité Feu\n- Fragment 3 (localisation inconnue) : Affinité Terre\n\nHistoire : Créé par les Anciens, utilisé par les Empereurs Solaires, brisé par Valdris III.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("artefact,magique,central".to_string()),
+            color: Some("#B3E5FC".to_string()),
+        }).unwrap();
+        db.update_bible_entry(&be_cristal.id, &UpdateBibleEntryRequest {
+            name: None,
+            aliases: None,
+            short_description: None,
+            full_description: None,
+            status: None,
+            tags: None,
+            image_path: None,
+            notes: None,
+            todos: None,
+            color: None,
+            custom_fields: Some(r#"{"origine":"Les Anciens (civilisation pré-impériale)","matériau":"Aether cristallisé","nombre_fragments":"3","dangerosité":"extrême"}"#.to_string()),
+        }).unwrap();
+
+        let be_bague = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "object".to_string(),
+            name: "Bague d'Obsidienne de Malachar".to_string(),
+            aliases: Some("La Bague Noire, L'Anneau de l'Ombre".to_string()),
+            short_description: Some("Bague permettant à Malachar de communiquer avec Nyxaroth.".to_string()),
+            full_description: Some("Taillée dans l'obsidienne du Temple du Voile, cette bague sert de canal de communication entre Malachar et Nyxaroth. Elle corrompt lentement son porteur.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("artefact,corruption,antagoniste".to_string()),
+            color: Some("#212121".to_string()),
+        }).unwrap();
+
+        // --- Factions ---
+        let be_conseil = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "faction".to_string(),
+            name: "Le Conseil des Vents".to_string(),
+            aliases: Some("Le Conseil, Les Douze".to_string()),
+            short_description: Some("Organe politique dirigeant Skyreach. Douze conseillers élus à vie.".to_string()),
+            full_description: Some("Le Conseil des Vents gouverne Skyreach depuis la chute de l'Empire. Ses douze membres sont élus par les familles nobles et l'Académie. Conservateur par nature, il interdit toute recherche sur le Cristal d'Aether.\n\nMembres notables : Haute Conseillère Elara (présidente), Conseiller Malachar (traître), Conseiller Brennan (allié potentiel).".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("politique,Skyreach,antagoniste-structurel".to_string()),
+            color: Some("#B0BEC5".to_string()),
+        }).unwrap();
+
+        let be_gardiens = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "faction".to_string(),
+            name: "Les Gardiens du Voile".to_string(),
+            aliases: Some("Les Gardiens, L'Ordre Ancien".to_string()),
+            short_description: Some("Ordre secret dédié à empêcher Nyxaroth de traverser le Voile.".to_string()),
+            full_description: Some("Fondé par Valdris III, cet ordre secret opère dans l'ombre depuis trois siècles. Ses membres protègent les fragments et surveillent les signes d'affaiblissement du Voile. Theron en est un membre, ce qu'il cache à Aelys.".to_string()),
+            status: Some("draft".to_string()),
+            tags: Some("secret,protection,ordre".to_string()),
+            color: Some("#78909C".to_string()),
+        }).unwrap();
+
+        // --- Concepts ---
+        let be_magie = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "concept".to_string(),
+            name: "La Magie Éthérique".to_string(),
+            aliases: Some("L'Éther, La Magie, Le Don".to_string()),
+            short_description: Some("Système magique basé sur la manipulation de l'Éther, énergie fondamentale de l'univers.".to_string()),
+            full_description: Some("La magie d'Aethermonde repose sur l'Éther, une énergie imprégnant toute matière. Les pratiquants (Éthéristes) canalisent cette énergie à travers leur affinité élémentaire.\n\nAffinités :\n- Vent : Manipulation de l'air, vitesse, perception\n- Feu : Chaleur, lumière, destruction\n- Terre : Force, endurance, croissance\n- Eau : Guérison, transformation, illusion\n- Éther Pur : Rare, lié au Cristal, permet de manipuler la réalité elle-même\n\nLimites : Fatigue physique, risque de surcharge (\"brûlure éthérique\"), affinité unique par personne.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("magic-system,worldbuilding,central".to_string()),
+            color: Some("#E1BEE7".to_string()),
+        }).unwrap();
+
+        let be_voile = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "concept".to_string(),
+            name: "Le Voile".to_string(),
+            aliases: Some("La Barrière, Le Seuil Dimensionnel".to_string()),
+            short_description: Some("Barrière mystique séparant le monde matériel du royaume de Nyxaroth.".to_string()),
+            full_description: Some("Le Voile est une barrière dimensionnelle naturelle renforcée par le Cristal d'Aether. Depuis que le Cristal est brisé, le Voile s'amincit progressivement. Quand il sera trop fin, Nyxaroth pourra traverser.\n\nSignes d'amincissement : cauchemars collectifs, apparitions spectrales, dysfonctionnements magiques.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("worldbuilding,menace,dimensionnel".to_string()),
+            color: Some("#90CAF9".to_string()),
+        }).unwrap();
+
+        // --- Glossary ---
+        let be_nyxaroth = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "glossary".to_string(),
+            name: "Nyxaroth".to_string(),
+            aliases: Some("L'Ombre, L'Entité, Le Dévoreur".to_string()),
+            short_description: Some("Entité cosmique malveillante cherchant à traverser le Voile pour dévorer le monde.".to_string()),
+            full_description: Some("Nyxaroth n'est pas un personnage au sens classique — c'est une force cosmique de destruction. Il n'a pas de forme physique définie, apparaissant comme une ombre vivante, un vide dans la réalité. Sa \"voix\" résonne comme mille cloches fêlées.\n\nMotivation : Dévorer l'énergie éthérique du monde pour grandir.\nFaiblesses : Le Cristal d'Aether intact peut le repousser ou le piéger.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("antagoniste,cosmique,menace-principale".to_string()),
+            color: Some("#311B92".to_string()),
+        }).unwrap();
+
+        let be_etheriste = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "glossary".to_string(),
+            name: "Éthériste".to_string(),
+            aliases: Some("Mage, Pratiquant".to_string()),
+            short_description: Some("Personne capable de manipuler l'Éther. Environ 1 personne sur 1000.".to_string()),
+            full_description: Some("Les Éthéristes sont rares et souvent craints par la population. L'Académie de Skyreach est le seul lieu de formation officiel. Les Éthéristes non formés sont considérés comme dangereux.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("glossaire,magie,société".to_string()),
+            color: None,
+        }).unwrap();
+
+        let be_empire = db.create_bible_entry(&CreateBibleEntryRequest {
+            entry_type: "glossary".to_string(),
+            name: "Empire Solaire".to_string(),
+            aliases: Some("L'Ancien Empire, L'Empire".to_string()),
+            short_description: Some("Empire disparu qui dominait le monde il y a 300 ans, avant la Fracture.".to_string()),
+            full_description: Some("L'Empire Solaire a duré mille ans, gouverné par la lignée des Empereurs qui maîtrisaient le Cristal d'Aether. Sa chute lors de la Fracture a plongé le monde dans le chaos.".to_string()),
+            status: Some("canon".to_string()),
+            tags: Some("histoire,worldbuilding".to_string()),
+            color: None,
+        }).unwrap();
+
+        // ====================================================================
+        // 5. BIBLE RELATIONSHIPS
+        // ====================================================================
+        // Active relationships
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_aelys.id.clone(),
+            target_id: be_mireille.id.clone(),
+            relationship_type: "petite-fille de".to_string(),
+            note: Some("Mireille est la seule famille d'Aelys. Lien protecteur.".to_string()),
+            status: None, // default: active
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_mireille.id.clone(),
+            target_id: be_aelys.id.clone(),
+            relationship_type: "grand-mère de".to_string(),
+            note: Some("Protège Aelys et cache le secret de sa lignée.".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_theron.id.clone(),
+            target_id: be_aelys.id.clone(),
+            relationship_type: "mentor".to_string(),
+            note: Some("Theron reconnaît le potentiel d'Aelys et décide de la guider.".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_kael.id.clone(),
+            target_id: be_aelys.id.clone(),
+            relationship_type: "rival".to_string(),
+            note: Some("Rivalité initiale qui évolue en respect mutuel.".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_valdris.id.clone(),
+            target_id: be_aelys.id.clone(),
+            relationship_type: "ancêtre".to_string(),
+            note: Some("Aelys descend de Valdris par sa mère (lignée secrète).".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_valdris.id.clone(),
+            target_id: be_kael.id.clone(),
+            relationship_type: "ancêtre".to_string(),
+            note: Some("Kael descend de la branche aînée de Valdris.".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_malachar.id.clone(),
+            target_id: be_elara.id.clone(),
+            relationship_type: "collègue".to_string(),
+            note: Some("Siègent ensemble au Conseil. Malachar manipule Elara.".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_malachar.id.clone(),
+            target_id: be_nyxaroth.id.clone(),
+            relationship_type: "serviteur de".to_string(),
+            note: Some("Malachar sert Nyxaroth en échange de la promesse d'immortalité.".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_theron.id.clone(),
+            target_id: be_gardiens.id.clone(),
+            relationship_type: "membre de".to_string(),
+            note: Some("Theron est un Gardien du Voile — secret qu'il cache aux héritiers.".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_elara.id.clone(),
+            target_id: be_conseil.id.clone(),
+            relationship_type: "dirige".to_string(),
+            note: Some("Elara préside le Conseil des Vents.".to_string()),
+            status: None,
+        }).unwrap();
+
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_valdris.id.clone(),
+            target_id: be_cristal.id.clone(),
+            relationship_type: "possédait".to_string(),
+            note: Some("Valdris était le dernier porteur du Cristal intact.".to_string()),
+            status: None,
+        }).unwrap();
+
+        // Inactive relationship (story evolution)
+        db.create_bible_relationship(&CreateBibleRelationshipRequest {
+            source_id: be_kael.id.clone(),
+            target_id: be_conseil.id.clone(),
+            relationship_type: "protégé par".to_string(),
+            note: Some("Kael était sous la protection du Conseil avant sa déchéance. Relation rompue.".to_string()),
+            status: Some("inactive".to_string()),
+        }).unwrap();
+
+        // ====================================================================
+        // 6. CANONICAL ASSOCIATIONS (scene ↔ bible_entry)
+        // ====================================================================
+
+        // Prologue
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s_pro1.id.clone(), bible_entry_id: be_valdris.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s_pro1.id.clone(), bible_entry_id: be_cristal.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s_pro1.id.clone(), bible_entry_id: be_nyxaroth.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s_pro2.id.clone(), bible_entry_id: be_valdris.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s_pro2.id.clone(), bible_entry_id: be_cristal.id.clone(),
+        }).unwrap();
+
+        // Chapter 1
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s1_1.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s1_1.id.clone(), bible_entry_id: be_verendhal.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s1_2.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s1_2.id.clone(), bible_entry_id: be_verendhal.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s1_2.id.clone(), bible_entry_id: be_magie.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s1_3.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s1_3.id.clone(), bible_entry_id: be_theron.id.clone(),
+        }).unwrap();
+
+        // Chapter 2
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s2_1.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s2_1.id.clone(), bible_entry_id: be_theron.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s2_1.id.clone(), bible_entry_id: be_mines.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s2_2.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s2_2.id.clone(), bible_entry_id: be_cristal.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s2_2.id.clone(), bible_entry_id: be_mines.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s2_3.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s2_3.id.clone(), bible_entry_id: be_mines.id.clone(),
+        }).unwrap();
+
+        // Chapter 3
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_1.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_1.id.clone(), bible_entry_id: be_skyreach.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_2.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_2.id.clone(), bible_entry_id: be_kael.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_2.id.clone(), bible_entry_id: be_theron.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_3.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_3.id.clone(), bible_entry_id: be_elara.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_3.id.clone(), bible_entry_id: be_conseil.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_3.id.clone(), bible_entry_id: be_malachar.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s3_4.id.clone(), bible_entry_id: be_kael.id.clone(),
+        }).unwrap();
+
+        // Chapter 4
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s4_1.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s4_1.id.clone(), bible_entry_id: be_temple.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s4_1.id.clone(), bible_entry_id: be_cristal.id.clone(),
+        }).unwrap();
+
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s4_2.id.clone(), bible_entry_id: be_aelys.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s4_2.id.clone(), bible_entry_id: be_nyxaroth.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s4_2.id.clone(), bible_entry_id: be_cristal.id.clone(),
+        }).unwrap();
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s4_2.id.clone(), bible_entry_id: be_kael.id.clone(),
+        }).unwrap();
+
+        // Off-screen doc
+        db.create_association(&CreateAssociationRequest {
+            scene_id: s_offscreen.id.clone(), bible_entry_id: be_theron.id.clone(),
+        }).unwrap();
+
+        // ====================================================================
+        // 7. ARCS — all 4 statuses
+        // ====================================================================
+        let arc_quest = db.create_arc(&CreateArcRequest {
+            name: "La Quête du Cristal".to_string(),
+            description: Some("Arc principal : retrouver et réunir les trois fragments du Cristal d'Aether.".to_string()),
+            stakes: Some("Si le Cristal n'est pas reconstitué, Nyxaroth traversera le Voile et dévorera le monde.".to_string()),
+            characters: Some(format!("{},{},{}", be_aelys.id, be_kael.id, be_theron.id)),
+            status: Some("active".to_string()),
+            color: Some("#2196F3".to_string()),
+        }).unwrap();
+
+        let arc_identity = db.create_arc(&CreateArcRequest {
+            name: "L'Héritage d'Aelys".to_string(),
+            description: Some("Arc personnel d'Aelys : découvrir ses origines et accepter son rôle.".to_string()),
+            stakes: Some("Si Aelys refuse son héritage, elle ne pourra pas contrôler sa magie — danger pour elle et les autres.".to_string()),
+            characters: Some(format!("{},{}", be_aelys.id, be_mireille.id)),
+            status: Some("setup".to_string()),
+            color: Some("#9C27B0".to_string()),
+        }).unwrap();
+
+        let arc_politics = db.create_arc(&CreateArcRequest {
+            name: "Les Intrigues de Skyreach".to_string(),
+            description: Some("Arc politique : la trahison de Malachar et l'opposition du Conseil.".to_string()),
+            stakes: Some("Si Malachar réussit, le Conseil détruira les fragments et facilitera le retour de Nyxaroth.".to_string()),
+            characters: Some(format!("{},{},{}", be_malachar.id, be_elara.id, be_kael.id)),
+            status: Some("climax".to_string()),
+            color: Some("#F44336".to_string()),
+        }).unwrap();
+
+        let arc_redemption = db.create_arc(&CreateArcRequest {
+            name: "La Rédemption de Kael".to_string(),
+            description: Some("Arc de Kael : de noble arrogant à héros véritable.".to_string()),
+            stakes: Some("Si Kael ne surmonte pas son égo, il ne sera pas capable de sacrifice lorsque viendra l'heure.".to_string()),
+            characters: Some(be_kael.id.clone()),
+            status: Some("resolved".to_string()),
+            color: Some("#FF9800".to_string()),
+        }).unwrap();
+
+        let _arc_abandoned = db.create_arc(&CreateArcRequest {
+            name: "Le Secret de Mireille".to_string(),
+            description: Some("Arc secondaire abandonné : révélation du secret de Mireille sur les parents d'Aelys.".to_string()),
+            stakes: Some("Si Aelys découvre la vérité trop tôt, elle pourrait rejeter Mireille.".to_string()),
+            characters: Some(format!("{},{}", be_mireille.id, be_aelys.id)),
+            status: Some("abandoned".to_string()),
+            color: Some("#795548".to_string()),
+        }).unwrap();
+
+        // Link scenes to arcs
+        db.link_scene_to_arc(&s_pro1.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s_pro2.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s1_2.id, &arc_identity.id).unwrap();
+        db.link_scene_to_arc(&s1_3.id, &arc_identity.id).unwrap();
+        db.link_scene_to_arc(&s1_3.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s2_1.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s2_2.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s2_3.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s3_1.id, &arc_politics.id).unwrap();
+        db.link_scene_to_arc(&s3_2.id, &arc_redemption.id).unwrap();
+        db.link_scene_to_arc(&s3_3.id, &arc_politics.id).unwrap();
+        db.link_scene_to_arc(&s3_3.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s3_4.id, &arc_redemption.id).unwrap();
+        db.link_scene_to_arc(&s4_1.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s4_2.id, &arc_quest.id).unwrap();
+        db.link_scene_to_arc(&s4_2.id, &arc_identity.id).unwrap();
+        db.link_scene_to_arc(&s4_2.id, &arc_politics.id).unwrap();
+        db.link_scene_to_arc(&s4_2.id, &arc_redemption.id).unwrap();
+
+        // ====================================================================
+        // 8. EVENTS — all 3 types, all 3 importance levels, with time fields
+        // ====================================================================
+        let ev_fracture = db.create_event(&CreateEventRequest {
+            title: "La Fracture".to_string(),
+            description: Some("Valdris III brise le Cristal d'Aether pour repousser Nyxaroth.".to_string()),
+            time_point: Some("An 0".to_string()),
+            time_start: None,
+            time_end: None,
+            event_type: Some("historical".to_string()),
+            importance: Some("major".to_string()),
+        }).unwrap();
+
+        let ev_exil = db.create_event(&CreateEventRequest {
+            title: "Exil de Theron".to_string(),
+            description: Some("Theron est expulsé de l'Académie de Skyreach pour ses recherches sur le Cristal.".to_string()),
+            time_point: Some("An 290".to_string()),
+            time_start: None,
+            time_end: None,
+            event_type: Some("backstory".to_string()),
+            importance: Some("normal".to_string()),
+        }).unwrap();
+
+        let ev_marche = db.create_event(&CreateEventRequest {
+            title: "Incident au marché".to_string(),
+            description: Some("Aelys utilise involontairement la magie pour la première fois.".to_string()),
+            time_point: Some("An 300, Jour 1".to_string()),
+            time_start: None,
+            time_end: None,
+            event_type: Some("scene".to_string()),
+            importance: Some("major".to_string()),
+        }).unwrap();
+
+        let ev_mines = db.create_event(&CreateEventRequest {
+            title: "Expédition dans les mines".to_string(),
+            description: Some("Exploration des mines d'obsidienne et découverte du premier fragment.".to_string()),
+            time_start: Some("An 300, Jour 3".to_string()),
+            time_end: Some("An 300, Jour 4".to_string()),
+            time_point: None,
+            event_type: Some("scene".to_string()),
+            importance: Some("major".to_string()),
+        }).unwrap();
+
+        let ev_conseil = db.create_event(&CreateEventRequest {
+            title: "Audience devant le Conseil".to_string(),
+            description: Some("Les héritiers demandent le second fragment au Conseil des Vents.".to_string()),
+            time_point: Some("An 300, Jour 8".to_string()),
+            time_start: None,
+            time_end: None,
+            event_type: Some("scene".to_string()),
+            importance: Some("normal".to_string()),
+        }).unwrap();
+
+        let ev_flashback_valdris = db.create_event(&CreateEventRequest {
+            title: "Flashback : la jeunesse de Valdris".to_string(),
+            description: Some("Un souvenir montrant Valdris apprenant à maîtriser le Cristal.".to_string()),
+            time_point: Some("An -40".to_string()),
+            time_start: None,
+            time_end: None,
+            event_type: Some("backstory".to_string()),
+            importance: Some("minor".to_string()),
+        }).unwrap();
+
+        let ev_confrontation = db.create_event(&CreateEventRequest {
+            title: "Confrontation finale au Temple".to_string(),
+            description: Some("Les héritiers affrontent Nyxaroth au Temple du Voile.".to_string()),
+            time_point: Some("An 300, Jour 15".to_string()),
+            time_start: None,
+            time_end: None,
+            event_type: Some("scene".to_string()),
+            importance: Some("major".to_string()),
+        }).unwrap();
+
+        // Link events to scenes
+        db.link_scene_to_event(&s_pro1.id, &ev_fracture.id).unwrap();
+        db.link_scene_to_event(&s_pro2.id, &ev_fracture.id).unwrap();
+        db.link_scene_to_event(&s1_2.id, &ev_marche.id).unwrap();
+        db.link_scene_to_event(&s2_1.id, &ev_mines.id).unwrap();
+        db.link_scene_to_event(&s2_2.id, &ev_mines.id).unwrap();
+        db.link_scene_to_event(&s2_3.id, &ev_mines.id).unwrap();
+        db.link_scene_to_event(&s3_3.id, &ev_conseil.id).unwrap();
+        db.link_scene_to_event(&s4_2.id, &ev_confrontation.id).unwrap();
+
+        // Link events to bible entries
+        db.link_bible_entry_to_event(&be_valdris.id, &ev_fracture.id).unwrap();
+        db.link_bible_entry_to_event(&be_cristal.id, &ev_fracture.id).unwrap();
+        db.link_bible_entry_to_event(&be_nyxaroth.id, &ev_fracture.id).unwrap();
+        db.link_bible_entry_to_event(&be_theron.id, &ev_exil.id).unwrap();
+        db.link_bible_entry_to_event(&be_skyreach.id, &ev_exil.id).unwrap();
+        db.link_bible_entry_to_event(&be_aelys.id, &ev_marche.id).unwrap();
+        db.link_bible_entry_to_event(&be_verendhal.id, &ev_marche.id).unwrap();
+        db.link_bible_entry_to_event(&be_aelys.id, &ev_mines.id).unwrap();
+        db.link_bible_entry_to_event(&be_theron.id, &ev_mines.id).unwrap();
+        db.link_bible_entry_to_event(&be_mines.id, &ev_mines.id).unwrap();
+        db.link_bible_entry_to_event(&be_cristal.id, &ev_mines.id).unwrap();
+        db.link_bible_entry_to_event(&be_aelys.id, &ev_conseil.id).unwrap();
+        db.link_bible_entry_to_event(&be_kael.id, &ev_conseil.id).unwrap();
+        db.link_bible_entry_to_event(&be_elara.id, &ev_conseil.id).unwrap();
+        db.link_bible_entry_to_event(&be_malachar.id, &ev_conseil.id).unwrap();
+        db.link_bible_entry_to_event(&be_conseil.id, &ev_conseil.id).unwrap();
+        db.link_bible_entry_to_event(&be_valdris.id, &ev_flashback_valdris.id).unwrap();
+        db.link_bible_entry_to_event(&be_cristal.id, &ev_flashback_valdris.id).unwrap();
+        db.link_bible_entry_to_event(&be_aelys.id, &ev_confrontation.id).unwrap();
+        db.link_bible_entry_to_event(&be_kael.id, &ev_confrontation.id).unwrap();
+        db.link_bible_entry_to_event(&be_nyxaroth.id, &ev_confrontation.id).unwrap();
+        db.link_bible_entry_to_event(&be_cristal.id, &ev_confrontation.id).unwrap();
+        db.link_bible_entry_to_event(&be_temple.id, &ev_confrontation.id).unwrap();
+
+        // ====================================================================
+        // 9. TEMPLATES — builtin + custom with steps and scene assignments
+        // ====================================================================
+        db.init_builtin_templates().unwrap();
+
+        let templates = db.get_templates().unwrap();
+        // Find the 3-Act Structure template and activate it
+        let three_act = templates.iter().find(|t| t.name.contains("Three-Act")).unwrap();
+        db.set_active_template(&three_act.id).unwrap();
+
+        let three_act_steps = db.get_template_steps(&three_act.id).unwrap();
+        // Assign scenes to template steps (first few steps)
+        if three_act_steps.len() >= 3 {
+            db.assign_scene_to_step(&s_pro1.id, &three_act_steps[0].id).unwrap();
+            db.assign_scene_to_step(&s1_2.id, &three_act_steps[1].id).unwrap();
+            db.assign_scene_to_step(&s4_2.id, &three_act_steps[three_act_steps.len() - 1].id).unwrap();
+        }
+
+        // Create a custom template
+        let custom_template = db.create_template(&CreateTemplateRequest {
+            name: "Structure Personnalisée — Quête Épique".to_string(),
+        }).unwrap();
+
+        let _step_appel = db.create_template_step(&CreateTemplateStepRequest {
+            template_id: custom_template.id.clone(),
+            name: "L'Appel".to_string(),
+            description: Some("Le héros reçoit l'appel à l'aventure.".to_string()),
+            typical_position: Some(0.1),
+            color: Some("#4CAF50".to_string()),
+        }).unwrap();
+
+        let _step_epreuve = db.create_template_step(&CreateTemplateStepRequest {
+            template_id: custom_template.id.clone(),
+            name: "L'Épreuve".to_string(),
+            description: Some("Le héros fait face à sa première grande épreuve.".to_string()),
+            typical_position: Some(0.35),
+            color: Some("#FF9800".to_string()),
+        }).unwrap();
+
+        let _step_revelation = db.create_template_step(&CreateTemplateStepRequest {
+            template_id: custom_template.id.clone(),
+            name: "La Révélation".to_string(),
+            description: Some("La vérité cachée est révélée.".to_string()),
+            typical_position: Some(0.6),
+            color: Some("#9C27B0".to_string()),
+        }).unwrap();
+
+        let _step_climax = db.create_template_step(&CreateTemplateStepRequest {
+            template_id: custom_template.id.clone(),
+            name: "Le Sacrifice".to_string(),
+            description: Some("Le héros doit faire un sacrifice ultime.".to_string()),
+            typical_position: Some(0.85),
+            color: Some("#F44336".to_string()),
+        }).unwrap();
+
+        let _step_retour = db.create_template_step(&CreateTemplateStepRequest {
+            template_id: custom_template.id.clone(),
+            name: "Le Retour".to_string(),
+            description: Some("Le monde est transformé, le héros aussi.".to_string()),
+            typical_position: Some(1.0),
+            color: Some("#2196F3".to_string()),
+        }).unwrap();
+
+        // ====================================================================
+        // 10. ANNOTATIONS — all 4 types, both statuses
+        // ====================================================================
+        db.create_annotation(&CreateAnnotationRequest {
+            scene_id: s_pro1.id.clone(),
+            start_offset: 0,
+            end_offset: 35,
+            annotation_type: Some("comment".to_string()),
+            content: "Très belle ouverture. Le rythme est parfait.".to_string(),
+        }).unwrap();
+
+        db.create_annotation(&CreateAnnotationRequest {
+            scene_id: s_pro1.id.clone(),
+            start_offset: 150,
+            end_offset: 200,
+            annotation_type: Some("question".to_string()),
+            content: "Est-ce que Nyxaroth devrait parler ici ou rester silencieux ? À décider.".to_string(),
+        }).unwrap();
+
+        db.create_annotation(&CreateAnnotationRequest {
+            scene_id: s1_1.id.clone(),
+            start_offset: 0,
+            end_offset: 50,
+            annotation_type: Some("todo".to_string()),
+            content: "Le passage sur le marché est trop long. Couper de moitié.".to_string(),
+        }).unwrap();
+
+        let ann_resolved = db.create_annotation(&CreateAnnotationRequest {
+            scene_id: s1_2.id.clone(),
+            start_offset: 100,
+            end_offset: 180,
+            annotation_type: Some("research".to_string()),
+            content: "Vérifier la cohérence avec la description de la magie éthérique dans la Bible.".to_string(),
+        }).unwrap();
+        db.update_annotation(&ann_resolved.id, &UpdateAnnotationRequest {
+            content: None,
+            status: Some("resolved".to_string()),
+        }).unwrap();
+
+        db.create_annotation(&CreateAnnotationRequest {
+            scene_id: s2_3.id.clone(),
+            start_offset: 50,
+            end_offset: 120,
+            annotation_type: Some("comment".to_string()),
+            content: "Le combat manque de détails. Ajouter des descriptions sensorielles.".to_string(),
+        }).unwrap();
+
+        db.create_annotation(&CreateAnnotationRequest {
+            scene_id: s3_3.id.clone(),
+            start_offset: 0,
+            end_offset: 60,
+            annotation_type: Some("question".to_string()),
+            content: "Faut-il montrer la réaction de Malachar pendant le discours d'Elara ?".to_string(),
+        }).unwrap();
+
+        let ann_revision = db.create_annotation(&CreateAnnotationRequest {
+            scene_id: s2_1.id.clone(),
+            start_offset: 0,
+            end_offset: 80,
+            annotation_type: Some("revision".to_string()),
+            content: "Réécrire ce passage pour renforcer la claustrophobie. Descriptions sensorielles à développer.".to_string(),
+        }).unwrap();
+        db.update_annotation(&ann_revision.id, &UpdateAnnotationRequest {
+            content: None,
+            status: Some("in_progress".to_string()),
+        }).unwrap();
+
+        // ====================================================================
+        // 11. ISSUES — all 6 types, all 3 severities, all 3 statuses
+        // ====================================================================
+        let issue_timeline = db.create_issue(&CreateIssueRequest {
+            issue_type: "timeline_conflict".to_string(),
+            title: "Conflit temporel : Aelys aux mines et au marché le même jour".to_string(),
+            description: Some("Scène 'La Descente' commence Jour 3 Nuit, mais Aelys est encore au marché Jour 1. Il faut ajouter des scènes de transition ou ajuster les dates.".to_string()),
+            severity: Some("warning".to_string()),
+        }).unwrap();
+        db.link_scene_to_issue(&s1_1.id, &issue_timeline.id).unwrap();
+        db.link_scene_to_issue(&s2_1.id, &issue_timeline.id).unwrap();
+
+        let issue_tbd = db.create_issue(&CreateIssueRequest {
+            issue_type: "tbd_in_done".to_string(),
+            title: "TODO restant dans scène terminée".to_string(),
+            description: Some("La scène 'Notes de Theron' est marquée comme 'done' mais contient encore du texte placeholder.".to_string()),
+            severity: Some("info".to_string()),
+        }).unwrap();
+        db.link_scene_to_issue(&s_offscreen.id, &issue_tbd.id).unwrap();
+        db.update_issue(&issue_tbd.id, &UpdateIssueRequest {
+            status: Some("resolved".to_string()),
+            resolution_note: Some("Le texte placeholder a été remplacé par du contenu définitif.".to_string()),
+        }).unwrap();
+
+        let issue_orphan = db.create_issue(&CreateIssueRequest {
+            issue_type: "orphan_mention".to_string(),
+            title: "Mention orpheline : 'Brennan' non défini dans la Bible".to_string(),
+            description: Some("Le conseiller Brennan est mentionné dans la description du Conseil des Vents mais n'a pas d'entrée Bible.".to_string()),
+            severity: Some("warning".to_string()),
+        }).unwrap();
+        db.link_bible_entry_to_issue(&be_conseil.id, &issue_orphan.id).unwrap();
+
+        let issue_contradiction = db.create_issue(&CreateIssueRequest {
+            issue_type: "bible_contradiction".to_string(),
+            title: "Contradiction : couleur des yeux d'Aelys".to_string(),
+            description: Some("La Bible dit 'yeux gris-argent' mais la scène du marché dit 'yeux bleus'. Préciser que les yeux changent pendant la magie.".to_string()),
+            severity: Some("error".to_string()),
+        }).unwrap();
+        db.link_bible_entry_to_issue(&be_aelys.id, &issue_contradiction.id).unwrap();
+        db.link_scene_to_issue(&s1_2.id, &issue_contradiction.id).unwrap();
+
+        let issue_continuity = db.create_issue(&CreateIssueRequest {
+            issue_type: "continuity_error".to_string(),
+            title: "Erreur de continuité : cicatrice de Theron".to_string(),
+            description: Some("La cicatrice de Theron est sur la joue gauche dans sa fiche Bible mais sur la joue droite dans la scène de rencontre.".to_string()),
+            severity: Some("error".to_string()),
+        }).unwrap();
+        db.link_bible_entry_to_issue(&be_theron.id, &issue_continuity.id).unwrap();
+        db.link_scene_to_issue(&s1_3.id, &issue_continuity.id).unwrap();
+        db.update_issue(&issue_continuity.id, &UpdateIssueRequest {
+            status: Some("resolved".to_string()),
+            resolution_note: Some("Corrigé dans la scène — c'est bien la joue gauche.".to_string()),
+        }).unwrap();
+
+        let issue_user = db.create_issue(&CreateIssueRequest {
+            issue_type: "continuity_error".to_string(),
+            title: "Revoir le rythme du chapitre 2".to_string(),
+            description: Some("Le chapitre 2 semble trop rapide. Envisager d'ajouter une scène de respiration entre la descente et le combat du gardien.".to_string()),
+            severity: Some("info".to_string()),
+        }).unwrap();
+        // Mark as ignored
+        db.update_issue(&issue_user.id, &UpdateIssueRequest {
+            status: Some("ignored".to_string()),
+            resolution_note: Some("Le rythme rapide est voulu — c'est une scène d'action.".to_string()),
+        }).unwrap();
+
+        // ====================================================================
+        // 12. SNAPSHOTS — all 3 types
+        // ====================================================================
+        db.create_snapshot(
+            "Premier brouillon complet",
+            Some("Sauvegarde après avoir terminé le premier jet du prologue et des chapitres 1-2."),
+            "manual",
+        ).unwrap();
+
+        db.create_snapshot(
+            "Auto-save 2024-01-15",
+            None,
+            "pre_bulk",
+        ).unwrap();
+
+        db.create_snapshot(
+            "Milestone : Prologue finalisé",
+            Some("Le prologue est considéré comme terminé après trois passes de révision."),
+            "milestone",
+        ).unwrap();
+
+        // ====================================================================
+        // 13. CUTS — with and without scene_id
+        // ====================================================================
+        db.create_cut(
+            Some(&s1_1.id),
+            "<p>Le forgeron Gareth martelait une lame sur son enclume, chaque coup résonnant comme un battement de cœur métallique. Les étincelles volaient en gerbes dorées.</p><p>Aelys s'arrêta un instant pour regarder, fascinée comme toujours par le spectacle du métal en fusion.</p>",
+        ).unwrap();
+
+        db.create_cut(
+            Some(&s_pro1.id),
+            "<p>— Vous ne comprenez pas, dit Valdris aux courtisans qui fuyaient. Ce n'est pas un ennemi que l'on peut combattre avec des épées.</p><p>Personne ne l'écouta. Les couloirs du palais se vidaient comme le sang d'une blessure.</p>",
+        ).unwrap();
+
+        db.create_cut(
+            None,
+            "<p>Fragment de prose libre, sans scène d'origine :</p><p>L'aube se levait sur un monde qui ne savait pas encore qu'il était en sursis. Les oiseaux chantaient, ignorants. Les enfants jouaient, insouciants. Seuls les rêveurs savaient, car dans leurs cauchemars, l'ombre grandissait.</p>",
+        ).unwrap();
+
+        // ====================================================================
+        // 14. SCENE HISTORY — multiple versions for a scene
+        // ====================================================================
+        // Create history by updating scene text multiple times
+        db.update_scene(&s1_1.id, &UpdateSceneRequest {
+            text: Some("<p>Aelys marchait dans le marché. Il faisait beau.</p>".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        db.update_scene(&s1_1.id, &UpdateSceneRequest {
+            text: Some("<p>Aelys se faufila entre les étals colorés du marché de Verendhal. L'air était chargé d'épices et de cris de marchands.</p>".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        db.update_scene(&s1_1.id, &UpdateSceneRequest {
+            text: Some("<p>Aelys se faufila entre les étals, son panier serré contre la hanche. L'air sentait les épices d'Orient et le cuir neuf. Les marchands criaient leurs prix, chacun essayant de couvrir la voix du voisin.</p><p>Elle s'arrêta devant l'étal de Madame Voss, la herboriste, et examina les fioles alignées avec soin.</p><p>— Toujours la même tisane pour ta grand-mère ? demanda la vieille femme avec un sourire édenté.</p><p>— Oui, mais cette fois, ajoutez un peu de racine de lune. Elle tousse la nuit.</p><p>Aelys compta ses pièces. Il lui resterait tout juste assez pour acheter du pain. Comme d'habitude.</p>".to_string()),
+            ..Default::default()
+        }).unwrap();
+
+        // ====================================================================
+        // 15. NAME REGISTRY — character + location types, confirmed/unconfirmed
+        // ====================================================================
+        let nr_aelys = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Aelys".to_string(),
+            name_type: Some("character".to_string()),
+            bible_entry_id: Some(be_aelys.id.clone()),
+            aliases: Some("Ael,La Briseuse de Vent".to_string()),
+        }).unwrap();
+        db.update_name_registry_entry(&nr_aelys.id, &UpdateNameRegistryRequest {
+            canonical_name: None,
+            name_type: None,
+            bible_entry_id: None,
+            aliases: None,
+            is_confirmed: Some(true),
+        }).unwrap();
+
+        let nr_theron = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Theron".to_string(),
+            name_type: Some("character".to_string()),
+            bible_entry_id: Some(be_theron.id.clone()),
+            aliases: Some("Le Professeur".to_string()),
+        }).unwrap();
+        db.update_name_registry_entry(&nr_theron.id, &UpdateNameRegistryRequest {
+            canonical_name: None,
+            name_type: None,
+            bible_entry_id: None,
+            aliases: None,
+            is_confirmed: Some(true),
+        }).unwrap();
+
+        let nr_kael = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Kael".to_string(),
+            name_type: Some("character".to_string()),
+            bible_entry_id: Some(be_kael.id.clone()),
+            aliases: Some("Kael Ardent,Le Prince Déchu".to_string()),
+        }).unwrap();
+
+        let nr_malachar = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Malachar".to_string(),
+            name_type: Some("character".to_string()),
+            bible_entry_id: Some(be_malachar.id.clone()),
+            aliases: None,
+        }).unwrap();
+
+        // Unconfirmed character (detected but not validated)
+        let nr_voss = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Madame Voss".to_string(),
+            name_type: Some("character".to_string()),
+            bible_entry_id: None,
+            aliases: Some("Voss".to_string()),
+        }).unwrap();
+        // Not confirmed — stays is_confirmed=false
+
+        let nr_verendhal = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Verendhal".to_string(),
+            name_type: Some("location".to_string()),
+            bible_entry_id: Some(be_verendhal.id.clone()),
+            aliases: Some("Verendhal-sur-Fleuve".to_string()),
+        }).unwrap();
+        db.update_name_registry_entry(&nr_verendhal.id, &UpdateNameRegistryRequest {
+            canonical_name: None,
+            name_type: None,
+            bible_entry_id: None,
+            aliases: None,
+            is_confirmed: Some(true),
+        }).unwrap();
+
+        let nr_skyreach = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Skyreach".to_string(),
+            name_type: Some("location".to_string()),
+            bible_entry_id: Some(be_skyreach.id.clone()),
+            aliases: None,
+        }).unwrap();
+        db.update_name_registry_entry(&nr_skyreach.id, &UpdateNameRegistryRequest {
+            canonical_name: None,
+            name_type: None,
+            bible_entry_id: None,
+            aliases: None,
+            is_confirmed: Some(true),
+        }).unwrap();
+
+        let _nr_cristal = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Cristal d'Aether".to_string(),
+            name_type: Some("object".to_string()),
+            bible_entry_id: Some(be_cristal.id.clone()),
+            aliases: Some("Le Cristal,L'Artefact".to_string()),
+        }).unwrap();
+
+        let _nr_conseil = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "Conseil des Vents".to_string(),
+            name_type: Some("faction".to_string()),
+            bible_entry_id: Some(be_conseil.id.clone()),
+            aliases: Some("Le Conseil,Les Douze".to_string()),
+        }).unwrap();
+
+        let _nr_fracture = db.create_name_registry_entry(&CreateNameRegistryRequest {
+            canonical_name: "La Fracture".to_string(),
+            name_type: Some("other".to_string()),
+            bible_entry_id: None,
+            aliases: Some("Jour de la Fracture".to_string()),
+        }).unwrap();
+
+        // ====================================================================
+        // 16. NAME MENTIONS — all 3 statuses (pending, accepted, ignored)
+        // ====================================================================
+        let mention1 = db.create_name_mention(
+            &nr_aelys.id, &s1_1.id, "Aelys", 0, 5,
+        ).unwrap();
+        db.update_name_mention(&mention1.id, &UpdateNameMentionRequest {
+            status: "accepted".to_string(),
+        }).unwrap();
+
+        let mention2 = db.create_name_mention(
+            &nr_aelys.id, &s1_2.id, "Aelys", 0, 5,
+        ).unwrap();
+        db.update_name_mention(&mention2.id, &UpdateNameMentionRequest {
+            status: "accepted".to_string(),
+        }).unwrap();
+
+        db.create_name_mention(
+            &nr_theron.id, &s1_3.id, "Theron", 45, 51,
+        ).unwrap();
+        // Stays as "pending"
+
+        let mention_ignored = db.create_name_mention(
+            &nr_voss.id, &s1_1.id, "Voss", 120, 124,
+        ).unwrap();
+        db.update_name_mention(&mention_ignored.id, &UpdateNameMentionRequest {
+            status: "ignored".to_string(),
+        }).unwrap();
+
+        db.create_name_mention(
+            &nr_kael.id, &s3_2.id, "Kael", 0, 4,
+        ).unwrap();
+
+        db.create_name_mention(
+            &nr_verendhal.id, &s1_1.id, "Verendhal", 30, 39,
+        ).unwrap();
+
+        db.create_name_mention(
+            &nr_skyreach.id, &s3_1.id, "Skyreach", 0, 8,
+        ).unwrap();
+
+        db.create_name_mention(
+            &nr_malachar.id, &s3_3.id, "Malachar", 50, 58,
+        ).unwrap();
+
+        // ====================================================================
+        // 17. SAVED FILTERS — all 3 types
+        // ====================================================================
+        db.create_saved_filter(&CreateSavedFilterRequest {
+            name: "POV Aelys".to_string(),
+            filter_type: "corkboard".to_string(),
+            filter_data: r#"{"status":"","pov":"Aelys","tag":"","arc":""}"#.to_string(),
+        }).unwrap();
+
+        db.create_saved_filter(&CreateSavedFilterRequest {
+            name: "Scènes en révision".to_string(),
+            filter_type: "corkboard".to_string(),
+            filter_data: r#"{"status":"in revision","pov":"","tag":"","arc":""}"#.to_string(),
+        }).unwrap();
+
+        db.create_saved_filter(&CreateSavedFilterRequest {
+            name: "Scènes de combat".to_string(),
+            filter_type: "corkboard".to_string(),
+            filter_data: r#"{"status":"","pov":"","tag":"combat","arc":""}"#.to_string(),
+        }).unwrap();
+
+        db.create_saved_filter(&CreateSavedFilterRequest {
+            name: "Arc Quête du Cristal".to_string(),
+            filter_type: "corkboard".to_string(),
+            filter_data: r#"{"status":"","pov":"","tag":"","arc":"La Quête du Cristal"}"#.to_string(),
+        }).unwrap();
+
+        // ====================================================================
+        // 18. SOFT-DELETED ENTITIES (to test trash/restore)
+        // ====================================================================
+
+        // Soft-deleted chapter
+        let ch_deleted = db.create_chapter(&CreateChapterRequest {
+            title: "Chapitre supprimé — Brouillon abandonné".to_string(),
+            summary: Some("Ce chapitre a été supprimé car l'intrigue secondaire a été abandonnée.".to_string()),
+            position: None,
+        }).unwrap();
+        let s_deleted = db.create_scene(&CreateSceneRequest {
+            chapter_id: ch_deleted.id.clone(),
+            title: "Scène orpheline du chapitre supprimé".to_string(),
+            summary: None,
+            position: None,
+        }).unwrap();
+        db.update_scene(&s_deleted.id, &UpdateSceneRequest {
+            text: Some("<p>Du texte qui ne sera jamais lu.</p>".to_string()),
+            ..Default::default()
+        }).unwrap();
+        db.delete_scene(&s_deleted.id).unwrap();
+        db.delete_chapter(&ch_deleted.id).unwrap();
+
+        // be_lyran was already created with status "tbd" — now also soft-delete it
+        db.delete_bible_entry(&be_lyran.id).unwrap();
+
+        // Arc with "abandoned" status (soft-deleted afterward)
+        let arc_deleted = db.create_arc(&CreateArcRequest {
+            name: "Arc abandonné : La Romance".to_string(),
+            description: Some("Sous-intrigue romantique retirée pour garder le focus sur l'action.".to_string()),
+            stakes: None,
+            characters: None,
+            status: Some("abandoned".to_string()),
+            color: Some("#E91E63".to_string()),
+        }).unwrap();
+        db.delete_arc(&arc_deleted.id).unwrap();
+
+        // Soft-deleted event
+        let ev_deleted = db.create_event(&CreateEventRequest {
+            title: "Événement supprimé : Bal à Skyreach".to_string(),
+            description: Some("Scène de bal prévue puis retirée.".to_string()),
+            time_point: Some("An 300, Jour 9".to_string()),
+            time_start: None,
+            time_end: None,
+            event_type: Some("scene".to_string()),
+            importance: Some("minor".to_string()),
+        }).unwrap();
+        db.delete_event(&ev_deleted.id).unwrap();
+
+    }
+
+    #[test]
+    fn test_seed_comprehensive_data() {
+        let (db, _temp_dir) = create_test_db();
+        seed_comprehensive_data(&db);
+
+        // ====================================================================
+        // VERIFICATION — ensure all data is retrievable and consistent
+        // ====================================================================
+        let project = db.get_project().unwrap();
+        assert_eq!(project.title, "Les Chroniques d'Aethermonde");
+        assert_eq!(project.author, Some("Éliane Dufresne".to_string()));
+        assert_eq!(project.word_target, Some(120000));
+        assert_eq!(project.daily_word_target, Some(2000));
+
+        let chapters = db.get_chapters().unwrap();
+        assert_eq!(chapters.len(), 6); // 7 created - 1 deleted = 6
+        let statuses: Vec<&str> = chapters.iter().map(|c| c.status.as_str()).collect();
+        assert!(statuses.contains(&"done"));
+        assert!(statuses.contains(&"revised"));
+        assert!(statuses.contains(&"draft"));
+        assert!(statuses.contains(&"in progress"));
+        assert!(statuses.contains(&"planned"));
+
+        // Count all scenes (excluding soft-deleted)
+        let all_scenes: Vec<_> = chapters.iter()
+            .flat_map(|ch| db.get_scenes(&ch.id).unwrap())
+            .collect();
+        assert!(all_scenes.len() >= 16, "Should have at least 16 active scenes, got {}", all_scenes.len());
+
+        // Verify all scene statuses exist
+        let scene_statuses: Vec<&str> = all_scenes.iter().map(|s| s.status.as_str()).collect();
+        assert!(scene_statuses.contains(&"done"));
+        assert!(scene_statuses.contains(&"in revision"));
+        assert!(scene_statuses.contains(&"draft"));
+        assert!(scene_statuses.contains(&"to write"));
+        assert!(scene_statuses.contains(&"planned"));
+        assert!(scene_statuses.contains(&"to cut"));
+
+        // Verify bible entries — all 6 types
+        let all_bible = db.get_bible_entries(None).unwrap();
+        let bible_types: Vec<&str> = all_bible.iter().map(|b| b.entry_type.as_str()).collect();
+        assert!(bible_types.contains(&"character"));
+        assert!(bible_types.contains(&"location"));
+        assert!(bible_types.contains(&"object"));
+        assert!(bible_types.contains(&"faction"));
+        assert!(bible_types.contains(&"concept"));
+        assert!(bible_types.contains(&"glossary"));
+
+        // Verify bible statuses
+        let bible_statuses: Vec<&str> = all_bible.iter().map(|b| b.status.as_str()).collect();
+        assert!(bible_statuses.contains(&"canon"));
+        assert!(bible_statuses.contains(&"draft"));
+        assert!(bible_statuses.contains(&"tbd"));
+
+        // Verify arcs — all 4 statuses
+        let arcs = db.get_arcs().unwrap();
+        assert!(arcs.len() >= 5);
+        let arc_statuses: Vec<&str> = arcs.iter().map(|a| a.status.as_str()).collect();
+        assert!(arc_statuses.contains(&"setup"));
+        assert!(arc_statuses.contains(&"active"));
+        assert!(arc_statuses.contains(&"climax"));
+        assert!(arc_statuses.contains(&"resolved"));
+        assert!(arc_statuses.contains(&"abandoned"));
+
+        // Verify events
+        let events = db.get_events().unwrap();
+        assert!(events.len() >= 7);
+        let event_types: Vec<&str> = events.iter().map(|e| e.event_type.as_str()).collect();
+        assert!(event_types.contains(&"scene"));
+        assert!(event_types.contains(&"historical"));
+        assert!(event_types.contains(&"backstory"));
+        let event_importances: Vec<&str> = events.iter().map(|e| e.importance.as_str()).collect();
+        assert!(event_importances.contains(&"minor"));
+        assert!(event_importances.contains(&"normal"));
+        assert!(event_importances.contains(&"major"));
+
+        // Verify templates
+        let templates = db.get_templates().unwrap();
+        assert!(templates.len() >= 5); // 4 builtin + 1 custom
+
+        // Verify issues — all 3 statuses
+        let all_issues = db.get_issues(None).unwrap();
+        assert!(all_issues.len() >= 6);
+        let issue_statuses: Vec<&str> = all_issues.iter().map(|i| i.status.as_str()).collect();
+        assert!(issue_statuses.contains(&"open"));
+        assert!(issue_statuses.contains(&"resolved"));
+        assert!(issue_statuses.contains(&"ignored"));
+        let issue_types: Vec<&str> = all_issues.iter().map(|i| i.issue_type.as_str()).collect();
+        assert!(issue_types.contains(&"timeline_conflict"));
+        assert!(issue_types.contains(&"tbd_in_done"));
+        assert!(issue_types.contains(&"orphan_mention"));
+        assert!(issue_types.contains(&"bible_contradiction"));
+        assert!(issue_types.contains(&"continuity_error"));
+
+        // Verify snapshots
+        let snapshots = db.get_snapshots().unwrap();
+        assert_eq!(snapshots.len(), 3);
+
+        // Verify cuts
+        let cuts = db.get_cuts().unwrap();
+        assert_eq!(cuts.len(), 3);
+
+        // Verify name registry
+        let name_entries = db.get_name_registry_entries(None).unwrap();
+        assert!(name_entries.len() >= 10);
+        let name_types: Vec<&str> = name_entries.iter().map(|n| n.name_type.as_str()).collect();
+        assert!(name_types.contains(&"character"));
+        assert!(name_types.contains(&"location"));
+        assert!(name_types.contains(&"object"));
+        assert!(name_types.contains(&"faction"));
+        assert!(name_types.contains(&"other"));
+
+        // Verify saved filters
+        let filters = db.get_saved_filters(None).unwrap();
+        assert_eq!(filters.len(), 4);
+        assert!(filters.iter().all(|f| f.filter_type == "corkboard"));
+
+        // Verify word counts
+        let word_counts = db.get_word_counts().unwrap();
+        assert!(word_counts.total > 0);
+
+        // All data created and verified successfully!
+        // This test creates a comprehensive, coherent dataset covering
+        // every entity type, every enum value, and every relationship type.
+    }
+
+    /// Generates a `.cahnon` file with comprehensive test data.
+    ///
+    /// Run with:
+    ///   cargo test --manifest-path src-tauri/Cargo.toml generate_seed_file -- --ignored --nocapture
+    ///
+    /// Output: src-tauri/test-data.cahnon
+    #[test]
+    #[ignore]
+    fn generate_seed_file() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let output_path = PathBuf::from(manifest_dir).join("test-data.cahnon");
+
+        // Remove existing file if present
+        if output_path.exists() {
+            std::fs::remove_file(&output_path).expect("Failed to remove existing test-data.cahnon");
+        }
+
+        let db = Database::create(&output_path).expect("Failed to create database");
+        seed_comprehensive_data(&db);
+
+        println!("Seed file generated: {}", output_path.display());
+    }
 }

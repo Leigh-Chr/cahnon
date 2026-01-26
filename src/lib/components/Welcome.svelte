@@ -86,6 +86,14 @@
 		}
 	}
 
+	async function handleOpenDemo() {
+		try {
+			await appState.loadDemoProject();
+		} catch (e) {
+			appState.error = e instanceof Error ? e.message : String(e);
+		}
+	}
+
 	async function openRecentProject(project: RecentProject) {
 		try {
 			await appState.loadProject(project.path);
@@ -193,6 +201,25 @@
 					<div class="action-text">
 						<h3>Open Project</h3>
 						<p>Open an existing .cahnon file</p>
+					</div>
+				</button>
+
+				<button class="action-card try-demo" onclick={handleOpenDemo} disabled={appState.isLoading}>
+					<div class="action-icon demo-icon">
+						<svg
+							width="32"
+							height="32"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<polygon points="5 3 19 12 5 21 5 3" />
+						</svg>
+					</div>
+					<div class="action-text">
+						<h3>Try Demo</h3>
+						<p>Explore a sample project</p>
 					</div>
 				</button>
 			{/if}
@@ -316,6 +343,11 @@
 		border-radius: var(--border-radius-md);
 		color: var(--color-accent);
 		flex-shrink: 0;
+	}
+
+	.demo-icon {
+		background-color: var(--color-accent-light);
+		color: var(--color-accent);
 	}
 
 	.action-text h3 {

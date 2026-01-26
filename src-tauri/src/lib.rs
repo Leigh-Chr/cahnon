@@ -39,6 +39,8 @@ pub struct AppState {
     pub current_project_path: Mutex<Option<PathBuf>>,
     /// Last known modification time of the project file for detecting external changes.
     pub last_file_modified: Mutex<Option<SystemTime>>,
+    /// Whether the currently open project is the embedded demo.
+    pub is_demo: Mutex<bool>,
 }
 
 impl Default for AppState {
@@ -47,6 +49,7 @@ impl Default for AppState {
             db: Mutex::new(None),
             current_project_path: Mutex::new(None),
             last_file_modified: Mutex::new(None),
+            is_demo: Mutex::new(false),
         }
     }
 }
@@ -81,6 +84,8 @@ pub fn run() {
             commands::project::release_lock,
             commands::project::force_acquire_lock,
             commands::project::check_database_integrity,
+            commands::project::open_demo_project,
+            commands::project::get_is_demo,
             // Chapter commands
             commands::chapter::create_chapter,
             commands::chapter::get_chapters,

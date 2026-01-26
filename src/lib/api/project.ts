@@ -58,4 +58,8 @@ export const projectApi = {
 	forceAcquireLock: (path: string) => invoke<void>('force_acquire_lock', { path }),
 
 	checkDatabaseIntegrity: () => invoke<boolean>('check_database_integrity'),
+
+	openDemo: () => invoke<Project>('open_demo_project'),
+
+	getIsDemo: () => invoke<boolean>('get_is_demo'),
 };
