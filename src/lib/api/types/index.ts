@@ -161,8 +161,8 @@ export interface Arc {
 	name: string;
 	description: string | null;
 	stakes: string | null;
-	/** Key characters involved (comma-separated Bible entry IDs) */
-	characters: string | null;
+	/** Key characters involved (Bible entry IDs) */
+	characters: string[];
 	status: string;
 	color: string | null;
 	position: number;

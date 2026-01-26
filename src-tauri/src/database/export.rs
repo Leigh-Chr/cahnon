@@ -435,7 +435,10 @@ mod tests {
 
     #[test]
     fn test_html_to_markdown_bold() {
-        assert_eq!(Database::html_to_markdown("<strong>bold</strong>"), "**bold**");
+        assert_eq!(
+            Database::html_to_markdown("<strong>bold</strong>"),
+            "**bold**"
+        );
         assert_eq!(Database::html_to_markdown("<b>bold</b>"), "**bold**");
     }
 
@@ -470,7 +473,10 @@ mod tests {
 
     #[test]
     fn test_html_to_markdown_mark() {
-        assert_eq!(Database::html_to_markdown("<mark>highlight</mark>"), "==highlight==");
+        assert_eq!(
+            Database::html_to_markdown("<mark>highlight</mark>"),
+            "==highlight=="
+        );
     }
 
     #[test]
@@ -499,7 +505,10 @@ mod tests {
     #[test]
     fn test_html_to_markdown_strips_unknown_tags() {
         assert_eq!(Database::html_to_markdown("<div>Content</div>"), "Content");
-        assert_eq!(Database::html_to_markdown("<span class=\"foo\">Text</span>"), "Text");
+        assert_eq!(
+            Database::html_to_markdown("<span class=\"foo\">Text</span>"),
+            "Text"
+        );
     }
 
     #[test]
@@ -602,25 +611,23 @@ mod tests {
 
     #[test]
     fn test_format_time_range_point() {
-        let result = Database::format_time_range(
-            &Some("1200".to_string()), &None, &None,
-        );
+        let result = Database::format_time_range(&Some("1200".to_string()), &None, &None);
         assert_eq!(result, "1200");
     }
 
     #[test]
     fn test_format_time_range_start_and_end() {
         let result = Database::format_time_range(
-            &None, &Some("1000".to_string()), &Some("1200".to_string()),
+            &None,
+            &Some("1000".to_string()),
+            &Some("1200".to_string()),
         );
         assert_eq!(result, "1000 - 1200");
     }
 
     #[test]
     fn test_format_time_range_start_only() {
-        let result = Database::format_time_range(
-            &None, &Some("1000".to_string()), &None,
-        );
+        let result = Database::format_time_range(&None, &Some("1000".to_string()), &None);
         assert_eq!(result, "1000 - ...");
     }
 
@@ -634,7 +641,9 @@ mod tests {
     fn test_format_time_range_point_takes_priority() {
         // If time_point is set, it wins over start/end
         let result = Database::format_time_range(
-            &Some("1200".to_string()), &Some("1000".to_string()), &Some("1100".to_string()),
+            &Some("1200".to_string()),
+            &Some("1000".to_string()),
+            &Some("1100".to_string()),
         );
         assert_eq!(result, "1200");
     }

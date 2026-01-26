@@ -615,7 +615,10 @@ mod tests {
 
     #[test]
     fn test_text_to_html_empty_paragraphs_filtered() {
-        assert_eq!(text_to_html("Text\n\n\n\nMore text"), "<p>Text</p><p>More text</p>");
+        assert_eq!(
+            text_to_html("Text\n\n\n\nMore text"),
+            "<p>Text</p><p>More text</p>"
+        );
     }
 
     #[test]

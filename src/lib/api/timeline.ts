@@ -18,7 +18,6 @@ export const arcApi = {
 		name: string;
 		description?: string;
 		stakes?: string;
-		characters?: string;
 		status?: string;
 		color?: string;
 	}) => invoke<Arc>('create_arc', { request }),
@@ -29,9 +28,7 @@ export const arcApi = {
 
 	update: (
 		id: string,
-		request: Partial<
-			Pick<Arc, 'name' | 'description' | 'stakes' | 'characters' | 'status' | 'color'>
-		>
+		request: Partial<Pick<Arc, 'name' | 'description' | 'stakes' | 'status' | 'color'>>
 	) => invoke<Arc>('update_arc', { id, request }),
 
 	delete: (id: string) => invoke<void>('delete_arc', { id }),
@@ -43,6 +40,9 @@ export const arcApi = {
 		invoke<void>('unlink_scene_from_arc', { sceneId, arcId }),
 
 	getSceneArcs: (sceneId: string) => invoke<Arc[]>('get_scene_arcs', { sceneId }),
+
+	setCharacters: (arcId: string, characterIds: string[]) =>
+		invoke<string[]>('set_arc_characters', { arcId, characterIds }),
 };
 
 /**

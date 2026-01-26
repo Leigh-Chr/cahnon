@@ -35,23 +35,16 @@
 	let formStakes = $state('');
 	let formStatus = $state('setup');
 	let formColor = $state('#6366f1');
-	let formCharacters = $state('');
+	let formCharacterIds = $state<string[]>([]);
 
 	// Character selector
 	let characterSearch = $state('');
 	let showCharacterDropdown = $state(false);
 
-	let selectedCharacterIds = $derived(
-		formCharacters
-			.split(',')
-			.map((id) => id.trim())
-			.filter((id) => id)
-	);
-
 	let availableCharacters = $derived(
 		appState.bibleEntries
 			.filter((e) => e.entry_type === 'character')
-			.filter((e) => !selectedCharacterIds.includes(e.id))
+			.filter((e) => !formCharacterIds.includes(e.id))
 			.filter(
 				(e) => !characterSearch || e.name.toLowerCase().includes(characterSearch.toLowerCase())
 			)
@@ -115,7 +108,7 @@
 		formStakes = arc.stakes || '';
 		formStatus = arc.status;
 		formColor = arc.color || '#6366f1';
-		formCharacters = arc.characters || '';
+		formCharacterIds = [...arc.characters];
 	}
 
 	function resetForm() {
@@ -124,7 +117,7 @@
 		formStakes = '';
 		formStatus = 'setup';
 		formColor = '#6366f1';
-		formCharacters = '';
+		formCharacterIds = [];
 	}
 
 	function cancelForm() {
@@ -144,8 +137,9 @@
 					stakes: formStakes.trim() || undefined,
 					status: formStatus,
 					color: formColor,
-					characters: formCharacters.trim() || undefined,
 				});
+				await arcApi.setCharacters(newArc.id, formCharacterIds);
+				newArc.characters = [...formCharacterIds];
 				arcs = [...arcs, newArc];
 				selectedArcId = newArc.id;
 			} else if (isEditing && selectedArcId) {
@@ -155,8 +149,9 @@
 					stakes: formStakes.trim() || null,
 					status: formStatus,
 					color: formColor,
-					characters: formCharacters.trim() || null,
 				});
+				await arcApi.setCharacters(selectedArcId, formCharacterIds);
+				updated.characters = [...formCharacterIds];
 				arcs = arcs.map((a) => (a.id === updated.id ? updated : a));
 			}
 			isCreating = false;
@@ -186,29 +181,23 @@
 		return arcStatuses.find((s) => s.value === status)?.label || status;
 	}
 
-	function getCharacterNames(characterIds: string | null): string[] {
-		if (!characterIds) return [];
-		return characterIds
-			.split(',')
-			.map((id) => id.trim())
-			.filter((id) => id)
-			.map((id) => {
-				const entry = appState.bibleEntries.find((e) => e.id === id);
-				return entry?.name || id;
-			});
+	function getCharacterNames(characterIds: string[]): string[] {
+		return characterIds.map((id) => {
+			const entry = appState.bibleEntries.find((e) => e.id === id);
+			return entry?.name || id;
+		});
 	}
 
 	function addCharacter(id: string) {
-		const ids = selectedCharacterIds.includes(id)
-			? selectedCharacterIds
-			: [...selectedCharacterIds, id];
-		formCharacters = ids.join(',');
+		if (!formCharacterIds.includes(id)) {
+			formCharacterIds = [...formCharacterIds, id];
+		}
 		characterSearch = '';
 		showCharacterDropdown = false;
 	}
 
 	function removeCharacter(id: string) {
-		formCharacters = selectedCharacterIds.filter((cid) => cid !== id).join(',');
+		formCharacterIds = formCharacterIds.filter((cid) => cid !== id);
 	}
 
 	function handleOverlayClick(event: MouseEvent) {
@@ -323,9 +312,9 @@
 
 							<FormGroup label="Key Characters">
 								<div class="character-selector">
-									{#if selectedCharacterIds.length > 0}
+									{#if formCharacterIds.length > 0}
 										<div class="character-chips">
-											{#each selectedCharacterIds as charId (charId)}
+											{#each formCharacterIds as charId (charId)}
 												{@const entry = appState.bibleEntries.find((e) => e.id === charId)}
 												<span class="character-chip">
 													{entry?.name || charId}
@@ -421,7 +410,7 @@
 								</div>
 							{/if}
 
-							{#if selectedArc.characters}
+							{#if selectedArc.characters.length > 0}
 								<div class="detail-section">
 									<h4>Key Characters</h4>
 									<div class="characters-list">

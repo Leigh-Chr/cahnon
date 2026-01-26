@@ -14,6 +14,9 @@ impl Database {
         self.migrate_templates_tables()?;
         self.migrate_issue_tables()?;
         self.migrate_annotations_table()?;
+        self.migrate_arc_characters_table()?;
+        self.migrate_missing_indexes()?;
+        self.migrate_bible_relationships_unique()?;
         Ok(())
     }
 
@@ -371,6 +374,123 @@ impl Database {
         Ok(())
     }
 
+    fn migrate_arc_characters_table(&self) -> Result<(), String> {
+        // Create the junction table
+        self.conn
+            .execute(
+                "CREATE TABLE IF NOT EXISTS arc_characters (
+                id TEXT PRIMARY KEY,
+                arc_id TEXT NOT NULL,
+                bible_entry_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (arc_id) REFERENCES arcs(id),
+                FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
+                UNIQUE(arc_id, bible_entry_id)
+            )",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_arc_characters_arc ON arc_characters(arc_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_arc_characters_bible ON arc_characters(bible_entry_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+
+        // Migrate existing data from arcs.characters column (if it exists)
+        let has_characters_column: bool = self
+            .conn
+            .prepare("SELECT characters FROM arcs LIMIT 1")
+            .is_ok();
+
+        if has_characters_column {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id, characters FROM arcs WHERE characters IS NOT NULL AND characters != ''")
+                .map_err(|e| e.to_string())?;
+
+            let rows: Vec<(String, String)> = stmt
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+
+            let now = chrono::Utc::now().to_rfc3339();
+            for (arc_id, characters) in rows {
+                for char_id in characters
+                    .split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                {
+                    // Verify the bible entry exists before inserting
+                    let exists: bool = self
+                        .conn
+                        .query_row(
+                            "SELECT COUNT(*) > 0 FROM bible_entries WHERE id = ?1",
+                            rusqlite::params![char_id],
+                            |row| row.get(0),
+                        )
+                        .unwrap_or(false);
+
+                    if exists {
+                        let id = uuid::Uuid::new_v4().to_string();
+                        let _ = self.conn.execute(
+                            "INSERT OR IGNORE INTO arc_characters (id, arc_id, bible_entry_id, created_at) VALUES (?1, ?2, ?3, ?4)",
+                            rusqlite::params![id, arc_id, char_id, now],
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn migrate_missing_indexes(&self) -> Result<(), String> {
+        let indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_event_scenes_scene ON event_scenes(scene_id)",
+            "CREATE INDEX IF NOT EXISTS idx_event_bible_bible ON event_bible(bible_entry_id)",
+            "CREATE INDEX IF NOT EXISTS idx_issue_scenes_scene ON issue_scenes(scene_id)",
+            "CREATE INDEX IF NOT EXISTS idx_issue_bible_bible ON issue_bible(bible_entry_id)",
+            "CREATE INDEX IF NOT EXISTS idx_template_steps_template ON template_steps(template_id)",
+            "CREATE INDEX IF NOT EXISTS idx_scene_steps_step ON scene_steps(step_id)",
+            "CREATE INDEX IF NOT EXISTS idx_cuts_scene ON cuts(scene_id)",
+        ];
+        for sql in &indexes {
+            self.conn.execute(sql, []).map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn migrate_bible_relationships_unique(&self) -> Result<(), String> {
+        // Remove duplicates before creating the unique index
+        self.conn
+            .execute(
+                "DELETE FROM bible_relationships WHERE id NOT IN (
+                    SELECT MIN(id) FROM bible_relationships
+                    GROUP BY source_id, target_id, relationship_type
+                )",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+
+        self.conn
+            .execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_bible_relationships_unique
+                    ON bible_relationships(source_id, target_id, relationship_type)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Initializes the full database schema for a new project.
     pub(super) fn init_schema(&self) -> Result<(), String> {
         self.conn
@@ -512,13 +632,23 @@ CREATE TABLE IF NOT EXISTS arcs (
     name TEXT NOT NULL,
     description TEXT,
     stakes TEXT,
-    characters TEXT,
     status TEXT NOT NULL DEFAULT 'setup',
     color TEXT,
     position INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
+);
+
+-- Arc-Character associations
+CREATE TABLE IF NOT EXISTS arc_characters (
+    id TEXT PRIMARY KEY,
+    arc_id TEXT NOT NULL,
+    bible_entry_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (arc_id) REFERENCES arcs(id),
+    FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
+    UNIQUE(arc_id, bible_entry_id)
 );
 
 -- Scene-Arc associations
@@ -709,13 +839,23 @@ CREATE INDEX IF NOT EXISTS idx_bible_type ON bible_entries(entry_type);
 CREATE INDEX IF NOT EXISTS idx_associations_scene ON canonical_associations(scene_id);
 CREATE INDEX IF NOT EXISTS idx_associations_bible ON canonical_associations(bible_entry_id);
 CREATE INDEX IF NOT EXISTS idx_arcs_position ON arcs(position);
+CREATE INDEX IF NOT EXISTS idx_arc_characters_arc ON arc_characters(arc_id);
+CREATE INDEX IF NOT EXISTS idx_arc_characters_bible ON arc_characters(bible_entry_id);
 CREATE INDEX IF NOT EXISTS idx_scene_arcs_scene ON scene_arcs(scene_id);
 CREATE INDEX IF NOT EXISTS idx_scene_arcs_arc ON scene_arcs(arc_id);
 CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
+CREATE INDEX IF NOT EXISTS idx_event_scenes_scene ON event_scenes(scene_id);
+CREATE INDEX IF NOT EXISTS idx_event_bible_bible ON event_bible(bible_entry_id);
+CREATE INDEX IF NOT EXISTS idx_issue_scenes_scene ON issue_scenes(scene_id);
+CREATE INDEX IF NOT EXISTS idx_issue_bible_bible ON issue_bible(bible_entry_id);
+CREATE INDEX IF NOT EXISTS idx_template_steps_template ON template_steps(template_id);
+CREATE INDEX IF NOT EXISTS idx_scene_steps_step ON scene_steps(step_id);
+CREATE INDEX IF NOT EXISTS idx_cuts_scene ON cuts(scene_id);
 CREATE INDEX IF NOT EXISTS idx_annotations_scene ON annotations(scene_id);
 CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
 CREATE INDEX IF NOT EXISTS idx_bible_relationships_source ON bible_relationships(source_id);
 CREATE INDEX IF NOT EXISTS idx_bible_relationships_target ON bible_relationships(target_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bible_relationships_unique ON bible_relationships(source_id, target_id, relationship_type);
 CREATE INDEX IF NOT EXISTS idx_scene_history_scene ON scene_history(scene_id);
 CREATE INDEX IF NOT EXISTS idx_name_registry_type ON name_registry(name_type);
 CREATE INDEX IF NOT EXISTS idx_name_registry_bible ON name_registry(bible_entry_id);

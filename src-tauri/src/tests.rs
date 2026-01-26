@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::database::Database;
     use crate::models::*;
@@ -1105,7 +1106,6 @@ mod tests {
                 name: "Main Plot".to_string(),
                 description: Some("The main storyline".to_string()),
                 stakes: Some("End of the world".to_string()),
-                characters: None,
                 status: None,
                 color: Some("#FF0000".to_string()),
             })
@@ -1128,7 +1128,6 @@ mod tests {
             name: "Arc A".to_string(),
             description: None,
             stakes: None,
-            characters: None,
             status: None,
             color: None,
         })
@@ -1138,7 +1137,6 @@ mod tests {
             name: "Arc B".to_string(),
             description: None,
             stakes: None,
-            characters: None,
             status: None,
             color: None,
         })
@@ -1158,7 +1156,6 @@ mod tests {
                 name: "Original".to_string(),
                 description: None,
                 stakes: None,
-                characters: None,
                 status: None,
                 color: None,
             })
@@ -1171,7 +1168,6 @@ mod tests {
                     name: Some("Updated".to_string()),
                     description: Some("New desc".to_string()),
                     stakes: None,
-                    characters: None,
                     status: Some("rising".to_string()),
                     color: None,
                 },
@@ -1193,7 +1189,6 @@ mod tests {
                 name: "To Delete".to_string(),
                 description: None,
                 stakes: None,
-                characters: None,
                 status: None,
                 color: None,
             })
@@ -1216,7 +1211,6 @@ mod tests {
                 name: "Plot Arc".to_string(),
                 description: None,
                 stakes: None,
-                characters: None,
                 status: None,
                 color: None,
             })
@@ -1241,7 +1235,6 @@ mod tests {
                 name: "Plot Arc".to_string(),
                 description: None,
                 stakes: None,
-                characters: None,
                 status: None,
                 color: None,
             })
@@ -1768,6 +1761,7 @@ mod tests {
                 &UpdateIssueRequest {
                     status: Some("resolved".to_string()),
                     resolution_note: Some("Fixed in chapter 3".to_string()),
+                    ..Default::default()
                 },
             )
             .expect("Failed to update");
@@ -2635,7 +2629,7 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let result = db.merge_scenes(&[scene.id.clone()]);
+        let result = db.merge_scenes(std::slice::from_ref(&scene.id));
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("At least two"));
     }
@@ -2921,7 +2915,7 @@ mod tests {
                     tags: None,
                     color: None,
                 })
-                .expect(&format!("Failed to create {} entry", entry_type));
+                .unwrap_or_else(|_| panic!("Failed to create {} entry", entry_type));
 
             assert_eq!(entry.entry_type, entry_type);
         }
@@ -3350,7 +3344,6 @@ mod tests {
                 name: "Romance Arc".to_string(),
                 description: Some("Alice and Bob's love story".to_string()),
                 stakes: None,
-                characters: None,
                 status: None,
                 color: None,
             })
@@ -3716,7 +3709,9 @@ mod tests {
         db.update_scene(
             &s1.id,
             &UpdateSceneRequest {
-                text: Some("<p>It was a dark and stormy night.</p><p>The wind howled.</p>".to_string()),
+                text: Some(
+                    "<p>It was a dark and stormy night.</p><p>The wind howled.</p>".to_string(),
+                ),
                 status: Some("draft".to_string()),
                 pov: Some("Alice".to_string()),
                 ..Default::default()
@@ -3735,7 +3730,9 @@ mod tests {
         db.update_scene(
             &s2.id,
             &UpdateSceneRequest {
-                text: Some("<p>Morning came with <strong>bright</strong> sunlight.</p>".to_string()),
+                text: Some(
+                    "<p>Morning came with <strong>bright</strong> sunlight.</p>".to_string(),
+                ),
                 status: Some("done".to_string()),
                 ..Default::default()
             },
@@ -4197,7 +4194,8 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        db.create_cut(None, "This paragraph about dragons was removed.").unwrap();
+        db.create_cut(None, "This paragraph about dragons was removed.")
+            .unwrap();
 
         let results = db
             .global_search("dragons", Some(vec!["cuts".to_string()]))
@@ -4210,7 +4208,10 @@ mod tests {
         use crate::database::Database;
 
         // Normal query
-        assert_eq!(Database::sanitize_fts5_query("hello world"), "\"hello\" \"world\"");
+        assert_eq!(
+            Database::sanitize_fts5_query("hello world"),
+            "\"hello\" \"world\""
+        );
 
         // Empty/whitespace
         assert_eq!(Database::sanitize_fts5_query(""), "");
@@ -5140,7 +5141,7 @@ mod tests {
     fn test_scene_with_all_revision_fields() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         let updated = db
             .update_scene(
@@ -5157,10 +5158,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(
-            updated.pov_goal,
-            Some("Show character growth".to_string())
-        );
+        assert_eq!(updated.pov_goal, Some("Show character growth".to_string()));
         assert_eq!(updated.has_conflict, Some(true));
         assert_eq!(updated.has_change, Some(true));
         assert_eq!(updated.tension, Some("8".to_string()));
@@ -5287,7 +5285,7 @@ mod tests {
     fn test_scene_history_multiple_versions() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Make multiple updates
         for i in 1..=5 {
@@ -5604,6 +5602,7 @@ mod tests {
                 &UpdateIssueRequest {
                     status: Some("resolved".to_string()),
                     resolution_note: Some("Fixed in revision".to_string()),
+                    ..Default::default()
                 },
             )
             .unwrap();
@@ -5791,7 +5790,9 @@ mod tests {
         .unwrap();
 
         let updated_rels = db.get_bible_relationships(&alice.id).unwrap();
-        assert!(updated_rels.iter().any(|r| r.relationship_type == "rival_of"));
+        assert!(updated_rels
+            .iter()
+            .any(|r| r.relationship_type == "rival_of"));
 
         // Delete relationship
         db.delete_bible_relationship(&rel1.id).unwrap();
@@ -5887,7 +5888,7 @@ mod tests {
         )
         .unwrap();
 
-        let entry = db
+        let _entry = db
             .create_name_registry_entry(&CreateNameRegistryRequest {
                 canonical_name: "Alice".to_string(),
                 name_type: Some("character".to_string()),
@@ -5974,9 +5975,7 @@ mod tests {
         )
         .unwrap();
 
-        let (original, new_scene) = db
-            .split_scene(&scene.id, 20, None)
-            .unwrap();
+        let (original, new_scene) = db.split_scene(&scene.id, 20, None).unwrap();
 
         // Should have original and new scene
         assert!(!original.text.is_empty());
@@ -6034,9 +6033,7 @@ mod tests {
         )
         .unwrap();
 
-        let merged = db
-            .merge_scenes(&[s1.id.clone(), s2.id.clone()])
-            .unwrap();
+        let merged = db.merge_scenes(&[s1.id.clone(), s2.id.clone()]).unwrap();
 
         assert!(merged.text.contains("First scene text"));
         assert!(merged.text.contains("Second scene text"));
@@ -6069,7 +6066,8 @@ mod tests {
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Get associations (returns Vec<BibleEntry>)
         let assocs = db.get_scene_associations(&scene.id).unwrap();
@@ -6100,7 +6098,6 @@ mod tests {
                 name: "Main Plot".to_string(),
                 description: None,
                 stakes: None,
-                characters: None,
                 status: None,
                 color: None,
             })
@@ -6239,7 +6236,9 @@ mod tests {
             .create_saved_filter(&CreateSavedFilterRequest {
                 name: "Complex Filter".to_string(),
                 filter_type: "outline".to_string(),
-                filter_data: r#"{"status":"draft","tags":["fantasy","action"],"nested":{"key":"value"}}"#.to_string(),
+                filter_data:
+                    r#"{"status":"draft","tags":["fantasy","action"],"nested":{"key":"value"}}"#
+                        .to_string(),
             })
             .unwrap();
 
@@ -6299,7 +6298,8 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        db.set_setting("json_config", r#"{"key": "value", "nested": [1,2,3]}"#).unwrap();
+        db.set_setting("json_config", r#"{"key": "value", "nested": [1,2,3]}"#)
+            .unwrap();
         let value = db.get_setting("json_config").unwrap().unwrap();
         assert!(value.contains("nested"));
     }
@@ -6313,9 +6313,18 @@ mod tests {
         db.set_setting("setting_b", "value_b").unwrap();
         db.set_setting("setting_c", "value_c").unwrap();
 
-        assert_eq!(db.get_setting("setting_a").unwrap(), Some("value_a".to_string()));
-        assert_eq!(db.get_setting("setting_b").unwrap(), Some("value_b".to_string()));
-        assert_eq!(db.get_setting("setting_c").unwrap(), Some("value_c".to_string()));
+        assert_eq!(
+            db.get_setting("setting_a").unwrap(),
+            Some("value_a".to_string())
+        );
+        assert_eq!(
+            db.get_setting("setting_b").unwrap(),
+            Some("value_b".to_string())
+        );
+        assert_eq!(
+            db.get_setting("setting_c").unwrap(),
+            Some("value_c".to_string())
+        );
     }
 
     // ========================================================================
@@ -6335,7 +6344,7 @@ mod tests {
         db.conn
             .execute(
                 "UPDATE snapshots SET created_at = ?1 WHERE id = ?2",
-                &[&old_date, &snapshot.id],
+                [&old_date, &snapshot.id],
             )
             .unwrap();
 
@@ -6353,7 +6362,8 @@ mod tests {
         setup_project(&db);
 
         // Create a recent pre_bulk snapshot (within 30 days)
-        db.create_snapshot("Recent backup", None, "pre_bulk").unwrap();
+        db.create_snapshot("Recent backup", None, "pre_bulk")
+            .unwrap();
 
         let deleted = db.cleanup_expired_snapshots().unwrap();
         assert_eq!(deleted, 0);
@@ -6372,7 +6382,7 @@ mod tests {
         db.conn
             .execute(
                 "UPDATE snapshots SET created_at = ?1 WHERE id = ?2",
-                &[&old_date, &snapshot.id],
+                [&old_date, &snapshot.id],
             )
             .unwrap();
 
@@ -6400,25 +6410,29 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         db.create_scene(&CreateSceneRequest {
             chapter_id: chapter.id.clone(),
             title: "Scene A".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_scene(&CreateSceneRequest {
             chapter_id: chapter.id,
             title: "Scene B".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let snapshot = db.create_snapshot("Test", None, "manual").unwrap();
         let scenes = db.get_snapshot_scenes(&snapshot.id).unwrap();
@@ -6430,40 +6444,56 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id,
-            title: "My Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id,
+                title: "My Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Set some text
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Original text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Original text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Take snapshot
-        let snapshot = db.create_snapshot("Before changes", None, "manual").unwrap();
+        let snapshot = db
+            .create_snapshot("Before changes", None, "manual")
+            .unwrap();
 
         // Modify the scene text
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Modified text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Modified text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Verify it changed
         let modified = db.get_scene(&scene.id).unwrap();
         assert!(modified.text.contains("Modified"));
 
         // Restore scene from snapshot
-        let restored = db.restore_scene_from_snapshot(&snapshot.id, &scene.id).unwrap();
+        let restored = db
+            .restore_scene_from_snapshot(&snapshot.id, &scene.id)
+            .unwrap();
         assert!(restored.text.contains("Original"));
     }
 
@@ -6472,18 +6502,21 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         db.create_scene(&CreateSceneRequest {
             chapter_id: chapter.id,
             title: "Scene".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let snapshot = db.create_snapshot("Snap", None, "manual").unwrap();
         let result = db.restore_scene_from_snapshot(&snapshot.id, "nonexistent-scene-id");
@@ -6510,23 +6543,31 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id,
-            title: "Scene 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id,
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Important text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Important text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Export JSON backup
         let json = db.export_json_backup().unwrap();
@@ -6569,9 +6610,12 @@ mod tests {
         let templates = db.get_templates().unwrap();
         let builtin = templates.iter().find(|t| t.is_builtin).unwrap();
 
-        let result = db.update_template(&builtin.id, &UpdateTemplateRequest {
-            name: Some("New Name".to_string()),
-        });
+        let result = db.update_template(
+            &builtin.id,
+            &UpdateTemplateRequest {
+                name: Some("New Name".to_string()),
+            },
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Cannot modify builtin"));
     }
@@ -6703,19 +6747,27 @@ mod tests {
             title: "Open issue".to_string(),
             description: None,
             severity: None,
-        }).unwrap();
+        })
+        .unwrap();
 
-        let issue2 = db.create_issue(&CreateIssueRequest {
-            issue_type: "plot_hole".to_string(),
-            title: "Resolved issue".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue2 = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "plot_hole".to_string(),
+                title: "Resolved issue".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
-        db.update_issue(&issue2.id, &UpdateIssueRequest {
-            status: Some("resolved".to_string()),
-            resolution_note: Some("Fixed".to_string()),
-        }).unwrap();
+        db.update_issue(
+            &issue2.id,
+            &UpdateIssueRequest {
+                status: Some("resolved".to_string()),
+                resolution_note: Some("Fixed".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let open = db.get_issues(Some("open")).unwrap();
         assert_eq!(open.len(), 1);
@@ -6762,24 +6814,30 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Moving Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Moving Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         assert_eq!(scene.chapter_id, ch1.id);
 
@@ -6811,7 +6869,8 @@ mod tests {
             status: None,
             tags: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Create event for search
         db.create_event(&CreateEventRequest {
@@ -6822,18 +6881,23 @@ mod tests {
             time_end: None,
             event_type: None,
             importance: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Search with no scope filter (all scopes)
         let results = db.global_search("Searchable", None).unwrap();
         assert!(results.len() >= 2); // At least bible entry and event
 
         // Search with "bible" scope
-        let bible_results = db.global_search("Searchable", Some(vec!["bible".to_string()])).unwrap();
+        let bible_results = db
+            .global_search("Searchable", Some(vec!["bible".to_string()]))
+            .unwrap();
         assert!(!bible_results.is_empty());
 
         // Search with "events" scope
-        let event_results = db.global_search("Searchable", Some(vec!["events".to_string()])).unwrap();
+        let event_results = db
+            .global_search("Searchable", Some(vec!["events".to_string()]))
+            .unwrap();
         assert!(!event_results.is_empty());
     }
 
@@ -6843,10 +6907,14 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Some text here</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Some text here</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Split at position 0 - original should be empty, new gets all text
         let (original, new_scene) = db.split_scene(&scene.id, 0, Some("New Part")).unwrap();
@@ -6864,33 +6932,38 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let entry2 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "location".to_string(),
-            name: "Castle".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry2 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "location".to_string(),
+                name: "Castle".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         // Create scene association
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Create bible-to-bible relationship
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
@@ -6899,27 +6972,32 @@ mod tests {
             relationship_type: "ally".to_string(),
             note: None,
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Create event link
-        let event = db.create_event(&CreateEventRequest {
-            title: "Battle".to_string(),
-            description: None,
-            time_point: Some("Day 1".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Battle".to_string(),
+                description: None,
+                time_point: Some("Day 1".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
         db.link_bible_entry_to_event(&entry.id, &event.id).unwrap();
 
         // Create issue link
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "continuity".to_string(),
-            title: "Test issue".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "continuity".to_string(),
+                title: "Test issue".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
         db.link_bible_entry_to_issue(&entry.id, &issue.id).unwrap();
 
         // Verify everything exists
@@ -6949,56 +7027,66 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Doomed Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Doomed Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene with links".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene with links".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Add bible association
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Add arc link
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Main Plot".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Main Plot".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
 
         // Add event link
-        let event = db.create_event(&CreateEventRequest {
-            title: "Event".to_string(),
-            description: None,
-            time_point: Some("Day 1".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Event".to_string(),
+                description: None,
+                time_point: Some("Day 1".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
 
         // Add annotation
@@ -7008,7 +7096,8 @@ mod tests {
             end_offset: 5,
             annotation_type: None,
             content: "A note".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Verify all links exist
         assert_eq!(db.get_scene_associations(&scene.id).unwrap().len(), 1);
@@ -7038,30 +7127,34 @@ mod tests {
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Add bible association
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Bob".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Bob".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Add arc link
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Subplot".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Subplot".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
 
         // Add annotation
@@ -7071,7 +7164,8 @@ mod tests {
             end_offset: 3,
             annotation_type: None,
             content: "Note".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Delete scene
         db.delete_scene(&scene.id).unwrap();
@@ -7098,20 +7192,23 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Charlie".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Charlie".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(db.get_scene_associations(&scene.id).unwrap().len(), 1);
 
         // Delete and restore
@@ -7132,41 +7229,50 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let _scene2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Add a bible association to scene1
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: scene1.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Delete scene1 individually first (junctions are hard-deleted)
         db.delete_scene(&scene1.id).unwrap();
@@ -7196,25 +7302,32 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>First half. Second half.</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>First half. Second half.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Split the scene
         let (original, new_scene) = db.split_scene(&scene.id, 12, Some("Part 2")).unwrap();
@@ -7235,19 +7348,24 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Part one. Part two.</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Part one. Part two.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Main Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Main Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
 
         let (original, new_scene) = db.split_scene(&scene.id, 10, None).unwrap();
@@ -7262,68 +7380,90 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&scene1.id, &UpdateSceneRequest {
-            text: Some("<p>Text A</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&scene2.id, &UpdateSceneRequest {
-            text: Some("<p>Text B</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene1.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Text A</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &scene2.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Text B</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Each scene has a different bible association
-        let entry1 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
-        let entry2 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "location".to_string(),
-            name: "Forest".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry1 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
+        let entry2 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "location".to_string(),
+                name: "Forest".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         db.create_association(&CreateAssociationRequest {
             scene_id: scene1.id.clone(),
             bible_entry_id: entry1.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: scene2.id.clone(),
             bible_entry_id: entry2.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Merge scene2 into scene1
-        let merged = db.merge_scenes(&[scene1.id.clone(), scene2.id.clone()]).unwrap();
+        let merged = db
+            .merge_scenes(&[scene1.id.clone(), scene2.id.clone()])
+            .unwrap();
 
         // Merged scene should have associations from BOTH scenes
         let assoc = db.get_scene_associations(&merged.id).unwrap();
@@ -7347,74 +7487,95 @@ mod tests {
         setup_project(&db);
 
         // Build a complex project
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 1".to_string(),
-            summary: Some("First chapter".to_string()),
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: Some("First chapter".to_string()),
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Scene 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("<p>Original scene 1 text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Original scene 1 text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch2.id.clone(),
-            title: "Scene 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let _s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch2.id.clone(),
+                title: "Scene 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Original Hero".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let _entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Original Hero".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Original Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let _arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Original Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Original Event".to_string(),
-            description: None,
-            time_point: Some("Day 1".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Original Event".to_string(),
+                description: None,
+                time_point: Some("Day 1".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         // Take snapshot
         let snapshot = db.create_snapshot("Full backup", None, "manual").unwrap();
 
         // Make destructive changes
         db.delete_chapter(&ch2.id).unwrap();
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("<p>MODIFIED text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("<p>MODIFIED text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "location".to_string(),
             name: "New Location".to_string(),
@@ -7424,7 +7585,8 @@ mod tests {
             status: None,
             tags: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.delete_event(&event.id).unwrap();
 
         // Verify changes took effect
@@ -7476,10 +7638,14 @@ mod tests {
 
         // Create content near MAX_CONTENT_LENGTH (500k chars)
         let large_text = "<p>".to_string() + &"A".repeat(100_000) + "</p>";
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some(large_text.clone()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some(large_text.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let fetched = db.get_scene(&scene.id).unwrap();
         assert!(fetched.text.len() > 100_000);
@@ -7534,116 +7700,149 @@ mod tests {
             title: "My Novel".to_string(),
             author: Some("Author".to_string()),
             description: Some("A story".to_string()),
-        }).unwrap();
+        })
+        .unwrap();
 
         // 2. Create chapters
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "The Beginning".to_string(),
-            summary: Some("Story begins".to_string()),
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "The Middle".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "The Beginning".to_string(),
+                summary: Some("Story begins".to_string()),
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "The Middle".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // 3. Create scenes
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Opening".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Discovery".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch2.id.clone(),
-            title: "Confrontation".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Opening".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Discovery".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch2.id.clone(),
+                title: "Confrontation".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // 4. Add text to scenes
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("<p>The hero woke up.</p>".to_string()),
-            pov: Some("Hero".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            text: Some("<p>A mysterious map was found.</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s3.id, &UpdateSceneRequest {
-            text: Some("<p>The villain appeared.</p>".to_string()),
-            pov: Some("Hero".to_string()),
-            on_timeline: Some(true),
-            time_point: Some("Day 5".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The hero woke up.</p>".to_string()),
+                pov: Some("Hero".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                text: Some("<p>A mysterious map was found.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s3.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The villain appeared.</p>".to_string()),
+                pov: Some("Hero".to_string()),
+                on_timeline: Some(true),
+                time_point: Some("Day 5".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // 5. Create bible entries
-        let hero = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            short_description: Some("The protagonist".to_string()),
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
-        let villain = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Villain".to_string(),
-            short_description: Some("The antagonist".to_string()),
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let hero = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                short_description: Some("The protagonist".to_string()),
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
+        let villain = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Villain".to_string(),
+                short_description: Some("The antagonist".to_string()),
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         // 6. Create associations
         db.create_association(&CreateAssociationRequest {
             scene_id: s1.id.clone(),
             bible_entry_id: hero.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: s3.id.clone(),
             bible_entry_id: hero.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: s3.id.clone(),
             bible_entry_id: villain.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // 7. Create arc and link to scenes
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Hero's Journey".to_string(),
-            description: Some("The main arc".to_string()),
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Hero's Journey".to_string(),
+                description: Some("The main arc".to_string()),
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
         db.link_scene_to_arc(&s1.id, &arc.id).unwrap();
         db.link_scene_to_arc(&s3.id, &arc.id).unwrap();
 
         // 8. Create event and link
-        let event = db.create_event(&CreateEventRequest {
-            title: "Villain Appears".to_string(),
-            description: None,
-            time_point: Some("Day 5".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: Some("critical".to_string()),
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Villain Appears".to_string(),
+                description: None,
+                time_point: Some("Day 5".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: Some("critical".to_string()),
+            })
+            .unwrap();
         db.link_scene_to_event(&s3.id, &event.id).unwrap();
 
         // 9. Verify the full state
@@ -7681,7 +7880,6 @@ mod tests {
         let counts = db.get_word_counts().unwrap();
         assert!(counts.total > 0);
     }
-
 
     // ========================================================================
     // FTS5 Sanitization Tests (Security-Critical)
@@ -7773,12 +7971,18 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The dragon flew over the castle walls</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The dragon flew over the castle walls</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let results = db.global_search("dragon", Some(vec!["scenes".to_string()])).unwrap();
+        let results = db
+            .global_search("dragon", Some(vec!["scenes".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].result_type, "scene");
     }
@@ -7797,9 +8001,12 @@ mod tests {
             status: None,
             tags: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
 
-        let results = db.global_search("wizard", Some(vec!["bible".to_string()])).unwrap();
+        let results = db
+            .global_search("wizard", Some(vec!["bible".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].result_type, "bible_entry");
     }
@@ -7817,9 +8024,12 @@ mod tests {
             time_start: None,
             time_end: None,
             importance: None,
-        }).unwrap();
+        })
+        .unwrap();
 
-        let results = db.global_search("siege", Some(vec!["events".to_string()])).unwrap();
+        let results = db
+            .global_search("siege", Some(vec!["events".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].result_type, "event");
     }
@@ -7836,9 +8046,12 @@ mod tests {
             end_offset: 5,
             annotation_type: Some("note".to_string()),
             content: "Fix this overlong dialogue passage".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
-        let results = db.global_search("overlong", Some(vec!["annotations".to_string()])).unwrap();
+        let results = db
+            .global_search("overlong", Some(vec!["annotations".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].result_type, "annotation");
     }
@@ -7849,9 +8062,15 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.create_cut(Some(&scene.id), "The mysterious stranger vanished into the fog").unwrap();
+        db.create_cut(
+            Some(&scene.id),
+            "The mysterious stranger vanished into the fog",
+        )
+        .unwrap();
 
-        let results = db.global_search("mysterious", Some(vec!["cuts".to_string()])).unwrap();
+        let results = db
+            .global_search("mysterious", Some(vec!["cuts".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].result_type, "cut");
     }
@@ -7869,10 +8088,13 @@ mod tests {
             time_start: None,
             time_end: None,
             importance: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Searching only scenes should not find the event
-        let results = db.global_search("UniqueEventXYZ123", Some(vec!["scenes".to_string()])).unwrap();
+        let results = db
+            .global_search("UniqueEventXYZ123", Some(vec!["scenes".to_string()]))
+            .unwrap();
         assert!(results.is_empty());
     }
 
@@ -7882,16 +8104,24 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Searchable unique phrase omega99</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Searchable unique phrase omega99</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let results = db.global_search("omega99", Some(vec!["scenes".to_string()])).unwrap();
+        let results = db
+            .global_search("omega99", Some(vec!["scenes".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
 
         db.delete_scene(&scene.id).unwrap();
-        let results = db.global_search("omega99", Some(vec!["scenes".to_string()])).unwrap();
+        let results = db
+            .global_search("omega99", Some(vec!["scenes".to_string()]))
+            .unwrap();
         assert!(results.is_empty());
     }
 
@@ -7905,7 +8135,9 @@ mod tests {
         setup_project(&db);
         setup_chapter_and_scene(&db);
 
-        let count = db.find_replace_in_scenes("", "replacement", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("", "replacement", false, false, None)
+            .unwrap();
         assert_eq!(count, 0);
     }
 
@@ -7915,12 +8147,18 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The cat sat on the mat</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The cat sat on the mat</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("cat", "dog", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("cat", "dog", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
 
         let updated = db.get_scene(&scene.id).unwrap();
@@ -7934,12 +8172,18 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The Cat and the CAT</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The Cat and the CAT</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("cat", "dog", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("cat", "dog", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
 
         let updated = db.get_scene(&scene.id).unwrap();
@@ -7953,12 +8197,18 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The Cat and the cat</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The Cat and the cat</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("cat", "dog", true, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("cat", "dog", true, false, None)
+            .unwrap();
         assert_eq!(count, 1);
 
         let updated = db.get_scene(&scene.id).unwrap();
@@ -7972,12 +8222,18 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The cat concatenated the catalog</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The cat concatenated the catalog</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("cat", "dog", false, true, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("cat", "dog", false, true, None)
+            .unwrap();
         assert_eq!(count, 1);
 
         let updated = db.get_scene(&scene.id).unwrap();
@@ -7992,12 +8248,18 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The <strong>bold cat</strong> walked</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The <strong>bold cat</strong> walked</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("cat", "dog", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("cat", "dog", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
 
         let updated = db.get_scene(&scene.id).unwrap();
@@ -8011,40 +8273,58 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Ch1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Ch2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch2.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch2.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("<p>apple juice</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            text: Some("<p>apple cider</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("<p>apple juice</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                text: Some("<p>apple cider</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("apple", "orange", false, false, Some(&ch1.id)).unwrap();
+        let count = db
+            .find_replace_in_scenes("apple", "orange", false, false, Some(&ch1.id))
+            .unwrap();
         assert_eq!(count, 1);
 
         assert!(db.get_scene(&s1.id).unwrap().text.contains("orange"));
@@ -8057,12 +8337,18 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The quick brown fox</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The quick brown fox</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("elephant", "giraffe", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("elephant", "giraffe", false, false, None)
+            .unwrap();
         assert_eq!(count, 0);
     }
 
@@ -8071,26 +8357,36 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-
-        for i in 0..3 {
-            let scene = db.create_scene(&CreateSceneRequest {
-                chapter_id: chapter.id.clone(),
-                title: format!("Scene {}", i),
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
                 summary: None,
                 position: None,
-            }).unwrap();
-            db.update_scene(&scene.id, &UpdateSceneRequest {
-                text: Some(format!("<p>Scene {} has the word foo in it</p>", i)),
-                ..Default::default()
-            }).unwrap();
+            })
+            .unwrap();
+
+        for i in 0..3 {
+            let scene = db
+                .create_scene(&CreateSceneRequest {
+                    chapter_id: chapter.id.clone(),
+                    title: format!("Scene {}", i),
+                    summary: None,
+                    position: None,
+                })
+                .unwrap();
+            db.update_scene(
+                &scene.id,
+                &UpdateSceneRequest {
+                    text: Some(format!("<p>Scene {} has the word foo in it</p>", i)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         }
 
-        let count = db.find_replace_in_scenes("foo", "bar", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("foo", "bar", false, false, None)
+            .unwrap();
         assert_eq!(count, 3);
     }
 
@@ -8103,12 +8399,14 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Aragorn".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: Some("Strider, Elessar".to_string()),
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Aragorn".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: Some("Strider, Elessar".to_string()),
+            })
+            .unwrap();
 
         assert_eq!(entry.canonical_name, "Aragorn");
         assert_eq!(entry.name_type, "character");
@@ -8118,13 +8416,18 @@ mod tests {
         let fetched = db.get_name_registry_entry(&entry.id).unwrap();
         assert_eq!(fetched.canonical_name, "Aragorn");
 
-        let updated = db.update_name_registry_entry(&entry.id, &UpdateNameRegistryRequest {
-            canonical_name: Some("Aragorn II".to_string()),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-            is_confirmed: Some(true),
-        }).unwrap();
+        let updated = db
+            .update_name_registry_entry(
+                &entry.id,
+                &UpdateNameRegistryRequest {
+                    canonical_name: Some("Aragorn II".to_string()),
+                    name_type: None,
+                    bible_entry_id: None,
+                    aliases: None,
+                    is_confirmed: Some(true),
+                },
+            )
+            .unwrap();
         assert_eq!(updated.canonical_name, "Aragorn II");
         assert!(updated.is_confirmed);
 
@@ -8142,13 +8445,15 @@ mod tests {
             name_type: Some("location".to_string()),
             bible_entry_id: None,
             aliases: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.create_name_registry_entry(&CreateNameRegistryRequest {
             canonical_name: "Gandalf".to_string(),
             name_type: Some("character".to_string()),
             bible_entry_id: None,
             aliases: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let all = db.get_name_registry_entries(None).unwrap();
         assert_eq!(all.len(), 2);
@@ -8167,12 +8472,14 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Unknown".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Unknown".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
         assert_eq!(entry.name_type, "character");
     }
 
@@ -8181,23 +8488,27 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let bible = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Gandalf".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let bible = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Gandalf".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Gandalf".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: Some(bible.id.clone()),
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Gandalf".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: Some(bible.id.clone()),
+                aliases: None,
+            })
+            .unwrap();
         assert_eq!(entry.bible_entry_id, Some(bible.id));
     }
 
@@ -8211,14 +8522,18 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Frodo".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Frodo".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
-        let mention = db.create_name_mention(&entry.id, &scene.id, "Frodo", 10, 15).unwrap();
+        let mention = db
+            .create_name_mention(&entry.id, &scene.id, "Frodo", 10, 15)
+            .unwrap();
         assert_eq!(mention.mention_text, "Frodo");
         assert_eq!(mention.start_offset, 10);
         assert_eq!(mention.end_offset, 15);
@@ -8230,9 +8545,14 @@ mod tests {
         let by_reg = db.get_name_mentions_by_registry(&entry.id).unwrap();
         assert_eq!(by_reg.len(), 1);
 
-        let updated = db.update_name_mention(&mention.id, &UpdateNameMentionRequest {
-            status: "confirmed".to_string(),
-        }).unwrap();
+        let updated = db
+            .update_name_mention(
+                &mention.id,
+                &UpdateNameMentionRequest {
+                    status: "confirmed".to_string(),
+                },
+            )
+            .unwrap();
         assert_eq!(updated.status, "confirmed");
 
         db.delete_name_mention(&mention.id).unwrap();
@@ -8245,16 +8565,21 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Sam".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Sam".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
-        db.create_name_mention(&entry.id, &scene.id, "Sam", 100, 103).unwrap();
-        db.create_name_mention(&entry.id, &scene.id, "Sam", 0, 3).unwrap();
-        db.create_name_mention(&entry.id, &scene.id, "Sam", 50, 53).unwrap();
+        db.create_name_mention(&entry.id, &scene.id, "Sam", 100, 103)
+            .unwrap();
+        db.create_name_mention(&entry.id, &scene.id, "Sam", 0, 3)
+            .unwrap();
+        db.create_name_mention(&entry.id, &scene.id, "Sam", 50, 53)
+            .unwrap();
 
         let mentions = db.get_name_mentions_by_scene(&scene.id).unwrap();
         assert_eq!(mentions.len(), 3);
@@ -8269,20 +8594,30 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Merry".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Merry".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
-        db.create_name_mention(&entry.id, &scene.id, "Merry", 0, 5).unwrap();
-        db.create_name_mention(&entry.id, &scene.id, "Merry", 20, 25).unwrap();
+        db.create_name_mention(&entry.id, &scene.id, "Merry", 0, 5)
+            .unwrap();
+        db.create_name_mention(&entry.id, &scene.id, "Merry", 20, 25)
+            .unwrap();
 
-        assert_eq!(db.get_name_mentions_by_registry(&entry.id).unwrap().len(), 2);
+        assert_eq!(
+            db.get_name_mentions_by_registry(&entry.id).unwrap().len(),
+            2
+        );
 
         db.delete_name_registry_entry(&entry.id).unwrap();
-        assert!(db.get_name_mentions_by_registry(&entry.id).unwrap().is_empty());
+        assert!(db
+            .get_name_mentions_by_registry(&entry.id)
+            .unwrap()
+            .is_empty());
     }
 
     // ========================================================================
@@ -8295,22 +8630,28 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        let keep = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Robert".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: Some("Rob".to_string()),
-        }).unwrap();
+        let keep = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Robert".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: Some("Rob".to_string()),
+            })
+            .unwrap();
 
-        let merge = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Bob".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: Some("Bobby".to_string()),
-        }).unwrap();
+        let merge = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Bob".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: Some("Bobby".to_string()),
+            })
+            .unwrap();
 
-        db.create_name_mention(&keep.id, &scene.id, "Robert", 0, 6).unwrap();
-        db.create_name_mention(&merge.id, &scene.id, "Bob", 20, 23).unwrap();
+        db.create_name_mention(&keep.id, &scene.id, "Robert", 0, 6)
+            .unwrap();
+        db.create_name_mention(&merge.id, &scene.id, "Bob", 20, 23)
+            .unwrap();
 
         let result = db.merge_name_entries(&keep.id, &merge.id).unwrap();
 
@@ -8331,26 +8672,36 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let keep = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Elizabeth".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: Some("Liz, Beth".to_string()),
-        }).unwrap();
+        let keep = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Elizabeth".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: Some("Liz, Beth".to_string()),
+            })
+            .unwrap();
 
-        let merge = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Liz".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: Some("Beth, Lizzy".to_string()),
-        }).unwrap();
+        let merge = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Liz".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: Some("Beth, Lizzy".to_string()),
+            })
+            .unwrap();
 
         let result = db.merge_name_entries(&keep.id, &merge.id).unwrap();
         let aliases = result.aliases.unwrap();
         let alias_list: Vec<&str> = aliases.split(", ").collect();
-        let liz_count = alias_list.iter().filter(|a| a.to_lowercase() == "liz").count();
+        let liz_count = alias_list
+            .iter()
+            .filter(|a| a.to_lowercase() == "liz")
+            .count();
         assert_eq!(liz_count, 1);
-        let beth_count = alias_list.iter().filter(|a| a.to_lowercase() == "beth").count();
+        let beth_count = alias_list
+            .iter()
+            .filter(|a| a.to_lowercase() == "beth")
+            .count();
         assert_eq!(beth_count, 1);
     }
 
@@ -8363,37 +8714,64 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("The warrior met Eldric at the gate. She told Eldric about the quest.".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some(
+                    "The warrior met Eldric at the gate. She told Eldric about the quest."
+                        .to_string(),
+                ),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            text: Some("Later on Eldric traveled north. The people greeted Eldric warmly.".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                text: Some(
+                    "Later on Eldric traveled north. The people greeted Eldric warmly.".to_string(),
+                ),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (new_entries, new_mentions) = db.scan_names().unwrap();
-        assert!(new_entries >= 1, "Expected at least 1 new entry, got {}", new_entries);
-        assert!(new_mentions >= 2, "Expected at least 2 mentions, got {}", new_mentions);
+        assert!(
+            new_entries >= 1,
+            "Expected at least 1 new entry, got {}",
+            new_entries
+        );
+        assert!(
+            new_mentions >= 2,
+            "Expected at least 2 mentions, got {}",
+            new_mentions
+        );
 
         let entries = db.get_name_registry_entries(None).unwrap();
         let eldric = entries.iter().find(|e| e.canonical_name == "Eldric");
@@ -8405,27 +8783,40 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("He Said goodbye. Then Said hello again.".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("He Said goodbye. Then Said hello again.".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (new_entries, _) = db.scan_names().unwrap();
         let entries = db.get_name_registry_entries(None).unwrap();
-        let said = entries.iter().find(|e| e.canonical_name.to_lowercase() == "said");
-        assert!(said.is_none(), "Common word 'Said' should not be registered");
+        let said = entries
+            .iter()
+            .find(|e| e.canonical_name.to_lowercase() == "said");
+        assert!(
+            said.is_none(),
+            "Common word 'Said' should not be registered"
+        );
         assert_eq!(new_entries, 0);
     }
 
@@ -8448,11 +8839,13 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let filter = db.create_saved_filter(&CreateSavedFilterRequest {
-            name: "Active Scenes".to_string(),
-            filter_type: "scene".to_string(),
-            filter_data: r#"{"status":"draft","chapter":"ch1"}"#.to_string(),
-        }).unwrap();
+        let filter = db
+            .create_saved_filter(&CreateSavedFilterRequest {
+                name: "Active Scenes".to_string(),
+                filter_type: "scene".to_string(),
+                filter_data: r#"{"status":"draft","chapter":"ch1"}"#.to_string(),
+            })
+            .unwrap();
 
         assert_eq!(filter.name, "Active Scenes");
         assert_eq!(filter.filter_type, "scene");
@@ -8468,10 +8861,15 @@ mod tests {
         let wrong_type = db.get_saved_filters(Some("bible")).unwrap();
         assert!(wrong_type.is_empty());
 
-        let updated = db.update_saved_filter(&filter.id, &UpdateSavedFilterRequest {
-            name: Some("Draft Scenes".to_string()),
-            filter_data: None,
-        }).unwrap();
+        let updated = db
+            .update_saved_filter(
+                &filter.id,
+                &UpdateSavedFilterRequest {
+                    name: Some("Draft Scenes".to_string()),
+                    filter_data: None,
+                },
+            )
+            .unwrap();
         assert_eq!(updated.name, "Draft Scenes");
         assert_eq!(updated.filter_data, filter.filter_data);
 
@@ -8488,17 +8886,20 @@ mod tests {
             name: "A".to_string(),
             filter_type: "scene".to_string(),
             filter_data: "{}".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
         db.create_saved_filter(&CreateSavedFilterRequest {
             name: "B".to_string(),
             filter_type: "bible".to_string(),
             filter_data: "{}".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
         db.create_saved_filter(&CreateSavedFilterRequest {
             name: "C".to_string(),
             filter_type: "scene".to_string(),
             filter_data: "{}".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         assert_eq!(db.get_saved_filters(None).unwrap().len(), 3);
         assert_eq!(db.get_saved_filters(Some("scene")).unwrap().len(), 2);
@@ -8510,16 +8911,23 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let filter = db.create_saved_filter(&CreateSavedFilterRequest {
-            name: "My Filter".to_string(),
-            filter_type: "scene".to_string(),
-            filter_data: r#"{"v":1}"#.to_string(),
-        }).unwrap();
+        let filter = db
+            .create_saved_filter(&CreateSavedFilterRequest {
+                name: "My Filter".to_string(),
+                filter_type: "scene".to_string(),
+                filter_data: r#"{"v":1}"#.to_string(),
+            })
+            .unwrap();
 
-        let updated = db.update_saved_filter(&filter.id, &UpdateSavedFilterRequest {
-            name: None,
-            filter_data: Some(r#"{"v":2}"#.to_string()),
-        }).unwrap();
+        let updated = db
+            .update_saved_filter(
+                &filter.id,
+                &UpdateSavedFilterRequest {
+                    name: None,
+                    filter_data: Some(r#"{"v":2}"#.to_string()),
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.name, "My Filter");
         assert_eq!(updated.filter_data, r#"{"v":2}"#);
@@ -8534,41 +8942,51 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter One".to_string(),
-            summary: Some("The beginning".to_string()),
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter Two".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter One".to_string(),
+                summary: Some("The beginning".to_string()),
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter Two".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Opening".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("<p>It was a dark night.</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Opening".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("<p>It was a dark night.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let _s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch2.id.clone(),
-            title: "Middle".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let _s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch2.id.clone(),
+                title: "Middle".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Export only chapter 1
-        let md = db.export_markdown_with_options(
-            Some(&[ch1.id.clone()]),
-            Some("---"),
-            true,
-        ).unwrap();
+        let md = db
+            .export_markdown_with_options(Some(std::slice::from_ref(&ch1.id)), Some("---"), true)
+            .unwrap();
         assert!(md.contains("Chapter One"));
         assert!(!md.contains("Chapter Two"));
         assert!(md.contains("dark night"));
@@ -8583,21 +9001,31 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "The Journey".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Departure".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The <strong>bold</strong> traveler <em>left</em> home.</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "The Journey".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Departure".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some(
+                    "<p>The <strong>bold</strong> traveler <em>left</em> home.</p>".to_string(),
+                ),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let plain = db.export_plain_text().unwrap();
         assert!(plain.contains("The Journey"));
@@ -8611,23 +9039,33 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "S".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Text.</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "S".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Text.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let plain = db.export_plain_text_with_options(None, Some("~~~")).unwrap();
+        let plain = db
+            .export_plain_text_with_options(None, Some("~~~"))
+            .unwrap();
         assert!(plain.contains("~~~"));
     }
 
@@ -8636,22 +9074,30 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter Alpha".to_string(),
-            summary: Some("Summary of alpha".to_string()),
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter Alpha".to_string(),
+                summary: Some("Summary of alpha".to_string()),
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Scene Beta".to_string(),
-            summary: Some("Summary of beta".to_string()),
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            pov: Some("Alice".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Scene Beta".to_string(),
+                summary: Some("Summary of beta".to_string()),
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                pov: Some("Alice".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let outline = db.export_outline().unwrap();
         assert!(outline.contains("Chapter Alpha"));
@@ -8674,7 +9120,8 @@ mod tests {
             status: None,
             tags: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "location".to_string(),
@@ -8685,7 +9132,8 @@ mod tests {
             status: None,
             tags: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let bible_export = db.export_bible().unwrap();
         assert!(bible_export.contains("Characters"));
@@ -8708,24 +9156,33 @@ mod tests {
             time_start: None,
             time_end: None,
             importance: None,
-        }).unwrap();
+        })
+        .unwrap();
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Battle Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            on_timeline: Some(true),
-            time_point: Some("Year 1005".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Battle Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                on_timeline: Some(true),
+                time_point: Some("Year 1005".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let timeline = db.export_timeline().unwrap();
         assert!(timeline.contains("The Great War"));
@@ -8743,52 +9200,70 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Original Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Original Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Original text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Original Character".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Original Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Original Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Original text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Original Character".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         let snapshot = db.create_snapshot("Checkpoint", None, "manual").unwrap();
 
         // Modify everything
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Modified text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_bible_entry(&entry.id, &UpdateBibleEntryRequest {
-            name: Some("Modified Character".to_string()),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            image_path: None,
-            notes: None,
-            todos: None,
-            color: None,
-            custom_fields: None,
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Modified text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_bible_entry(
+            &entry.id,
+            &UpdateBibleEntryRequest {
+                name: Some("Modified Character".to_string()),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                image_path: None,
+                notes: None,
+                todos: None,
+                color: None,
+                custom_fields: None,
+            },
+        )
+        .unwrap();
 
         db.restore_snapshot(&snapshot.id).unwrap();
 
@@ -8807,23 +9282,27 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         db.create_scene(&CreateSceneRequest {
             chapter_id: ch.id.clone(),
             title: "Scene A".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.create_scene(&CreateSceneRequest {
             chapter_id: ch.id.clone(),
             title: "Scene B".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let snapshot = db.create_snapshot("Test", None, "manual").unwrap();
 
@@ -8839,30 +9318,44 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Version 1 text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Version 1 text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let snapshot = db.create_snapshot("V1", None, "manual").unwrap();
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Version 2 text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Version 2 text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let restored = db.restore_scene_from_snapshot(&snapshot.id, &scene.id).unwrap();
+        let restored = db
+            .restore_scene_from_snapshot(&snapshot.id, &scene.id)
+            .unwrap();
         assert!(restored.text.contains("Version 1 text"));
     }
 
@@ -8871,17 +9364,20 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         db.create_scene(&CreateSceneRequest {
             chapter_id: ch.id.clone(),
             title: "Scene".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let snapshot = db.create_snapshot("Test", None, "manual").unwrap();
 
@@ -8895,28 +9391,40 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Source Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Source Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Source text</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Source Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Source Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Source text</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let json = db.export_json_backup().unwrap();
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Modified</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Modified</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         db.import_json_backup(&json).unwrap();
 
@@ -8981,12 +9489,14 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Test".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Test".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
         assert!(db.merge_name_entries(&entry.id, "nonexistent").is_err());
     }
@@ -9004,26 +9514,30 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Event".to_string(),
-            description: None,
-            event_type: Some("scene".to_string()),
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Event".to_string(),
+                description: None,
+                event_type: Some("scene".to_string()),
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                importance: None,
+            })
+            .unwrap();
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Char".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Char".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
         db.link_bible_entry_to_event(&entry.id, &event.id).unwrap();
@@ -9046,23 +9560,27 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Test".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Test".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "continuity".to_string(),
-            title: "Issue".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "continuity".to_string(),
+                title: "Issue".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_issue(&entry.id, &issue.id).unwrap();
 
@@ -9077,12 +9595,14 @@ mod tests {
         setup_project(&db);
         let (_, scene) = setup_chapter_and_scene(&db);
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "plot_hole".to_string(),
-            title: "Issue".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "plot_hole".to_string(),
+                title: "Issue".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_scene_to_issue(&scene.id, &issue.id).unwrap();
 
@@ -9100,23 +9620,31 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Timeline Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            on_timeline: Some(true),
-            time_point: Some("Day 1".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Timeline Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                on_timeline: Some(true),
+                time_point: Some("Day 1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Scene not on timeline
         db.create_scene(&CreateSceneRequest {
@@ -9124,19 +9652,26 @@ mod tests {
             title: "No Timeline".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // On timeline but no time data
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Timeline No Time".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s3.id, &UpdateSceneRequest {
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
+        let s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Timeline No Time".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s3.id,
+            &UpdateSceneRequest {
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let timeline = db.get_all_scenes_for_timeline().unwrap();
         assert_eq!(timeline.len(), 1);
@@ -9148,26 +9683,30 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let char1 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
-        let char2 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Bob".to_string(),
-            short_description: None,
-            full_description: None,
-            aliases: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let char1 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
+        let char2 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Bob".to_string(),
+                short_description: None,
+                full_description: None,
+                aliases: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: char1.id.clone(),
@@ -9175,7 +9714,8 @@ mod tests {
             relationship_type: "friend_of".to_string(),
             note: None,
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let bible_export = db.export_bible().unwrap();
         assert!(bible_export.contains("Alice"));
@@ -9201,17 +9741,21 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "S".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "S".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         db.update_scene(&scene.id, &UpdateSceneRequest {
             text: Some("<p>Normal text with <strong>bold</strong> and <em>italic</em> words.</p><p>Second paragraph.</p>".to_string()),
             ..Default::default()
@@ -9235,25 +9779,34 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "Custom Template".to_string(),
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "Custom Template".to_string(),
+            })
+            .unwrap();
 
-        let step = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "Original Step".to_string(),
-            description: Some("Original desc".to_string()),
-            typical_position: Some(0.5),
-            color: Some("#ff0000".to_string()),
-        }).unwrap();
+        let step = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "Original Step".to_string(),
+                description: Some("Original desc".to_string()),
+                typical_position: Some(0.5),
+                color: Some("#ff0000".to_string()),
+            })
+            .unwrap();
 
-        let updated = db.update_template_step(&step.id, &UpdateTemplateStepRequest {
-            name: Some("Renamed Step".to_string()),
-            description: Some("Updated desc".to_string()),
-            typical_position: None,
-            color: None,
-            position: None,
-        }).unwrap();
+        let updated = db
+            .update_template_step(
+                &step.id,
+                &UpdateTemplateStepRequest {
+                    name: Some("Renamed Step".to_string()),
+                    description: Some("Updated desc".to_string()),
+                    typical_position: None,
+                    color: None,
+                    position: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.name, "Renamed Step");
         assert_eq!(updated.description, Some("Updated desc".to_string()));
@@ -9267,25 +9820,34 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "Custom".to_string(),
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "Custom".to_string(),
+            })
+            .unwrap();
 
-        let step = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "Step A".to_string(),
-            description: None,
-            typical_position: Some(0.1),
-            color: Some("#000".to_string()),
-        }).unwrap();
+        let step = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "Step A".to_string(),
+                description: None,
+                typical_position: Some(0.1),
+                color: Some("#000".to_string()),
+            })
+            .unwrap();
 
-        let updated = db.update_template_step(&step.id, &UpdateTemplateStepRequest {
-            name: None,
-            description: None,
-            typical_position: Some(0.9),
-            color: Some("#fff".to_string()),
-            position: Some(5),
-        }).unwrap();
+        let updated = db
+            .update_template_step(
+                &step.id,
+                &UpdateTemplateStepRequest {
+                    name: None,
+                    description: None,
+                    typical_position: Some(0.9),
+                    color: Some("#fff".to_string()),
+                    position: Some(5),
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.name, "Step A");
         assert!((updated.typical_position - 0.9).abs() < 0.001);
@@ -9298,25 +9860,34 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "T".to_string(),
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "T".to_string(),
+            })
+            .unwrap();
 
-        let step = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "Step".to_string(),
-            description: Some("Desc".to_string()),
-            typical_position: Some(0.3),
-            color: None,
-        }).unwrap();
+        let step = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "Step".to_string(),
+                description: Some("Desc".to_string()),
+                typical_position: Some(0.3),
+                color: None,
+            })
+            .unwrap();
 
-        let same = db.update_template_step(&step.id, &UpdateTemplateStepRequest {
-            name: None,
-            description: None,
-            typical_position: None,
-            color: None,
-            position: None,
-        }).unwrap();
+        let same = db
+            .update_template_step(
+                &step.id,
+                &UpdateTemplateStepRequest {
+                    name: None,
+                    description: None,
+                    typical_position: None,
+                    color: None,
+                    position: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(same.name, "Step");
         assert_eq!(same.description, Some("Desc".to_string()));
@@ -9327,24 +9898,30 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "Custom".to_string(),
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "Custom".to_string(),
+            })
+            .unwrap();
 
-        let step1 = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "Step 1".to_string(),
-            description: None,
-            typical_position: None,
-            color: None,
-        }).unwrap();
-        let _step2 = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "Step 2".to_string(),
-            description: None,
-            typical_position: None,
-            color: None,
-        }).unwrap();
+        let step1 = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "Step 1".to_string(),
+                description: None,
+                typical_position: None,
+                color: None,
+            })
+            .unwrap();
+        let _step2 = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "Step 2".to_string(),
+                description: None,
+                typical_position: None,
+                color: None,
+            })
+            .unwrap();
 
         db.delete_template_step(&step1.id).unwrap();
 
@@ -9360,7 +9937,10 @@ mod tests {
         db.init_builtin_templates().unwrap();
 
         let templates = db.get_templates().unwrap();
-        let builtin = templates.iter().find(|t| t.is_builtin).expect("No builtin template");
+        let builtin = templates
+            .iter()
+            .find(|t| t.is_builtin)
+            .expect("No builtin template");
 
         let steps = db.get_template_steps(&builtin.id).unwrap();
         assert!(!steps.is_empty());
@@ -9376,17 +9956,21 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "Custom".to_string(),
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "Custom".to_string(),
+            })
+            .unwrap();
 
-        let step = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "Act 1".to_string(),
-            description: None,
-            typical_position: None,
-            color: None,
-        }).unwrap();
+        let step = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "Act 1".to_string(),
+                description: None,
+                typical_position: None,
+                color: None,
+            })
+            .unwrap();
 
         db.assign_scene_to_step(&scene.id, &step.id).unwrap();
         let assigned = db.get_scene_step(&scene.id).unwrap();
@@ -9403,17 +9987,21 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "Custom".to_string(),
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "Custom".to_string(),
+            })
+            .unwrap();
 
-        let step = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "Step".to_string(),
-            description: None,
-            typical_position: None,
-            color: None,
-        }).unwrap();
+        let step = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "Step".to_string(),
+                description: None,
+                typical_position: None,
+                color: None,
+            })
+            .unwrap();
 
         db.assign_scene_to_step(&scene.id, &step.id).unwrap();
 
@@ -9491,14 +10079,15 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Main Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Main Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
         let arcs_before = db.get_scene_arcs(&scene.id).unwrap();
@@ -9521,26 +10110,30 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Big Battle".to_string(),
-            description: None,
-            time_point: Some("Day 5".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Big Battle".to_string(),
+                description: None,
+                time_point: Some("Day 5".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: None,
+            })
+            .unwrap();
 
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
         db.link_bible_entry_to_event(&entry.id, &event.id).unwrap();
@@ -9574,29 +10167,37 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch2.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch2.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         let result = db.merge_scenes(&[s1.id, s2.id]);
         assert!(result.is_err());
@@ -9611,29 +10212,41 @@ mod tests {
         setup_project(&db);
         let (chapter, _) = setup_chapter_and_scene(&db);
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "First".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Second".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "First".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Second".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("Text A".to_string()),
-            notes: Some("Note A".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            text: Some("Text B".to_string()),
-            notes: Some("Note B".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("Text A".to_string()),
+                notes: Some("Note A".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                text: Some("Text B".to_string()),
+                notes: Some("Note B".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let merged = db.merge_scenes(&[s1.id, s2.id]).unwrap();
         assert!(merged.text.contains("Text A"));
@@ -9652,21 +10265,24 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         let dup = db.duplicate_scene(&scene.id, false).unwrap();
 
@@ -9764,16 +10380,18 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Villain".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Villain".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         db.delete_bible_entry(&entry.id).unwrap();
 
@@ -9791,42 +10409,49 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Main Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Main Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Event".to_string(),
-            description: None,
-            time_point: Some("Day 1".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Event".to_string(),
+                description: None,
+                time_point: Some("Day 1".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: None,
+            })
+            .unwrap();
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "consistency".to_string(),
-            title: "Issue".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "consistency".to_string(),
+                title: "Issue".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.create_annotation(&CreateAnnotationRequest {
             scene_id: scene.id.clone(),
@@ -9834,26 +10459,32 @@ mod tests {
             end_offset: 5,
             annotation_type: None,
             content: "Note".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
         db.link_scene_to_issue(&scene.id, &issue.id).unwrap();
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "T".to_string(),
-        }).unwrap();
-        let step = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "S".to_string(),
-            description: None,
-            typical_position: None,
-            color: None,
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "T".to_string(),
+            })
+            .unwrap();
+        let step = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "S".to_string(),
+                description: None,
+                typical_position: None,
+                color: None,
+            })
+            .unwrap();
         db.assign_scene_to_step(&scene.id, &step.id).unwrap();
 
         db.delete_scene(&scene.id).unwrap();
@@ -9894,23 +10525,29 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Source".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Target".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Source".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Target".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Movable".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Movable".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         let moved = db.move_scene_to_chapter(&scene.id, &ch2.id, 0).unwrap();
         assert_eq!(moved.chapter_id, ch2.id);
@@ -9932,10 +10569,14 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Hello".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Hello".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (first, second) = db.split_scene(&scene.id, 5, None).unwrap();
         assert_eq!(first.text, "Hello");
@@ -9949,17 +10590,20 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         db.create_scene(&CreateSceneRequest {
             chapter_id: ch.id.clone(),
             title: "Sc".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let snapshot = db.create_snapshot("Manual", None, "manual").unwrap();
 
@@ -9970,7 +10614,9 @@ mod tests {
 
         let snapshots_after = db.get_snapshots().unwrap();
         assert!(snapshots_after.len() > count_before);
-        assert!(snapshots_after.iter().any(|s| s.snapshot_type == "pre_restore"));
+        assert!(snapshots_after
+            .iter()
+            .any(|s| s.snapshot_type == "pre_restore"));
     }
 
     // --- import_json_backup creates auto-backup ---
@@ -9980,17 +10626,20 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         db.create_scene(&CreateSceneRequest {
             chapter_id: ch.id.clone(),
             title: "Sc".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let json = db.export_json_backup().unwrap();
 
@@ -10000,7 +10649,9 @@ mod tests {
 
         let snapshots_after = db.get_snapshots().unwrap();
         assert!(snapshots_after.len() > snapshots_before);
-        assert!(snapshots_after.iter().any(|s| s.snapshot_type == "pre_import"));
+        assert!(snapshots_after
+            .iter()
+            .any(|s| s.snapshot_type == "pre_import"));
     }
 
     // --- get_snapshot_scenes ---
@@ -10010,23 +10661,27 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         db.create_scene(&CreateSceneRequest {
             chapter_id: ch.id.clone(),
             title: "Scene A".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.create_scene(&CreateSceneRequest {
             chapter_id: ch.id.clone(),
             title: "Scene B".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let snapshot = db.create_snapshot("Test", None, "manual").unwrap();
 
@@ -10055,34 +10710,40 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let e1 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
-        let e2 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Bob".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let e1 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
+        let e2 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Bob".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let rel = db.create_bible_relationship(&CreateBibleRelationshipRequest {
-            source_id: e1.id.clone(),
-            target_id: e2.id.clone(),
-            relationship_type: "ally_of".to_string(),
-            note: None,
-            status: None,
-        }).unwrap();
+        let rel = db
+            .create_bible_relationship(&CreateBibleRelationshipRequest {
+                source_id: e1.id.clone(),
+                target_id: e2.id.clone(),
+                relationship_type: "ally_of".to_string(),
+                note: None,
+                status: None,
+            })
+            .unwrap();
 
         db.delete_bible_relationship(&rel.id).unwrap();
 
@@ -10096,40 +10757,51 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let e1 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "X".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
-        let e2 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Y".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let e1 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "X".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
+        let e2 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Y".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let rel = db.create_bible_relationship(&CreateBibleRelationshipRequest {
-            source_id: e1.id.clone(),
-            target_id: e2.id.clone(),
-            relationship_type: "enemy_of".to_string(),
-            note: None,
-            status: None,
-        }).unwrap();
+        let rel = db
+            .create_bible_relationship(&CreateBibleRelationshipRequest {
+                source_id: e1.id.clone(),
+                target_id: e2.id.clone(),
+                relationship_type: "enemy_of".to_string(),
+                note: None,
+                status: None,
+            })
+            .unwrap();
 
-        let updated = db.update_bible_relationship(&rel.id, &UpdateBibleRelationshipRequest {
-            relationship_type: Some("ally_of".to_string()),
-            note: Some("Now friends".to_string()),
-            status: Some("resolved".to_string()),
-        }).unwrap();
+        let updated = db
+            .update_bible_relationship(
+                &rel.id,
+                &UpdateBibleRelationshipRequest {
+                    relationship_type: Some("ally_of".to_string()),
+                    note: Some("Now friends".to_string()),
+                    status: Some("resolved".to_string()),
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.relationship_type, "ally_of");
         assert_eq!(updated.note, Some("Now friends".to_string()));
@@ -10143,17 +10815,20 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         db.create_scene(&CreateSceneRequest {
             chapter_id: ch.id.clone(),
             title: "Scene".to_string(),
             summary: None,
             position: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "Hero".to_string(),
@@ -10163,15 +10838,16 @@ mod tests {
             status: None,
             tags: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.create_arc(&CreateArcRequest {
             name: "Arc".to_string(),
             description: None,
             stakes: None,
-            characters: None,
             status: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.create_event(&CreateEventRequest {
             title: "Event".to_string(),
             description: None,
@@ -10180,7 +10856,8 @@ mod tests {
             time_end: None,
             event_type: None,
             importance: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let json = db.export_json_backup().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -10202,17 +10879,26 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        for entry_type in &["character", "location", "object", "faction", "concept", "glossary"] {
-            let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-                entry_type: entry_type.to_string(),
-                name: format!("Test {}", entry_type),
-                aliases: None,
-                short_description: None,
-                full_description: None,
-                status: None,
-                tags: None,
-                color: None,
-            }).unwrap();
+        for entry_type in &[
+            "character",
+            "location",
+            "object",
+            "faction",
+            "concept",
+            "glossary",
+        ] {
+            let entry = db
+                .create_bible_entry(&CreateBibleEntryRequest {
+                    entry_type: entry_type.to_string(),
+                    name: format!("Test {}", entry_type),
+                    aliases: None,
+                    short_description: None,
+                    full_description: None,
+                    status: None,
+                    tags: None,
+                    color: None,
+                })
+                .unwrap();
             assert_eq!(entry.entry_type, *entry_type);
         }
 
@@ -10227,45 +10913,51 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let character = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Char".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let character = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Char".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         let cf = character.custom_fields.unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&cf).unwrap();
         assert!(parsed.get("role").is_some());
         assert!(parsed.get("voice_notes").is_some());
 
-        let location = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "location".to_string(),
-            name: "Loc".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let location = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "location".to_string(),
+                name: "Loc".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         let cf = location.custom_fields.unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&cf).unwrap();
         assert!(parsed.get("parent_location").is_some());
 
-        let obj = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "object".to_string(),
-            name: "Obj".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let obj = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "object".to_string(),
+                name: "Obj".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         assert!(obj.custom_fields.is_none());
     }
 
@@ -10276,15 +10968,17 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Minimal Event".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Minimal Event".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         assert_eq!(event.event_type, "scene");
         assert_eq!(event.importance, "normal");
@@ -10297,14 +10991,15 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
         assert_eq!(arc.status, "setup");
     }
@@ -10316,23 +11011,28 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Original".to_string(),
-            description: Some("Desc".to_string()),
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Original".to_string(),
+                description: Some("Desc".to_string()),
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
-        let updated = db.update_arc(&arc.id, &UpdateArcRequest {
-            name: Some("Renamed".to_string()),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let updated = db
+            .update_arc(
+                &arc.id,
+                &UpdateArcRequest {
+                    name: Some("Renamed".to_string()),
+                    description: None,
+                    stakes: None,
+                    status: None,
+                    color: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.name, "Renamed");
         assert_eq!(updated.description, Some("Desc".to_string()));
@@ -10345,25 +11045,32 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Original".to_string(),
-            description: Some("Desc".to_string()),
-            time_point: Some("Day 1".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("backstory".to_string()),
-            importance: Some("critical".to_string()),
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Original".to_string(),
+                description: Some("Desc".to_string()),
+                time_point: Some("Day 1".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("backstory".to_string()),
+                importance: Some("critical".to_string()),
+            })
+            .unwrap();
 
-        let updated = db.update_event(&event.id, &UpdateEventRequest {
-            title: Some("Updated".to_string()),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let updated = db
+            .update_event(
+                &event.id,
+                &UpdateEventRequest {
+                    title: Some("Updated".to_string()),
+                    description: None,
+                    time_point: None,
+                    time_start: None,
+                    time_end: None,
+                    event_type: None,
+                    importance: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.title, "Updated");
         assert_eq!(updated.description, Some("Desc".to_string()));
@@ -10377,36 +11084,42 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let e1 = db.create_event(&CreateEventRequest {
-            title: "Event 1".to_string(),
-            description: None,
-            time_point: Some("Day 1".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: None,
-        }).unwrap();
+        let e1 = db
+            .create_event(&CreateEventRequest {
+                title: "Event 1".to_string(),
+                description: None,
+                time_point: Some("Day 1".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: None,
+            })
+            .unwrap();
 
-        let e2 = db.create_event(&CreateEventRequest {
-            title: "Event 2".to_string(),
-            description: None,
-            time_point: Some("Day 2".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: None,
-        }).unwrap();
+        let e2 = db
+            .create_event(&CreateEventRequest {
+                title: "Event 2".to_string(),
+                description: None,
+                time_point: Some("Day 2".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_event(&entry.id, &e1.id).unwrap();
         db.link_bible_entry_to_event(&entry.id, &e2.id).unwrap();
@@ -10422,52 +11135,62 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Event".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Event".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
 
@@ -10489,47 +11212,67 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "On Timeline".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Off Timeline".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "No Time".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "On Timeline".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Off Timeline".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "No Time".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            on_timeline: Some(true),
-            time_point: Some("Day 1".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                on_timeline: Some(true),
+                time_point: Some("Day 1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            on_timeline: Some(false),
-            time_point: Some("Day 2".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                on_timeline: Some(false),
+                time_point: Some("Day 2".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        db.update_scene(&s3.id, &UpdateSceneRequest {
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s3.id,
+            &UpdateSceneRequest {
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let timeline = db.get_all_scenes_for_timeline().unwrap();
         assert_eq!(timeline.len(), 1);
@@ -10543,19 +11286,26 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch = db.create_chapter(&CreateChapterRequest {
-            title: "Original".to_string(),
-            summary: Some("Sum".to_string()),
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Original".to_string(),
+                summary: Some("Sum".to_string()),
+                position: None,
+            })
+            .unwrap();
 
-        let updated = db.update_chapter(&ch.id, &UpdateChapterRequest {
-            title: Some("New Title".to_string()),
-            summary: None,
-            status: None,
-            notes: None,
-            position: None,
-        }).unwrap();
+        let updated = db
+            .update_chapter(
+                &ch.id,
+                &UpdateChapterRequest {
+                    title: Some("New Title".to_string()),
+                    summary: None,
+                    status: None,
+                    notes: None,
+                    position: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.title, "New Title");
         assert_eq!(updated.summary, Some("Sum".to_string()));
@@ -10568,19 +11318,27 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "consistency".to_string(),
-            title: "Bug".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "consistency".to_string(),
+                title: "Bug".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
         assert_eq!(issue.status, "open");
         assert!(issue.resolution_note.is_none());
 
-        let updated = db.update_issue(&issue.id, &UpdateIssueRequest {
-            status: Some("resolved".to_string()),
-            resolution_note: Some("Fixed it".to_string()),
-        }).unwrap();
+        let updated = db
+            .update_issue(
+                &issue.id,
+                &UpdateIssueRequest {
+                    status: Some("resolved".to_string()),
+                    resolution_note: Some("Fixed it".to_string()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.status, "resolved");
         assert_eq!(updated.resolution_note, Some("Fixed it".to_string()));
@@ -10596,22 +11354,24 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let arc1 = db.create_arc(&CreateArcRequest {
-            name: "Arc A".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
-        let arc2 = db.create_arc(&CreateArcRequest {
-            name: "Arc B".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc1 = db
+            .create_arc(&CreateArcRequest {
+                name: "Arc A".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
+        let arc2 = db
+            .create_arc(&CreateArcRequest {
+                name: "Arc B".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
         db.link_scene_to_arc(&scene.id, &arc1.id).unwrap();
         db.link_scene_to_arc(&scene.id, &arc2.id).unwrap();
@@ -10639,15 +11399,17 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Battle".to_string(),
-            description: None,
-            time_point: Some("Day 3".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Battle".to_string(),
+                description: None,
+                time_point: Some("Day 3".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: None,
+            })
+            .unwrap();
 
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
 
@@ -10663,15 +11425,17 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Event".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Event".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
 
@@ -10685,26 +11449,30 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Event".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Event".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_event(&entry.id, &event.id).unwrap();
 
@@ -10719,12 +11487,14 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "consistency".to_string(),
-            title: "Plot hole".to_string(),
-            description: None,
-            severity: Some("error".to_string()),
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "consistency".to_string(),
+                title: "Plot hole".to_string(),
+                description: None,
+                severity: Some("error".to_string()),
+            })
+            .unwrap();
 
         db.link_scene_to_issue(&scene.id, &issue.id).unwrap();
 
@@ -10740,12 +11510,14 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "todo".to_string(),
-            title: "Fix pacing".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "todo".to_string(),
+                title: "Fix pacing".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_scene_to_issue(&scene.id, &issue.id).unwrap();
 
@@ -10759,23 +11531,27 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Villain".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Villain".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "consistency".to_string(),
-            title: "Name inconsistency".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "consistency".to_string(),
+                title: "Name inconsistency".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_issue(&entry.id, &issue.id).unwrap();
 
@@ -10792,14 +11568,15 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
         assert_eq!(db.get_scene_arcs(&scene.id).unwrap().len(), 1);
@@ -10814,15 +11591,17 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "E".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "E".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
         assert_eq!(db.get_scene_events(&scene.id).unwrap().len(), 1);
@@ -10837,12 +11616,14 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "todo".to_string(),
-            title: "I".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "todo".to_string(),
+                title: "I".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_scene_to_issue(&scene.id, &issue.id).unwrap();
         assert_eq!(db.get_scene_issues(&scene.id).unwrap().len(), 1);
@@ -10856,31 +11637,36 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "C".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "C".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "E".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "E".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_event(&entry.id, &event.id).unwrap();
         assert_eq!(db.get_event_bible_entries(&event.id).unwrap().len(), 1);
 
-        db.unlink_bible_entry_from_event(&entry.id, &event.id).unwrap();
+        db.unlink_bible_entry_from_event(&entry.id, &event.id)
+            .unwrap();
         assert!(db.get_event_bible_entries(&event.id).unwrap().is_empty());
     }
 
@@ -10889,28 +11675,33 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "C".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "C".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "consistency".to_string(),
-            title: "I".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "consistency".to_string(),
+                title: "I".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_issue(&entry.id, &issue.id).unwrap();
         assert_eq!(db.get_issue_bible_entries(&issue.id).unwrap().len(), 1);
 
-        db.unlink_bible_entry_from_issue(&entry.id, &issue.id).unwrap();
+        db.unlink_bible_entry_from_issue(&entry.id, &issue.id)
+            .unwrap();
         assert!(db.get_issue_bible_entries(&issue.id).unwrap().is_empty());
     }
 
@@ -10940,45 +11731,54 @@ mod tests {
         let (chapter, _scene) = setup_chapter_and_scene(&db);
 
         // Create a second scene to reference from setup/payoff
-        let ref_scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Reference scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ref_scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Reference scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Create a scene and update ALL fields
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Full scene".to_string(),
-            summary: Some("A summary".to_string()),
-            position: Some(10),
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Full scene".to_string(),
+                summary: Some("A summary".to_string()),
+                position: Some(10),
+            })
+            .unwrap();
 
-        let updated = db.update_scene(&scene.id, &UpdateSceneRequest {
-            title: Some("Updated title".to_string()),
-            summary: Some("Updated summary".to_string()),
-            text: Some("<p>Hello world</p>".to_string()),
-            status: Some("first draft".to_string()),
-            pov: Some("Alice".to_string()),
-            tags: Some("action,drama".to_string()),
-            notes: Some("Important note".to_string()),
-            todos: Some("Fix pacing".to_string()),
-            word_target: Some(5000),
-            time_point: Some("2024-06-15".to_string()),
-            time_start: Some("2024-06-01".to_string()),
-            time_end: Some("2024-06-30".to_string()),
-            on_timeline: Some(true),
-            position: Some(42),
-            pov_goal: Some("Reveal secret".to_string()),
-            has_conflict: Some(true),
-            has_change: Some(false),
-            tension: Some("high".to_string()),
-            setup_for_scene_id: Some(ref_scene.id.clone()),
-            payoff_of_scene_id: Some(ref_scene.id.clone()),
-            revision_notes: Some("Needs more tension".to_string()),
-            revision_checklist: Some("[\"pov\",\"conflict\"]".to_string()),
-        }).unwrap();
+        let updated = db
+            .update_scene(
+                &scene.id,
+                &UpdateSceneRequest {
+                    title: Some("Updated title".to_string()),
+                    summary: Some("Updated summary".to_string()),
+                    text: Some("<p>Hello world</p>".to_string()),
+                    status: Some("first draft".to_string()),
+                    pov: Some("Alice".to_string()),
+                    tags: Some("action,drama".to_string()),
+                    notes: Some("Important note".to_string()),
+                    todos: Some("Fix pacing".to_string()),
+                    word_target: Some(5000),
+                    time_point: Some("2024-06-15".to_string()),
+                    time_start: Some("2024-06-01".to_string()),
+                    time_end: Some("2024-06-30".to_string()),
+                    on_timeline: Some(true),
+                    position: Some(42),
+                    pov_goal: Some("Reveal secret".to_string()),
+                    has_conflict: Some(true),
+                    has_change: Some(false),
+                    tension: Some("high".to_string()),
+                    setup_for_scene_id: Some(ref_scene.id.clone()),
+                    payoff_of_scene_id: Some(ref_scene.id.clone()),
+                    revision_notes: Some("Needs more tension".to_string()),
+                    revision_checklist: Some("[\"pov\",\"conflict\"]".to_string()),
+                },
+            )
+            .unwrap();
 
         // Re-fetch to verify roundtrip
         let fetched = db.get_scene(&scene.id).unwrap();
@@ -11001,10 +11801,22 @@ mod tests {
         assert_eq!(fetched.has_conflict, Some(true));
         assert_eq!(fetched.has_change, Some(false));
         assert_eq!(fetched.tension.as_deref(), Some("high"));
-        assert_eq!(fetched.setup_for_scene_id.as_deref(), Some(ref_scene.id.as_str()));
-        assert_eq!(fetched.payoff_of_scene_id.as_deref(), Some(ref_scene.id.as_str()));
-        assert_eq!(fetched.revision_notes.as_deref(), Some("Needs more tension"));
-        assert_eq!(fetched.revision_checklist.as_deref(), Some("[\"pov\",\"conflict\"]"));
+        assert_eq!(
+            fetched.setup_for_scene_id.as_deref(),
+            Some(ref_scene.id.as_str())
+        );
+        assert_eq!(
+            fetched.payoff_of_scene_id.as_deref(),
+            Some(ref_scene.id.as_str())
+        );
+        assert_eq!(
+            fetched.revision_notes.as_deref(),
+            Some("Needs more tension")
+        );
+        assert_eq!(
+            fetched.revision_checklist.as_deref(),
+            Some("[\"pov\",\"conflict\"]")
+        );
         assert!(!fetched.created_at.is_empty());
         assert!(!fetched.updated_at.is_empty());
         // updated_at should be newer or equal to created_at
@@ -11028,10 +11840,15 @@ mod tests {
         assert_eq!(scene.has_change, None);
 
         // Set on_timeline to false
-        let updated = db.update_scene(&scene.id, &UpdateSceneRequest {
-            on_timeline: Some(false),
-            ..Default::default()
-        }).unwrap();
+        let updated = db
+            .update_scene(
+                &scene.id,
+                &UpdateSceneRequest {
+                    on_timeline: Some(false),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         assert!(!updated.on_timeline);
 
         // Re-fetch and verify
@@ -11049,10 +11866,14 @@ mod tests {
 
         // Make 105 text updates to create 105 history entries
         for i in 0..105 {
-            db.update_scene(&scene.id, &UpdateSceneRequest {
-                text: Some(format!("Version {}", i)),
-                ..Default::default()
-            }).unwrap();
+            db.update_scene(
+                &scene.id,
+                &UpdateSceneRequest {
+                    text: Some(format!("Version {}", i)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         }
 
         let history = db.get_scene_history(&scene.id).unwrap();
@@ -11081,7 +11902,9 @@ mod tests {
             content: "test".to_string(),
         });
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Start offset cannot be negative"));
+        assert!(result
+            .unwrap_err()
+            .contains("Start offset cannot be negative"));
     }
 
     #[test]
@@ -11098,7 +11921,9 @@ mod tests {
             content: "test".to_string(),
         });
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("End offset cannot be negative"));
+        assert!(result
+            .unwrap_err()
+            .contains("End offset cannot be negative"));
     }
 
     #[test]
@@ -11115,7 +11940,9 @@ mod tests {
             content: "test".to_string(),
         });
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("End offset must be greater than start offset"));
+        assert!(result
+            .unwrap_err()
+            .contains("End offset must be greater than start offset"));
     }
 
     #[test]
@@ -11125,13 +11952,15 @@ mod tests {
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Minimum valid: end = start + 1
-        let ann = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: scene.id.clone(),
-            start_offset: 0,
-            end_offset: 1,
-            annotation_type: None,
-            content: "min range".to_string(),
-        }).unwrap();
+        let ann = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 1,
+                annotation_type: None,
+                content: "min range".to_string(),
+            })
+            .unwrap();
         assert_eq!(ann.start_offset, 0);
         assert_eq!(ann.end_offset, 1);
     }
@@ -11143,13 +11972,15 @@ mod tests {
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // start=0, end=10 should be valid
-        let ann = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: scene.id.clone(),
-            start_offset: 0,
-            end_offset: 10,
-            annotation_type: None,
-            content: "from zero".to_string(),
-        }).unwrap();
+        let ann = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 10,
+                annotation_type: None,
+                content: "from zero".to_string(),
+            })
+            .unwrap();
         assert_eq!(ann.start_offset, 0);
         assert_eq!(ann.end_offset, 10);
         assert_eq!(ann.status, "open"); // default status
@@ -11164,18 +11995,25 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let ann = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: scene.id.clone(),
-            start_offset: 0,
-            end_offset: 5,
-            annotation_type: None,
-            content: "original".to_string(),
-        }).unwrap();
+        let ann = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 5,
+                annotation_type: None,
+                content: "original".to_string(),
+            })
+            .unwrap();
 
-        let updated = db.update_annotation(&ann.id, &UpdateAnnotationRequest {
-            content: Some("changed".to_string()),
-            status: None,
-        }).unwrap();
+        let updated = db
+            .update_annotation(
+                &ann.id,
+                &UpdateAnnotationRequest {
+                    content: Some("changed".to_string()),
+                    status: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.content, "changed");
         assert_eq!(updated.status, "open"); // unchanged
@@ -11187,18 +12025,25 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let ann = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: scene.id.clone(),
-            start_offset: 0,
-            end_offset: 5,
-            annotation_type: None,
-            content: "note".to_string(),
-        }).unwrap();
+        let ann = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 5,
+                annotation_type: None,
+                content: "note".to_string(),
+            })
+            .unwrap();
 
-        let updated = db.update_annotation(&ann.id, &UpdateAnnotationRequest {
-            content: None,
-            status: Some("resolved".to_string()),
-        }).unwrap();
+        let updated = db
+            .update_annotation(
+                &ann.id,
+                &UpdateAnnotationRequest {
+                    content: None,
+                    status: Some("resolved".to_string()),
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.content, "note"); // unchanged
         assert_eq!(updated.status, "resolved");
@@ -11210,18 +12055,25 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let ann = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: scene.id.clone(),
-            start_offset: 0,
-            end_offset: 5,
-            annotation_type: None,
-            content: "old".to_string(),
-        }).unwrap();
+        let ann = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 5,
+                annotation_type: None,
+                content: "old".to_string(),
+            })
+            .unwrap();
 
-        let updated = db.update_annotation(&ann.id, &UpdateAnnotationRequest {
-            content: Some("new".to_string()),
-            status: Some("dismissed".to_string()),
-        }).unwrap();
+        let updated = db
+            .update_annotation(
+                &ann.id,
+                &UpdateAnnotationRequest {
+                    content: Some("new".to_string()),
+                    status: Some("dismissed".to_string()),
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.content, "new");
         assert_eq!(updated.status, "dismissed");
@@ -11234,18 +12086,25 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let ann = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: scene.id.clone(),
-            start_offset: 0,
-            end_offset: 5,
-            annotation_type: None,
-            content: "unchanged".to_string(),
-        }).unwrap();
+        let ann = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 5,
+                annotation_type: None,
+                content: "unchanged".to_string(),
+            })
+            .unwrap();
 
-        let result = db.update_annotation(&ann.id, &UpdateAnnotationRequest {
-            content: None,
-            status: None,
-        }).unwrap();
+        let result = db
+            .update_annotation(
+                &ann.id,
+                &UpdateAnnotationRequest {
+                    content: None,
+                    status: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(result.content, "unchanged");
         assert_eq!(result.status, "open");
@@ -11260,18 +12119,24 @@ mod tests {
         let (chapter, scene1) = setup_chapter_and_scene(&db);
 
         // Create a second scene
-        let scene2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Update scene1 to create a history entry
-        db.update_scene(&scene1.id, &UpdateSceneRequest {
-            text: Some("Updated text".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene1.id,
+            &UpdateSceneRequest {
+                text: Some("Updated text".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history = db.get_scene_history(&scene1.id).unwrap();
         assert!(!history.is_empty());
@@ -11299,10 +12164,14 @@ mod tests {
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Create a history entry
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("v1".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("v1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history = db.get_scene_history(&scene.id).unwrap();
         let valid_id = &history[0].id;
@@ -11319,34 +12188,43 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Aragorn".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Aragorn".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
         assert!(!entry.is_confirmed);
 
         // Create a bible entry to link
-        let bible = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Aragorn".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let bible = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Aragorn".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let updated = db.update_name_registry_entry(&entry.id, &UpdateNameRegistryRequest {
-            canonical_name: Some("Strider".to_string()),
-            name_type: Some("location".to_string()),
-            bible_entry_id: Some(bible.id.clone()),
-            aliases: Some("Elessar, Aragorn".to_string()),
-            is_confirmed: Some(true),
-        }).unwrap();
+        let updated = db
+            .update_name_registry_entry(
+                &entry.id,
+                &UpdateNameRegistryRequest {
+                    canonical_name: Some("Strider".to_string()),
+                    name_type: Some("location".to_string()),
+                    bible_entry_id: Some(bible.id.clone()),
+                    aliases: Some("Elessar, Aragorn".to_string()),
+                    is_confirmed: Some(true),
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.canonical_name, "Strider");
         assert_eq!(updated.name_type, "location");
@@ -11361,17 +12239,22 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Gandalf".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Gandalf".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
         // Create multiple mentions
-        db.create_name_mention(&entry.id, &scene.id, "Gandalf", 0, 7).unwrap();
-        db.create_name_mention(&entry.id, &scene.id, "Gandalf", 50, 57).unwrap();
-        db.create_name_mention(&entry.id, &scene.id, "Gandalf", 100, 107).unwrap();
+        db.create_name_mention(&entry.id, &scene.id, "Gandalf", 0, 7)
+            .unwrap();
+        db.create_name_mention(&entry.id, &scene.id, "Gandalf", 50, 57)
+            .unwrap();
+        db.create_name_mention(&entry.id, &scene.id, "Gandalf", 100, 107)
+            .unwrap();
 
         let by_registry = db.get_name_mentions_by_registry(&entry.id).unwrap();
         assert_eq!(by_registry.len(), 3);
@@ -11389,19 +12272,28 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Frodo".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Frodo".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
-        let mention = db.create_name_mention(&entry.id, &scene.id, "Frodo", 0, 5).unwrap();
+        let mention = db
+            .create_name_mention(&entry.id, &scene.id, "Frodo", 0, 5)
+            .unwrap();
         assert_eq!(mention.status, "pending"); // default
 
-        let updated = db.update_name_mention(&mention.id, &UpdateNameMentionRequest {
-            status: "confirmed".to_string(),
-        }).unwrap();
+        let updated = db
+            .update_name_mention(
+                &mention.id,
+                &UpdateNameMentionRequest {
+                    status: "confirmed".to_string(),
+                },
+            )
+            .unwrap();
         assert_eq!(updated.status, "confirmed");
     }
 
@@ -11411,14 +12303,18 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Sam".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Sam".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
-        let mention = db.create_name_mention(&entry.id, &scene.id, "Sam", 0, 3).unwrap();
+        let mention = db
+            .create_name_mention(&entry.id, &scene.id, "Sam", 0, 3)
+            .unwrap();
         db.delete_name_mention(&mention.id).unwrap();
 
         let result = db.get_name_mention(&mention.id);
@@ -11431,16 +12327,22 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Legolas".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Legolas".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
         // Create multiple mentions
-        let m1 = db.create_name_mention(&entry.id, &scene.id, "Legolas", 0, 7).unwrap();
-        let m2 = db.create_name_mention(&entry.id, &scene.id, "Legolas", 20, 27).unwrap();
+        let m1 = db
+            .create_name_mention(&entry.id, &scene.id, "Legolas", 0, 7)
+            .unwrap();
+        let m2 = db
+            .create_name_mention(&entry.id, &scene.id, "Legolas", 20, 27)
+            .unwrap();
 
         // Delete the registry entry
         db.delete_name_registry_entry(&entry.id).unwrap();
@@ -11460,24 +12362,31 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let keep = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Elizabeth".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: Some("Liz".to_string()),
-        }).unwrap();
+        let keep = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Elizabeth".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: Some("Liz".to_string()),
+            })
+            .unwrap();
 
-        let merge = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Beth".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: Some("Betty".to_string()),
-        }).unwrap();
+        let merge = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Beth".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: Some("Betty".to_string()),
+            })
+            .unwrap();
 
         // Add mentions to both
-        db.create_name_mention(&keep.id, &scene.id, "Elizabeth", 0, 9).unwrap();
-        db.create_name_mention(&merge.id, &scene.id, "Beth", 20, 24).unwrap();
-        db.create_name_mention(&merge.id, &scene.id, "Beth", 40, 44).unwrap();
+        db.create_name_mention(&keep.id, &scene.id, "Elizabeth", 0, 9)
+            .unwrap();
+        db.create_name_mention(&merge.id, &scene.id, "Beth", 20, 24)
+            .unwrap();
+        db.create_name_mention(&merge.id, &scene.id, "Beth", 40, 44)
+            .unwrap();
 
         // Merge
         let result = db.merge_name_entries(&keep.id, &merge.id).unwrap();
@@ -11503,19 +12412,23 @@ mod tests {
         setup_project(&db);
 
         // keep has alias "Beth", merge canonical is "Beth" — should dedup
-        let keep = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Elizabeth".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: Some("Beth".to_string()),
-        }).unwrap();
+        let keep = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Elizabeth".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: Some("Beth".to_string()),
+            })
+            .unwrap();
 
-        let merge = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Beth".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let merge = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Beth".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
         let result = db.merge_name_entries(&keep.id, &merge.id).unwrap();
         // "Beth" should appear only once (dedup case-insensitive)
@@ -11531,55 +12444,65 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry_a = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry_a = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let entry_b = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Bob".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry_b = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Bob".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let entry_c = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "location".to_string(),
-            name: "Castle".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry_c = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "location".to_string(),
+                name: "Castle".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         // Create relationships: A->B, A->C
-        let rel_ab = db.create_bible_relationship(&CreateBibleRelationshipRequest {
-            source_id: entry_a.id.clone(),
-            target_id: entry_b.id.clone(),
-            relationship_type: "ally".to_string(),
-            note: None,
-            status: None,
-        }).unwrap();
+        let rel_ab = db
+            .create_bible_relationship(&CreateBibleRelationshipRequest {
+                source_id: entry_a.id.clone(),
+                target_id: entry_b.id.clone(),
+                relationship_type: "ally".to_string(),
+                note: None,
+                status: None,
+            })
+            .unwrap();
 
-        let rel_ac = db.create_bible_relationship(&CreateBibleRelationshipRequest {
-            source_id: entry_a.id.clone(),
-            target_id: entry_c.id.clone(),
-            relationship_type: "lives_in".to_string(),
-            note: None,
-            status: None,
-        }).unwrap();
+        let rel_ac = db
+            .create_bible_relationship(&CreateBibleRelationshipRequest {
+                source_id: entry_a.id.clone(),
+                target_id: entry_c.id.clone(),
+                relationship_type: "lives_in".to_string(),
+                note: None,
+                status: None,
+            })
+            .unwrap();
 
         // Delete entry_a — should cascade relationships
         db.delete_bible_entry(&entry_a.id).unwrap();
@@ -11603,33 +12526,39 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Villain".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Villain".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Battle".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Battle".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "todo".to_string(),
-            title: "Fix villain".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "todo".to_string(),
+                title: "Fix villain".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_event(&entry.id, &event.id).unwrap();
         db.link_bible_entry_to_issue(&entry.id, &issue.id).unwrap();
@@ -11652,46 +12581,56 @@ mod tests {
     fn test_snapshot_restore_preserves_all_scene_fields() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Set all fields on the scene
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            title: Some("Full Scene".to_string()),
-            summary: Some("Complete summary".to_string()),
-            text: Some("<p>Full text content</p>".to_string()),
-            status: Some("revised".to_string()),
-            pov: Some("Narrator".to_string()),
-            tags: Some("important,key".to_string()),
-            notes: Some("Author notes here".to_string()),
-            todos: Some("Check continuity".to_string()),
-            word_target: Some(3000),
-            time_point: Some("2024-01-01".to_string()),
-            time_start: Some("2024-01-01".to_string()),
-            time_end: Some("2024-12-31".to_string()),
-            on_timeline: Some(true),
-            position: Some(5),
-            pov_goal: Some("Establish setting".to_string()),
-            has_conflict: Some(true),
-            has_change: Some(true),
-            tension: Some("medium".to_string()),
-            setup_for_scene_id: None,
-            payoff_of_scene_id: None,
-            revision_notes: Some("Reviewed".to_string()),
-            revision_checklist: Some("[\"done\"]".to_string()),
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                title: Some("Full Scene".to_string()),
+                summary: Some("Complete summary".to_string()),
+                text: Some("<p>Full text content</p>".to_string()),
+                status: Some("revised".to_string()),
+                pov: Some("Narrator".to_string()),
+                tags: Some("important,key".to_string()),
+                notes: Some("Author notes here".to_string()),
+                todos: Some("Check continuity".to_string()),
+                word_target: Some(3000),
+                time_point: Some("2024-01-01".to_string()),
+                time_start: Some("2024-01-01".to_string()),
+                time_end: Some("2024-12-31".to_string()),
+                on_timeline: Some(true),
+                position: Some(5),
+                pov_goal: Some("Establish setting".to_string()),
+                has_conflict: Some(true),
+                has_change: Some(true),
+                tension: Some("medium".to_string()),
+                setup_for_scene_id: None,
+                payoff_of_scene_id: None,
+                revision_notes: Some("Reviewed".to_string()),
+                revision_checklist: Some("[\"done\"]".to_string()),
+            },
+        )
+        .unwrap();
 
         // Create snapshot
         let snapshot = db.create_snapshot("Full test", None, "manual").unwrap();
 
         // Wipe the scene text to verify restore works
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("WIPED".to_string()),
-            pov: Some("WIPED".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("WIPED".to_string()),
+                pov: Some("WIPED".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Restore single scene from snapshot
-        let restored = db.restore_scene_from_snapshot(&snapshot.id, &scene.id).unwrap();
+        let restored = db
+            .restore_scene_from_snapshot(&snapshot.id, &scene.id)
+            .unwrap();
 
         assert_eq!(restored.title, "Full Scene");
         assert_eq!(restored.summary.as_deref(), Some("Complete summary"));
@@ -11720,16 +12659,24 @@ mod tests {
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Update text to v1
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Version 1".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Version 1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Update text to v2
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Version 2".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Version 2".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history_before = db.get_scene_history(&scene.id).unwrap();
         assert_eq!(history_before.len(), 2);
@@ -11752,20 +12699,29 @@ mod tests {
         let (chapter, _) = setup_chapter_and_scene(&db);
 
         // "The" starts sentences, "Mordor" appears mid-sentence twice
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Test".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("The army marched to Mordor. They reached Mordor at dawn.".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Test".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("The army marched to Mordor. They reached Mordor at dawn.".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (new_entries, new_mentions) = db.scan_names().unwrap();
         assert!(new_entries >= 1, "Should detect Mordor as a proper noun");
-        assert!(new_mentions >= 2, "Should record at least 2 mentions of Mordor");
+        assert!(
+            new_mentions >= 2,
+            "Should record at least 2 mentions of Mordor"
+        );
 
         // Verify it's in the registry
         let entries = db.get_name_registry_entries(None).unwrap();
@@ -11780,28 +12736,38 @@ mod tests {
         let (chapter, _) = setup_chapter_and_scene(&db);
 
         // Create a bible entry named "Gandalf"
-        let bible = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Gandalf".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let bible = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Gandalf".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         // Create scene with "Gandalf" mentioned mid-sentence twice
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Wizard scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("The wizard called Gandalf arrived. Everyone knew Gandalf well.".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Wizard scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some(
+                    "The wizard called Gandalf arrived. Everyone knew Gandalf well.".to_string(),
+                ),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         db.scan_names().unwrap();
 
@@ -11809,7 +12775,10 @@ mod tests {
         let gandalf_entry = entries.iter().find(|e| e.canonical_name == "Gandalf");
         assert!(gandalf_entry.is_some());
         // Should be auto-linked to the bible entry
-        assert_eq!(gandalf_entry.unwrap().bible_entry_id.as_deref(), Some(bible.id.as_str()));
+        assert_eq!(
+            gandalf_entry.unwrap().bible_entry_id.as_deref(),
+            Some(bible.id.as_str())
+        );
     }
 
     #[test]
@@ -11818,17 +12787,23 @@ mod tests {
         setup_project(&db);
         let (chapter, _) = setup_chapter_and_scene(&db);
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Test".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Test".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         // "Thorin" appears only once mid-sentence
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("The dwarf called Thorin spoke softly.".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("The dwarf called Thorin spoke softly.".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (new_entries, _) = db.scan_names().unwrap();
         assert_eq!(new_entries, 0, "Single occurrence should be ignored");
@@ -11840,12 +12815,14 @@ mod tests {
         setup_project(&db);
         let (chapter, _) = setup_chapter_and_scene(&db);
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "HTML test".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "HTML test".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
         // HTML tags should be stripped; "Elrond" appears twice mid-sentence
         db.update_scene(&scene.id, &UpdateSceneRequest {
             text: Some("<p>The elf lord <strong>Elrond</strong> spoke. Everyone heard Elrond clearly.</p>".to_string()),
@@ -11868,14 +12845,16 @@ mod tests {
             name_type: Some("location".to_string()),
             bible_entry_id: None,
             aliases: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_name_registry_entry(&CreateNameRegistryRequest {
             canonical_name: "Gandalf".to_string(),
             name_type: Some("character".to_string()),
             bible_entry_id: None,
             aliases: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let locations = db.get_name_registry_entries(Some("location")).unwrap();
         assert_eq!(locations.len(), 1);
@@ -11896,20 +12875,27 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Unchanged".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Unchanged".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
-        let updated = db.update_name_registry_entry(&entry.id, &UpdateNameRegistryRequest {
-            canonical_name: None,
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-            is_confirmed: None,
-        }).unwrap();
+        let updated = db
+            .update_name_registry_entry(
+                &entry.id,
+                &UpdateNameRegistryRequest {
+                    canonical_name: None,
+                    name_type: None,
+                    bible_entry_id: None,
+                    aliases: None,
+                    is_confirmed: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.canonical_name, "Unchanged");
         assert!(!updated.is_confirmed);
@@ -11927,10 +12913,12 @@ mod tests {
         db.create_snapshot("Manual", None, "manual").unwrap();
 
         // Create a pre_restore snapshot (should never be cleaned by type filter)
-        db.create_snapshot("Pre-restore", None, "pre_restore").unwrap();
+        db.create_snapshot("Pre-restore", None, "pre_restore")
+            .unwrap();
 
         // Create a pre_bulk snapshot (could be cleaned if old)
-        db.create_snapshot("Pre-bulk recent", None, "pre_bulk").unwrap();
+        db.create_snapshot("Pre-bulk recent", None, "pre_bulk")
+            .unwrap();
 
         let before = db.get_snapshots().unwrap();
         assert_eq!(before.len(), 3);
@@ -11952,10 +12940,14 @@ mod tests {
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Create some history
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("v1".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("v1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history_before = db.get_scene_history(&scene.id).unwrap();
         assert_eq!(history_before.len(), 1);
@@ -11989,7 +12981,8 @@ mod tests {
             end_offset: 60,
             annotation_type: None,
             content: "Third".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_annotation(&CreateAnnotationRequest {
             scene_id: scene.id.clone(),
@@ -11997,7 +12990,8 @@ mod tests {
             end_offset: 20,
             annotation_type: None,
             content: "First".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_annotation(&CreateAnnotationRequest {
             scene_id: scene.id.clone(),
@@ -12005,7 +12999,8 @@ mod tests {
             end_offset: 40,
             annotation_type: None,
             content: "Second".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         let anns = db.get_annotations(&scene.id).unwrap();
         assert_eq!(anns.len(), 3);
@@ -12022,13 +13017,15 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let ann = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: scene.id.clone(),
-            start_offset: 0,
-            end_offset: 10,
-            annotation_type: Some("highlight".to_string()),
-            content: "Important passage".to_string(),
-        }).unwrap();
+        let ann = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 10,
+                annotation_type: Some("highlight".to_string()),
+                content: "Important passage".to_string(),
+            })
+            .unwrap();
 
         assert_eq!(ann.annotation_type, "highlight");
     }
@@ -12041,24 +13038,30 @@ mod tests {
         setup_project(&db);
 
         // Create rich data
-        let ch = db.create_chapter(&crate::models::CreateChapterRequest {
-            title: "Chapter 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch = db
+            .create_chapter(&crate::models::CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Scene 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch.id.clone(),
-            title: "Scene 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch.id.clone(),
+                title: "Scene 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
@@ -12069,16 +13072,17 @@ mod tests {
             status: None,
             tags: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_arc(&crate::models::CreateArcRequest {
             name: "Main Arc".to_string(),
             description: None,
             stakes: None,
-            characters: None,
             status: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_event(&CreateEventRequest {
             title: "Key event".to_string(),
@@ -12088,7 +13092,8 @@ mod tests {
             time_end: None,
             event_type: None,
             importance: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Snapshot
         let snap = db.create_snapshot("Full state", None, "manual").unwrap();
@@ -12127,9 +13132,14 @@ mod tests {
 
         let before = db.get_scene(&scene.id).unwrap();
 
-        let after = db.update_scene(&scene.id, &UpdateSceneRequest {
-            ..Default::default()
-        }).unwrap();
+        let after = db
+            .update_scene(
+                &scene.id,
+                &UpdateSceneRequest {
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(before.title, after.title);
         assert_eq!(before.text, after.text);
@@ -12143,16 +13153,18 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "faction".to_string(),
-            name: "The Guild".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "faction".to_string(),
+                name: "The Guild".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         let cf = entry.custom_fields.unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&cf).unwrap();
@@ -12166,16 +13178,18 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "glossary".to_string(),
-            name: "Mithril".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "glossary".to_string(),
+                name: "Mithril".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         let cf = entry.custom_fields.unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&cf).unwrap();
@@ -12189,16 +13203,18 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "concept".to_string(),
-            name: "Magic".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "concept".to_string(),
+                name: "Magic".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         // Concepts have no default custom_fields (returns None)
         assert!(entry.custom_fields.is_none());
@@ -12209,16 +13225,18 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "object".to_string(),
-            name: "Sword".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "object".to_string(),
+                name: "Sword".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         assert!(entry.custom_fields.is_none());
     }
@@ -12236,13 +13254,15 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let created = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: scene.id.clone(),
-            start_offset: 5,
-            end_offset: 15,
-            annotation_type: Some("note".to_string()),
-            content: "Get by ID".to_string(),
-        }).unwrap();
+        let created = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 5,
+                end_offset: 15,
+                annotation_type: Some("note".to_string()),
+                content: "Get by ID".to_string(),
+            })
+            .unwrap();
 
         let fetched = db.get_annotation(&created.id).unwrap();
         assert_eq!(fetched.id, created.id);
@@ -12268,35 +13288,41 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry_a = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Hero".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry_a = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Hero".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let entry_b = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Sidekick".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry_b = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Sidekick".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let rel = db.create_bible_relationship(&CreateBibleRelationshipRequest {
-            source_id: entry_a.id.clone(),
-            target_id: entry_b.id.clone(),
-            relationship_type: "friend".to_string(),
-            note: Some("Best friends".to_string()),
-            status: Some("active".to_string()),
-        }).unwrap();
+        let rel = db
+            .create_bible_relationship(&CreateBibleRelationshipRequest {
+                source_id: entry_a.id.clone(),
+                target_id: entry_b.id.clone(),
+                relationship_type: "friend".to_string(),
+                note: Some("Best friends".to_string()),
+                status: Some("active".to_string()),
+            })
+            .unwrap();
 
         let fetched = db.get_bible_relationship(&rel.id).unwrap();
         assert_eq!(fetched.id, rel.id);
@@ -12325,7 +13351,8 @@ mod tests {
         // Create a custom template
         db.create_template(&CreateTemplateRequest {
             name: "AAA Custom".to_string(), // alphabetically before builtins
-        }).unwrap();
+        })
+        .unwrap();
 
         let templates = db.get_templates().unwrap();
         assert!(templates.len() >= 5); // 4 builtins + 1 custom
@@ -12345,17 +13372,21 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "Test Template".to_string(),
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "Test Template".to_string(),
+            })
+            .unwrap();
 
-        let step = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: template.id.clone(),
-            name: "Step One".to_string(),
-            description: Some("The first step".to_string()),
-            typical_position: Some(0.25),
-            color: Some("#ff0000".to_string()),
-        }).unwrap();
+        let step = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: template.id.clone(),
+                name: "Step One".to_string(),
+                description: Some("The first step".to_string()),
+                typical_position: Some(0.25),
+                color: Some("#ff0000".to_string()),
+            })
+            .unwrap();
 
         let fetched = db.get_template_step(&step.id).unwrap();
         assert_eq!(fetched.id, step.id);
@@ -12380,12 +13411,14 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let created = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Thorin".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: Some("Oakenshield".to_string()),
-        }).unwrap();
+        let created = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Thorin".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: Some("Oakenshield".to_string()),
+            })
+            .unwrap();
 
         let fetched = db.get_name_registry_entry(&created.id).unwrap();
         assert_eq!(fetched.id, created.id);
@@ -12402,14 +13435,18 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let entry = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Bilbo".to_string(),
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-        }).unwrap();
+        let entry = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Bilbo".to_string(),
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+            })
+            .unwrap();
 
-        let mention = db.create_name_mention(&entry.id, &scene.id, "Bilbo", 10, 15).unwrap();
+        let mention = db
+            .create_name_mention(&entry.id, &scene.id, "Bilbo", 10, 15)
+            .unwrap();
 
         let fetched = db.get_name_mention(&mention.id).unwrap();
         assert_eq!(fetched.id, mention.id);
@@ -12432,18 +13469,30 @@ mod tests {
         assert!(empty_history.is_empty());
 
         // Create 3 versions
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("First draft".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Second draft".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Third draft".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("First draft".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Second draft".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Third draft".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history = db.get_scene_history(&scene.id).unwrap();
         assert_eq!(history.len(), 3);
@@ -12480,9 +13529,11 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let template = db.create_template(&CreateTemplateRequest {
-            name: "Ordered".to_string(),
-        }).unwrap();
+        let template = db
+            .create_template(&CreateTemplateRequest {
+                name: "Ordered".to_string(),
+            })
+            .unwrap();
 
         // Create steps out of order
         db.create_template_step(&CreateTemplateStepRequest {
@@ -12491,21 +13542,24 @@ mod tests {
             description: None,
             typical_position: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.create_template_step(&CreateTemplateStepRequest {
             template_id: template.id.clone(),
             name: "First".to_string(),
             description: None,
             typical_position: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
         db.create_template_step(&CreateTemplateStepRequest {
             template_id: template.id.clone(),
             name: "Second".to_string(),
             description: None,
             typical_position: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let steps = db.get_template_steps(&template.id).unwrap();
         assert_eq!(steps.len(), 3);
@@ -12531,7 +13585,8 @@ mod tests {
             status: None,
             tags: None,
             color: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let results = db.search_bible("nonexistent_term_xyz").unwrap();
         assert!(results.is_empty());
@@ -12553,19 +13608,26 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&crate::models::CreateChapterRequest {
-            title: "My Chapter".to_string(),
-            summary: Some("A summary".to_string()),
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&crate::models::CreateChapterRequest {
+                title: "My Chapter".to_string(),
+                summary: Some("A summary".to_string()),
+                position: None,
+            })
+            .unwrap();
 
-        let updated = db.update_chapter(&chapter.id, &crate::models::UpdateChapterRequest {
-            title: None,
-            summary: None,
-            status: None,
-            notes: None,
-            position: None,
-        }).unwrap();
+        let updated = db
+            .update_chapter(
+                &chapter.id,
+                &crate::models::UpdateChapterRequest {
+                    title: None,
+                    summary: None,
+                    status: None,
+                    notes: None,
+                    position: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.title, "My Chapter");
         assert_eq!(updated.summary.as_deref(), Some("A summary"));
@@ -12578,30 +13640,37 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Unchanged".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Unchanged".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let updated = db.update_bible_entry(&entry.id, &crate::models::UpdateBibleEntryRequest {
-            name: None,
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            image_path: None,
-            notes: None,
-            todos: None,
-            color: None,
-            custom_fields: None,
-        }).unwrap();
+        let updated = db
+            .update_bible_entry(
+                &entry.id,
+                &crate::models::UpdateBibleEntryRequest {
+                    name: None,
+                    aliases: None,
+                    short_description: None,
+                    full_description: None,
+                    status: None,
+                    tags: None,
+                    image_path: None,
+                    notes: None,
+                    todos: None,
+                    color: None,
+                    custom_fields: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.name, "Unchanged");
         assert_eq!(updated.entry_type, "character");
@@ -12614,23 +13683,28 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let arc = db.create_arc(&crate::models::CreateArcRequest {
-            name: "Steady Arc".to_string(),
-            description: Some("Unchanged".to_string()),
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&crate::models::CreateArcRequest {
+                name: "Steady Arc".to_string(),
+                description: Some("Unchanged".to_string()),
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
-        let updated = db.update_arc(&arc.id, &crate::models::UpdateArcRequest {
-            name: None,
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let updated = db
+            .update_arc(
+                &arc.id,
+                &crate::models::UpdateArcRequest {
+                    name: None,
+                    description: None,
+                    stakes: None,
+                    status: None,
+                    color: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.name, "Steady Arc");
         assert_eq!(updated.description.as_deref(), Some("Unchanged"));
@@ -12643,25 +13717,32 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Steady Event".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Steady Event".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
-        let updated = db.update_event(&event.id, &crate::models::UpdateEventRequest {
-            title: None,
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let updated = db
+            .update_event(
+                &event.id,
+                &crate::models::UpdateEventRequest {
+                    title: None,
+                    description: None,
+                    time_point: None,
+                    time_start: None,
+                    time_end: None,
+                    event_type: None,
+                    importance: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.title, "Steady Event");
     }
@@ -12673,17 +13754,25 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "todo".to_string(),
-            title: "Steady Issue".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "todo".to_string(),
+                title: "Steady Issue".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
-        let updated = db.update_issue(&issue.id, &crate::models::UpdateIssueRequest {
-            status: None,
-            resolution_note: None,
-        }).unwrap();
+        let updated = db
+            .update_issue(
+                &issue.id,
+                &crate::models::UpdateIssueRequest {
+                    status: None,
+                    resolution_note: None,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.title, "Steady Issue");
         assert_eq!(updated.issue_type, "todo");
@@ -12697,14 +13786,15 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let arc = db.create_arc(&crate::models::CreateArcRequest {
-            name: "Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&crate::models::CreateArcRequest {
+                name: "Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
         // Second link should not fail or duplicate
@@ -12720,15 +13810,17 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "E".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "E".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
@@ -12743,12 +13835,14 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "todo".to_string(),
-            title: "I".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "todo".to_string(),
+                title: "I".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_scene_to_issue(&scene.id, &issue.id).unwrap();
         db.link_scene_to_issue(&scene.id, &issue.id).unwrap();
@@ -12762,26 +13856,30 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "C".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "C".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "E".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "E".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_event(&entry.id, &event.id).unwrap();
         db.link_bible_entry_to_event(&entry.id, &event.id).unwrap();
@@ -12795,23 +13893,27 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "C".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "C".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "todo".to_string(),
-            title: "I".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "todo".to_string(),
+                title: "I".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         db.link_bible_entry_to_issue(&entry.id, &issue.id).unwrap();
         db.link_bible_entry_to_issue(&entry.id, &issue.id).unwrap();
@@ -12828,14 +13930,15 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let arc = db.create_arc(&crate::models::CreateArcRequest {
-            name: "Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&crate::models::CreateArcRequest {
+                name: "Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
         // Never linked — unlink should succeed silently
         let result = db.unlink_scene_from_arc(&scene.id, &arc.id);
@@ -12848,15 +13951,17 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "E".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "E".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         let result = db.unlink_scene_from_event(&scene.id, &event.id);
         assert!(result.is_ok());
@@ -12868,12 +13973,14 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let issue = db.create_issue(&CreateIssueRequest {
-            issue_type: "todo".to_string(),
-            title: "I".to_string(),
-            description: None,
-            severity: None,
-        }).unwrap();
+        let issue = db
+            .create_issue(&CreateIssueRequest {
+                issue_type: "todo".to_string(),
+                title: "I".to_string(),
+                description: None,
+                severity: None,
+            })
+            .unwrap();
 
         let result = db.unlink_scene_from_issue(&scene.id, &issue.id);
         assert!(result.is_ok());
@@ -12892,7 +13999,8 @@ mod tests {
             description: Some("New Desc".to_string()),
             word_target: Some(100000),
             daily_word_target: Some(2000),
-        }).unwrap();
+        })
+        .unwrap();
 
         let project = db.get_project().unwrap();
         assert_eq!(project.title, "New Title");
@@ -12909,23 +14017,29 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let c1 = db.create_chapter(&crate::models::CreateChapterRequest {
-            title: "Ch 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let c1 = db
+            .create_chapter(&crate::models::CreateChapterRequest {
+                title: "Ch 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let c2 = db.create_chapter(&crate::models::CreateChapterRequest {
-            title: "Ch 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let c2 = db
+            .create_chapter(&crate::models::CreateChapterRequest {
+                title: "Ch 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let c3 = db.create_chapter(&crate::models::CreateChapterRequest {
-            title: "Ch 3".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let c3 = db
+            .create_chapter(&crate::models::CreateChapterRequest {
+                title: "Ch 3".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         assert!(c2.position > c1.position);
         assert!(c3.position > c2.position);
@@ -12938,32 +14052,40 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&crate::models::CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&crate::models::CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S3".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S3".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         assert!(s2.position > s1.position);
         assert!(s3.position > s2.position);
@@ -12976,18 +14098,22 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let chapter = db.create_chapter(&crate::models::CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&crate::models::CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Explicit".to_string(),
-            summary: None,
-            position: Some(99),
-        }).unwrap();
+        let s = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Explicit".to_string(),
+                summary: None,
+                position: Some(99),
+            })
+            .unwrap();
 
         assert_eq!(s.position, 99);
     }
@@ -13046,15 +14172,21 @@ mod tests {
     fn test_find_replace_regex_special_chars_dot() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Mr. Smith met Mrs. Jones".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Mr. Smith met Mrs. Jones".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // "." should be literal, not regex "any character"
-        let count = db.find_replace_in_scenes(".", "!", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes(".", "!", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert_eq!(updated.text, "Mr! Smith met Mrs! Jones");
@@ -13064,14 +14196,20 @@ mod tests {
     fn test_find_replace_regex_special_chars_dollar_and_caret() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Price is $100 and 100% done".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Price is $100 and 100% done".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("$100", "€200", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("$100", "€200", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert!(updated.text.contains("€200"));
@@ -13082,14 +14220,20 @@ mod tests {
     fn test_find_replace_regex_special_chars_brackets_and_parens() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Call func(x) or array[0]".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Call func(x) or array[0]".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("func(x)", "method(y)", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("func(x)", "method(y)", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert!(updated.text.contains("method(y)"));
@@ -13099,14 +14243,20 @@ mod tests {
     fn test_find_replace_regex_special_chars_pipe_star_plus() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("A|B and C* and D+E".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("A|B and C* and D+E".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("A|B", "X|Y", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("A|B", "X|Y", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert!(updated.text.contains("X|Y"));
@@ -13116,14 +14266,20 @@ mod tests {
     fn test_find_replace_backslash_literal() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some(r"Path: C:\Users\Alice".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some(r"Path: C:\Users\Alice".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes(r"C:\Users", r"D:\People", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes(r"C:\Users", r"D:\People", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert!(updated.text.contains(r"D:\People"));
@@ -13135,14 +14291,20 @@ mod tests {
     fn test_find_replace_with_empty_replacement() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Hello beautiful world".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Hello beautiful world".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("beautiful ", "", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("beautiful ", "", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert_eq!(updated.text, "Hello world");
@@ -13152,14 +14314,20 @@ mod tests {
     fn test_find_replace_delete_all_occurrences() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("um well um okay um fine".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("um well um okay um fine".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("um ", "", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("um ", "", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert_eq!(updated.text, "well okay fine");
@@ -13171,14 +14339,20 @@ mod tests {
     fn test_find_replace_unicode_accented_characters() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("She was très naïve about the café".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("She was très naïve about the café".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("café", "restaurant", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("café", "restaurant", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert!(updated.text.contains("restaurant"));
@@ -13189,14 +14363,20 @@ mod tests {
     fn test_find_replace_unicode_emoji() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("mood: happy face here".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("mood: happy face here".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("happy", "😊", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("happy", "😊", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert!(updated.text.contains("😊"));
@@ -13208,33 +14388,48 @@ mod tests {
     fn test_find_replace_nested_html_tags() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<div><p>hello</p> world <b>hello</b></div>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<div><p>hello</p> world <b>hello</b></div>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("hello", "goodbye", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("hello", "goodbye", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         // Both occurrences replaced, tags preserved
-        assert_eq!(updated.text, "<div><p>goodbye</p> world <b>goodbye</b></div>");
+        assert_eq!(
+            updated.text,
+            "<div><p>goodbye</p> world <b>goodbye</b></div>"
+        );
     }
 
     #[test]
     fn test_find_replace_does_not_modify_tag_attributes() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some(r#"<span class="bold">bold text</span>"#.to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some(r#"<span class="bold">bold text</span>"#.to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // "bold" appears in class attribute AND in text content
-        let count = db.find_replace_in_scenes("bold", "italic", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("bold", "italic", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         // Class attribute should be preserved, only text content changed
@@ -13246,14 +14441,20 @@ mod tests {
     fn test_find_replace_plain_text_no_html() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Just plain text without any tags".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Just plain text without any tags".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let count = db.find_replace_in_scenes("plain", "simple", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("plain", "simple", false, false, None)
+            .unwrap();
         assert_eq!(count, 1);
         let updated = db.get_scene(&scene.id).unwrap();
         assert_eq!(updated.text, "Just simple text without any tags");
@@ -13265,29 +14466,39 @@ mod tests {
     fn test_find_replace_across_many_scenes_all_updated() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Create 5 scenes with the same word
         let mut scene_ids = Vec::new();
         for i in 0..5 {
-            let s = db.create_scene(&CreateSceneRequest {
-                chapter_id: chapter.id.clone(),
-                title: format!("Scene {}", i),
-                summary: None,
-                position: None,
-            }).unwrap();
-            db.update_scene(&s.id, &UpdateSceneRequest {
-                text: Some(format!("Scene {} has the target word here", i)),
-                ..Default::default()
-            }).unwrap();
+            let s = db
+                .create_scene(&CreateSceneRequest {
+                    chapter_id: chapter.id.clone(),
+                    title: format!("Scene {}", i),
+                    summary: None,
+                    position: None,
+                })
+                .unwrap();
+            db.update_scene(
+                &s.id,
+                &UpdateSceneRequest {
+                    text: Some(format!("Scene {} has the target word here", i)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             scene_ids.push(s.id);
         }
 
-        let count = db.find_replace_in_scenes("target", "replaced", false, false, None).unwrap();
+        let count = db
+            .find_replace_in_scenes("target", "replaced", false, false, None)
+            .unwrap();
         assert_eq!(count, 5);
 
         for id in &scene_ids {
@@ -13303,7 +14514,7 @@ mod tests {
     fn test_split_scene_empty_text_at_zero() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Scene text is empty by default ("")
         let result = db.split_scene(&scene.id, 0, None);
@@ -13317,7 +14528,7 @@ mod tests {
     fn test_split_scene_empty_text_at_one_fails() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Position 1 is beyond empty text
         let result = db.split_scene(&scene.id, 1, None);
@@ -13331,13 +14542,17 @@ mod tests {
     fn test_split_scene_unicode_multibyte() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // "Café" is 4 chars but 5 bytes (é is 2 bytes in UTF-8)
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Café world".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Café world".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Split after "Caf" (3 chars) — should split before é
         let (first, second) = db.split_scene(&scene.id, 3, None).unwrap();
@@ -13349,13 +14564,17 @@ mod tests {
     fn test_split_scene_unicode_emoji() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // "Hi 😊 bye" — emoji is 1 char but 4 bytes in UTF-8
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Hi 😊 bye".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Hi 😊 bye".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Split at position 4 (after "Hi 😊")
         let (first, second) = db.split_scene(&scene.id, 4, None).unwrap();
@@ -13367,13 +14586,17 @@ mod tests {
     fn test_split_scene_unicode_cjk() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Chinese characters: each is 3 bytes in UTF-8
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("你好世界".to_string()), // 4 chars, 12 bytes
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("你好世界".to_string()), // 4 chars, 12 bytes
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (first, second) = db.split_scene(&scene.id, 2, None).unwrap();
         assert_eq!(first.text, "你好");
@@ -13386,23 +14609,31 @@ mod tests {
     fn test_split_scene_sequential_preserves_position_order() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Create scene with text
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Original".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("AAABBBCCC".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Original".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("AAABBBCCC".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // First split: "AAA" | "BBBCCC"
         let (first, second) = db.split_scene(&scene.id, 3, Some("Second")).unwrap();
@@ -13419,10 +14650,14 @@ mod tests {
         assert_eq!(scenes.len(), 3);
         // Positions should be strictly increasing
         for i in 1..scenes.len() {
-            assert!(scenes[i].position > scenes[i-1].position,
+            assert!(
+                scenes[i].position > scenes[i - 1].position,
                 "Position {} should be > position {} (scene {} vs {})",
-                scenes[i].position, scenes[i-1].position,
-                scenes[i].title, scenes[i-1].title);
+                scenes[i].position,
+                scenes[i - 1].position,
+                scenes[i].title,
+                scenes[i - 1].title
+            );
         }
         assert_eq!(scenes[0].text, "AAA");
         assert_eq!(scenes[1].text, "BBB");
@@ -13435,17 +14670,21 @@ mod tests {
     fn test_split_scene_preserves_metadata() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("First half. Second half.".to_string()),
-            status: Some("revised".to_string()),
-            pov: Some("Alice".to_string()),
-            tags: Some("action,drama".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("First half. Second half.".to_string()),
+                status: Some("revised".to_string()),
+                pov: Some("Alice".to_string()),
+                tags: Some("action,drama".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let (first, second) = db.split_scene(&scene.id, 12, None).unwrap();
+        let (_first, second) = db.split_scene(&scene.id, 12, None).unwrap();
         // Status, pov, tags inherited by new scene
         assert_eq!(second.status, "revised");
         assert_eq!(second.pov.as_deref(), Some("Alice"));
@@ -13462,29 +14701,39 @@ mod tests {
     fn test_merge_scenes_one_has_notes_other_does_not() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            notes: Some("Important note".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                notes: Some("Important note".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         // s2 has no notes (None)
 
         let merged = db.merge_scenes(&[s1.id.clone(), s2.id.clone()]).unwrap();
@@ -13496,33 +14745,47 @@ mod tests {
     fn test_merge_scenes_both_have_notes() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            notes: Some("Note A".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            notes: Some("Note B".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                notes: Some("Note A".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                notes: Some("Note B".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let merged = db.merge_scenes(&[s1.id.clone(), s2.id.clone()]).unwrap();
         assert_eq!(merged.notes.as_deref(), Some("Note A\n---\nNote B"));
@@ -13532,33 +14795,47 @@ mod tests {
     fn test_merge_scenes_empty_notes_not_included() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            notes: Some("".to_string()), // Empty string, not None
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            notes: Some("Real note".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                notes: Some("".to_string()), // Empty string, not None
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                notes: Some("Real note".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let merged = db.merge_scenes(&[s1.id.clone(), s2.id.clone()]).unwrap();
         // Empty notes should be filtered out
@@ -13569,24 +14846,30 @@ mod tests {
     fn test_merge_scenes_neither_has_notes() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         let merged = db.merge_scenes(&[s1.id.clone(), s2.id.clone()]).unwrap();
         assert!(merged.notes.is_none());
@@ -13598,29 +14881,39 @@ mod tests {
     fn test_merge_scenes_one_empty_text() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("Content here".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("Content here".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         // s2 has empty text (default "")
 
         let merged = db.merge_scenes(&[s1.id.clone(), s2.id.clone()]).unwrap();
@@ -13632,24 +14925,30 @@ mod tests {
     fn test_merge_scenes_both_empty_text() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         let merged = db.merge_scenes(&[s1.id.clone(), s2.id.clone()]).unwrap();
         assert_eq!(merged.text, "");
@@ -13661,50 +14960,75 @@ mod tests {
     fn test_merge_three_scenes_text_and_notes() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S3".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S3".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("Part one.".to_string()),
-            notes: Some("Note 1".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            text: Some("Part two.".to_string()),
-            notes: Some("Note 2".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s3.id, &UpdateSceneRequest {
-            text: Some("Part three.".to_string()),
-            notes: Some("Note 3".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("Part one.".to_string()),
+                notes: Some("Note 1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                text: Some("Part two.".to_string()),
+                notes: Some("Note 2".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s3.id,
+            &UpdateSceneRequest {
+                text: Some("Part three.".to_string()),
+                notes: Some("Note 3".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let merged = db.merge_scenes(&[s1.id.clone(), s2.id.clone(), s3.id.clone()]).unwrap();
+        let merged = db
+            .merge_scenes(&[s1.id.clone(), s2.id.clone(), s3.id.clone()])
+            .unwrap();
         assert_eq!(merged.text, "Part one.\n\nPart two.\n\nPart three.");
-        assert_eq!(merged.notes.as_deref(), Some("Note 1\n---\nNote 2\n---\nNote 3"));
+        assert_eq!(
+            merged.notes.as_deref(),
+            Some("Note 1\n---\nNote 2\n---\nNote 3")
+        );
 
         // Other scenes should be soft-deleted
         let remaining = db.get_scenes(&chapter.id).unwrap();
@@ -13718,24 +15042,30 @@ mod tests {
     fn test_merge_scenes_deleted_scenes_appear_in_trash() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "S2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "S2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         db.merge_scenes(&[s1.id.clone(), s2.id.clone()]).unwrap();
 
@@ -13751,7 +15081,7 @@ mod tests {
         // Simulates migration idempotency: opening the same DB file twice
         // should not corrupt data (since migrations use IF NOT EXISTS and
         // column-existence checks).
-        use std::path::Path;
+
 
         let temp_dir = tempfile::TempDir::new().unwrap();
         let path = temp_dir.path().join("test.cahnon");
@@ -13763,18 +15093,22 @@ mod tests {
                 title: "Test Project".to_string(),
                 author: None,
                 description: None,
-            }).unwrap();
-            let chapter = db.create_chapter(&CreateChapterRequest {
-                title: "Ch".to_string(),
-                summary: None,
-                position: None,
-            }).unwrap();
+            })
+            .unwrap();
+            let chapter = db
+                .create_chapter(&CreateChapterRequest {
+                    title: "Ch".to_string(),
+                    summary: None,
+                    position: None,
+                })
+                .unwrap();
             db.create_scene(&CreateSceneRequest {
                 chapter_id: chapter.id.clone(),
                 title: "Scene".to_string(),
                 summary: None,
                 position: None,
-            }).unwrap();
+            })
+            .unwrap();
         }
 
         // Second open — runs migrations again on existing schema
@@ -13805,7 +15139,8 @@ mod tests {
 
         // Create manual, pre_restore, and pre_bulk snapshots
         db.create_snapshot("Manual", None, "manual").unwrap();
-        db.create_snapshot("Pre-restore", None, "pre_restore").unwrap();
+        db.create_snapshot("Pre-restore", None, "pre_restore")
+            .unwrap();
         db.create_snapshot("Pre-bulk", None, "pre_bulk").unwrap();
 
         // None are old enough to be cleaned
@@ -13822,7 +15157,8 @@ mod tests {
         setup_project(&db);
 
         // Create a fresh pre_bulk snapshot
-        db.create_snapshot("Recent pre_bulk", None, "pre_bulk").unwrap();
+        db.create_snapshot("Recent pre_bulk", None, "pre_bulk")
+            .unwrap();
 
         let deleted = db.cleanup_expired_snapshots().unwrap();
         assert_eq!(deleted, 0);
@@ -13837,12 +15173,16 @@ mod tests {
     fn test_restore_scene_from_snapshot_deleted_scene_not_updated() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Original text".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Original text".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let snapshot = db.create_snapshot("Snap", None, "manual").unwrap();
 
@@ -13862,12 +15202,16 @@ mod tests {
     fn test_get_snapshot_scenes_returns_snapshotted_scenes() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Snapshotted text".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Snapshotted text".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let snapshot = db.create_snapshot("Snap", None, "manual").unwrap();
 
@@ -13892,12 +15236,16 @@ mod tests {
     fn test_scan_names_whitespace_only_scene() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("   \n\n\t  ".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("   \n\n\t  ".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (entries, mentions) = db.scan_names().unwrap();
         assert_eq!(entries, 0);
@@ -13908,12 +15256,16 @@ mod tests {
     fn test_scan_names_html_only_scene() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p></p><br/><div></div>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p></p><br/><div></div>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (entries, mentions) = db.scan_names().unwrap();
         assert_eq!(entries, 0);
@@ -13926,29 +15278,44 @@ mod tests {
     fn test_scan_names_mention_limit_fifty() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // "Alice" must appear mid-sentence (not first word) to avoid the
         // first-word-of-sentence filter. Repeat 60 times to exceed the limit.
-        let text = (0..60).map(|_| "Then Alice said hello.").collect::<Vec<_>>().join(" ");
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some(text),
-            ..Default::default()
-        }).unwrap();
+        let text = (0..60)
+            .map(|_| "Then Alice said hello.")
+            .collect::<Vec<_>>()
+            .join(" ");
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some(text),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (entries, mentions) = db.scan_names().unwrap();
         assert_eq!(entries, 1); // One name: Alice
-        assert!(mentions <= 50, "Mentions should be capped at 50, got {}", mentions);
+        assert!(
+            mentions <= 50,
+            "Mentions should be capped at 50, got {}",
+            mentions
+        );
     }
 
     // --- Soft-delete consistency: deleted scenes excluded from search ---
@@ -13957,12 +15324,16 @@ mod tests {
     fn test_soft_deleted_scene_excluded_from_global_search() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Unique searchable xylophone text".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Unique searchable xylophone text".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Should find it
         let results = db.global_search("xylophone", None).unwrap();
@@ -13973,7 +15344,10 @@ mod tests {
 
         // Should NOT find it anymore
         let results = db.global_search("xylophone", None).unwrap();
-        let scene_results: Vec<_> = results.iter().filter(|r| r.result_type == "scene").collect();
+        let scene_results: Vec<_> = results
+            .iter()
+            .filter(|r| r.result_type == "scene")
+            .collect();
         assert!(scene_results.is_empty());
     }
 
@@ -13982,16 +15356,18 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Zarqwix the Peculiar".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Zarqwix the Peculiar".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         let results = db.global_search("Zarqwix", None).unwrap();
         assert!(!results.is_empty());
@@ -13999,7 +15375,10 @@ mod tests {
         db.delete_bible_entry(&entry.id).unwrap();
 
         let results = db.global_search("Zarqwix", None).unwrap();
-        let bible_results: Vec<_> = results.iter().filter(|r| r.result_type == "bible_entry").collect();
+        let bible_results: Vec<_> = results
+            .iter()
+            .filter(|r| r.result_type == "bible_entry")
+            .collect();
         assert!(bible_results.is_empty());
     }
 
@@ -14058,19 +15437,23 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "100% complete".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let _event = db
+            .create_event(&CreateEventRequest {
+                title: "100% complete".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         // "%" is a LIKE wildcard. Searching for "%" should find this event
         // but not act as a "match everything" wildcard
-        let results = db.global_search("100%", Some(vec!["events".to_string()])).unwrap();
+        let results = db
+            .global_search("100%", Some(vec!["events".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].title, "100% complete");
     }
@@ -14088,10 +15471,13 @@ mod tests {
             time_end: None,
             event_type: None,
             importance: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // "_" is a LIKE wildcard for single char. Should be escaped
-        let results = db.global_search("file_name", Some(vec!["events".to_string()])).unwrap();
+        let results = db
+            .global_search("file_name", Some(vec!["events".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
     }
 
@@ -14101,30 +15487,38 @@ mod tests {
     fn test_duplicate_scene_position_after_original() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "First".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Second".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Third".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let _s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "First".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Second".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let _s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Third".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Duplicate the middle scene
         let dup = db.duplicate_scene(&s2.id, false).unwrap();
@@ -14145,20 +15539,24 @@ mod tests {
     fn test_duplicate_scene_copies_all_metadata() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Some text content".to_string()),
-            summary: Some("A summary".to_string()),
-            status: Some("revised".to_string()),
-            pov: Some("Bob".to_string()),
-            tags: Some("tag1,tag2".to_string()),
-            notes: Some("Important notes".to_string()),
-            todos: Some("TODO item".to_string()),
-            word_target: Some(1000),
-            on_timeline: Some(false),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Some text content".to_string()),
+                summary: Some("A summary".to_string()),
+                status: Some("revised".to_string()),
+                pov: Some("Bob".to_string()),
+                tags: Some("tag1,tag2".to_string()),
+                notes: Some("Important notes".to_string()),
+                todos: Some("TODO item".to_string()),
+                word_target: Some(1000),
+                on_timeline: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let dup = db.duplicate_scene(&scene.id, false).unwrap();
 
@@ -14179,13 +15577,17 @@ mod tests {
     fn test_duplicate_scene_structure_only_has_empty_text() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("This should not be copied".to_string()),
-            summary: Some("But summary should".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("This should not be copied".to_string()),
+                summary: Some("But summary should".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let dup = db.duplicate_scene(&scene.id, true).unwrap();
         assert_eq!(dup.text, ""); // Structure only — no text
@@ -14198,36 +15600,43 @@ mod tests {
     fn test_import_json_backup_preserves_arcs_and_events() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Create an arc and event
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Main Plot".to_string(),
-            description: Some("The central conflict".to_string()),
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let _arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Main Plot".to_string(),
+                description: Some("The central conflict".to_string()),
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Battle".to_string(),
-            description: Some("The big battle".to_string()),
-            time_point: Some("Day 5".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let _event = db
+            .create_event(&CreateEventRequest {
+                title: "Battle".to_string(),
+                description: Some("The big battle".to_string()),
+                time_point: Some("Day 5".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         // Export
         let json = db.export_json_backup().unwrap();
 
         // Modify data
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Modified text".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Modified text".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Import (restores original state)
         db.import_json_backup(&json).unwrap();
@@ -14251,7 +15660,8 @@ mod tests {
         setup_project(&db);
 
         // Invalid JSON: missing required "project" field
-        let bad_json = r#"{"chapters": [], "scenes": [], "bible_entries": [], "arcs": [], "events": []}"#;
+        let bad_json =
+            r#"{"chapters": [], "scenes": [], "bible_entries": [], "arcs": [], "events": []}"#;
         let result = db.import_json_backup(bad_json);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid JSON"));
@@ -14267,33 +15677,42 @@ mod tests {
     fn test_reorder_scenes_explicit_ordering() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "A".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "B".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "C".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "A".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "B".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "C".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Reverse the order: C, B, A
-        db.reorder_scenes(&chapter.id, &[s3.id.clone(), s2.id.clone(), s1.id.clone()]).unwrap();
+        db.reorder_scenes(&chapter.id, &[s3.id.clone(), s2.id.clone(), s1.id.clone()])
+            .unwrap();
 
         let scenes = db.get_scenes(&chapter.id).unwrap();
         assert_eq!(scenes[0].title, "C");
@@ -14313,23 +15732,29 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Movable".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Movable".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         let moved = db.move_scene_to_chapter(&scene.id, &ch2.id, 0).unwrap();
         assert_eq!(moved.chapter_id, ch2.id);
@@ -14384,22 +15809,30 @@ mod tests {
     fn test_update_scene_non_text_field_no_history() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Initial text".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Initial text".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history_before = db.get_scene_history(&scene.id).unwrap();
 
         // Update only non-text fields
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            title: Some("New Title".to_string()),
-            status: Some("revised".to_string()),
-            pov: Some("Carol".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                title: Some("New Title".to_string()),
+                status: Some("revised".to_string()),
+                pov: Some("Carol".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history_after = db.get_scene_history(&scene.id).unwrap();
         // No new history entry since text wasn't changed
@@ -14412,12 +15845,16 @@ mod tests {
     fn test_global_search_finds_annotations() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Some text here".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Some text here".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         db.create_annotation(&CreateAnnotationRequest {
             scene_id: scene.id.clone(),
@@ -14425,9 +15862,12 @@ mod tests {
             end_offset: 4,
             annotation_type: None,
             content: "Unique xyzannotation content".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
-        let results = db.global_search("xyzannotation", Some(vec!["annotations".to_string()])).unwrap();
+        let results = db
+            .global_search("xyzannotation", Some(vec!["annotations".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].result_type, "annotation");
     }
@@ -14440,9 +15880,12 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.create_cut(Some(&scene.id), "Unique xyzcut snippet here").unwrap();
+        db.create_cut(Some(&scene.id), "Unique xyzcut snippet here")
+            .unwrap();
 
-        let results = db.global_search("xyzcut", Some(vec!["cuts".to_string()])).unwrap();
+        let results = db
+            .global_search("xyzcut", Some(vec!["cuts".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].result_type, "cut");
     }
@@ -14462,9 +15905,12 @@ mod tests {
             time_end: None,
             event_type: None,
             importance: None,
-        }).unwrap();
+        })
+        .unwrap();
 
-        let results = db.global_search("xyzeventname", Some(vec!["events".to_string()])).unwrap();
+        let results = db
+            .global_search("xyzeventname", Some(vec!["events".to_string()]))
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].result_type, "event");
     }
@@ -14476,22 +15922,28 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Unique xyzdeletedevent".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Unique xyzdeletedevent".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
-        let results = db.global_search("xyzdeletedevent", Some(vec!["events".to_string()])).unwrap();
+        let results = db
+            .global_search("xyzdeletedevent", Some(vec!["events".to_string()]))
+            .unwrap();
         assert_eq!(results.len(), 1);
 
         db.delete_event(&event.id).unwrap();
 
-        let results = db.global_search("xyzdeletedevent", Some(vec!["events".to_string()])).unwrap();
+        let results = db
+            .global_search("xyzdeletedevent", Some(vec!["events".to_string()]))
+            .unwrap();
         assert!(results.is_empty());
     }
 
@@ -14503,14 +15955,20 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        let cut = db.create_cut(Some(&scene.id), "Unique xyzdeletedcut snippet").unwrap();
+        let cut = db
+            .create_cut(Some(&scene.id), "Unique xyzdeletedcut snippet")
+            .unwrap();
 
-        let results = db.global_search("xyzdeletedcut", Some(vec!["cuts".to_string()])).unwrap();
+        let results = db
+            .global_search("xyzdeletedcut", Some(vec!["cuts".to_string()]))
+            .unwrap();
         assert_eq!(results.len(), 1);
 
         db.delete_cut(&cut.id).unwrap();
 
-        let results = db.global_search("xyzdeletedcut", Some(vec!["cuts".to_string()])).unwrap();
+        let results = db
+            .global_search("xyzdeletedcut", Some(vec!["cuts".to_string()]))
+            .unwrap();
         assert!(results.is_empty());
     }
 
@@ -14522,70 +15980,90 @@ mod tests {
         setup_project(&db);
 
         // 1. Create structure
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter One".to_string(),
-            summary: Some("The beginning".to_string()),
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter One".to_string(),
+                summary: Some("The beginning".to_string()),
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Opening Scene".to_string(),
-            summary: Some("The hero appears".to_string()),
-            position: None,
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Opening Scene".to_string(),
+                summary: Some("The hero appears".to_string()),
+                position: None,
+            })
+            .unwrap();
 
         // 2. Edit with rich content
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>The hero walked into the sunset.</p>".to_string()),
-            pov: Some("Hero".to_string()),
-            tags: Some("opening,dramatic".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The hero walked into the sunset.</p>".to_string()),
+                pov: Some("Hero".to_string()),
+                tags: Some("opening,dramatic".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // 3. Add bible entry and link to scene
-        let entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "The Hero".to_string(),
-            aliases: None,
-            short_description: Some("Protagonist".to_string()),
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "The Hero".to_string(),
+                aliases: None,
+                short_description: Some("Protagonist".to_string()),
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: entry.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // 4. Create arc and link
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Hero's Journey".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Hero's Journey".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
 
         // 5. Create snapshot
         let snapshot = db.create_snapshot("Before edits", None, "manual").unwrap();
 
         // 6. Modify everything
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>COMPLETELY DIFFERENT TEXT</p>".to_string()),
-            pov: Some("Villain".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_chapter(&chapter.id, &UpdateChapterRequest {
-            title: Some("Modified Chapter".to_string()),
-            summary: None,
-            status: None,
-            notes: None,
-            position: None,
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>COMPLETELY DIFFERENT TEXT</p>".to_string()),
+                pov: Some("Villain".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_chapter(
+            &chapter.id,
+            &UpdateChapterRequest {
+                title: Some("Modified Chapter".to_string()),
+                summary: None,
+                status: None,
+                notes: None,
+                position: None,
+            },
+        )
+        .unwrap();
 
         // 7. Restore snapshot
         db.restore_snapshot(&snapshot.id).unwrap();
@@ -14600,7 +16078,10 @@ mod tests {
 
         let restored_scenes = db.get_scenes(&restored_chapters[0].id).unwrap();
         assert_eq!(restored_scenes.len(), 1);
-        assert_eq!(restored_scenes[0].text, "<p>The hero walked into the sunset.</p>");
+        assert_eq!(
+            restored_scenes[0].text,
+            "<p>The hero walked into the sunset.</p>"
+        );
         assert_eq!(restored_scenes[0].pov.as_deref(), Some("Hero"));
         assert_eq!(restored_scenes[0].tags.as_deref(), Some("opening,dramatic"));
 
@@ -14620,22 +16101,30 @@ mod tests {
     fn test_end_to_end_split_then_merge_roundtrip() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Original".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("First part. Second part.".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Original".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("First part. Second part.".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Split at position 12 (after "First part. ")
         let (first, second) = db.split_scene(&scene.id, 12, Some("Continued")).unwrap();
@@ -14643,7 +16132,9 @@ mod tests {
         assert_eq!(second.text, "Second part.");
 
         // Now merge them back
-        let merged = db.merge_scenes(&[first.id.clone(), second.id.clone()]).unwrap();
+        let merged = db
+            .merge_scenes(&[first.id.clone(), second.id.clone()])
+            .unwrap();
         assert_eq!(merged.text, "First part. \n\nSecond part.");
 
         // Only one scene remains
@@ -14660,21 +16151,30 @@ mod tests {
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         let original_text = "Alice met Bob at the park".to_string();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some(original_text.clone()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some(original_text.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Create snapshot before find/replace
-        let snapshot = db.create_snapshot("Before replace", None, "manual").unwrap();
+        let snapshot = db
+            .create_snapshot("Before replace", None, "manual")
+            .unwrap();
 
         // Find/replace uses direct SQL (not update_scene), so no scene history
-        db.find_replace_in_scenes("Alice", "Carol", false, false, None).unwrap();
+        db.find_replace_in_scenes("Alice", "Carol", false, false, None)
+            .unwrap();
         let after_replace = db.get_scene(&scene.id).unwrap();
         assert_eq!(after_replace.text, "Carol met Bob at the park");
 
         // Restore from snapshot to get original text back
-        let restored = db.restore_scene_from_snapshot(&snapshot.id, &scene.id).unwrap();
+        let restored = db
+            .restore_scene_from_snapshot(&snapshot.id, &scene.id)
+            .unwrap();
         assert_eq!(restored.text, original_text);
     }
 
@@ -14686,14 +16186,19 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Hello world".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Hello world".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history_before = db.get_scene_history(&scene.id).unwrap();
 
-        db.find_replace_in_scenes("Hello", "Goodbye", false, false, None).unwrap();
+        db.find_replace_in_scenes("Hello", "Goodbye", false, false, None)
+            .unwrap();
 
         let history_after = db.get_scene_history(&scene.id).unwrap();
         // find_replace uses direct SQL, bypasses save_scene_to_history
@@ -14710,43 +16215,58 @@ mod tests {
     fn test_timeline_adjacent_ranges_no_conflict() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene A".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Scene B".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene A".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene B".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Scene A: Day 1 - Day 3, Scene B: Day 4 - Day 5 (no overlap)
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            pov: Some("Alice".to_string()),
-            time_start: Some("Day 1".to_string()),
-            time_end: Some("Day 3".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            pov: Some("Alice".to_string()),
-            time_start: Some("Day 4".to_string()),
-            time_end: Some("Day 5".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                pov: Some("Alice".to_string()),
+                time_start: Some("Day 1".to_string()),
+                time_end: Some("Day 3".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                pov: Some("Alice".to_string()),
+                time_start: Some("Day 4".to_string()),
+                time_end: Some("Day 5".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let conflicts = db.detect_timeline_conflicts().unwrap();
-        let overlap_conflicts: Vec<_> = conflicts.iter()
+        let overlap_conflicts: Vec<_> = conflicts
+            .iter()
             .filter(|c| c.conflict_type == "overlapping_time" || c.conflict_type == "same_time")
             .collect();
         assert!(overlap_conflicts.is_empty());
@@ -14758,31 +16278,40 @@ mod tests {
     fn test_timeline_three_way_overlap() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Three scenes all at the same time point with same POV
         for i in 0..3 {
-            let s = db.create_scene(&CreateSceneRequest {
-                chapter_id: chapter.id.clone(),
-                title: format!("Scene {}", i),
-                summary: None,
-                position: None,
-            }).unwrap();
-            db.update_scene(&s.id, &UpdateSceneRequest {
-                pov: Some("Bob".to_string()),
-                time_point: Some("Noon".to_string()),
-                on_timeline: Some(true),
-                ..Default::default()
-            }).unwrap();
+            let s = db
+                .create_scene(&CreateSceneRequest {
+                    chapter_id: chapter.id.clone(),
+                    title: format!("Scene {}", i),
+                    summary: None,
+                    position: None,
+                })
+                .unwrap();
+            db.update_scene(
+                &s.id,
+                &UpdateSceneRequest {
+                    pov: Some("Bob".to_string()),
+                    time_point: Some("Noon".to_string()),
+                    on_timeline: Some(true),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         }
 
         let conflicts = db.detect_timeline_conflicts().unwrap();
         // 3 scenes → 3 pairwise conflicts (0-1, 0-2, 1-2)
-        let time_conflicts: Vec<_> = conflicts.iter()
+        let time_conflicts: Vec<_> = conflicts
+            .iter()
             .filter(|c| c.conflict_type == "same_time" || c.conflict_type == "overlapping_time")
             .collect();
         assert_eq!(time_conflicts.len(), 3);
@@ -14794,43 +16323,58 @@ mod tests {
     fn test_timeline_point_vs_range_overlap() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Point Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Range Scene".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Point Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Range Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Scene 1: time_point = "Day 3"
         // Scene 2: time_start = "Day 1", time_end = "Day 5" (encompasses Day 3)
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            pov: Some("Carol".to_string()),
-            time_point: Some("Day 3".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            pov: Some("Carol".to_string()),
-            time_start: Some("Day 1".to_string()),
-            time_end: Some("Day 5".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                pov: Some("Carol".to_string()),
+                time_point: Some("Day 3".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                pov: Some("Carol".to_string()),
+                time_start: Some("Day 1".to_string()),
+                time_end: Some("Day 5".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let conflicts = db.detect_timeline_conflicts().unwrap();
-        let overlap_conflicts: Vec<_> = conflicts.iter()
+        let overlap_conflicts: Vec<_> = conflicts
+            .iter()
             .filter(|c| c.conflict_type == "overlapping_time")
             .collect();
         assert_eq!(overlap_conflicts.len(), 1);
@@ -14842,39 +16386,54 @@ mod tests {
     fn test_timeline_no_pov_no_overlap_conflict() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "No POV 1".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "No POV 2".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "No POV 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "No POV 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Same time but NO pov — should not produce overlap conflicts
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            time_point: Some("Dawn".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            time_point: Some("Dawn".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                time_point: Some("Dawn".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                time_point: Some("Dawn".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let conflicts = db.detect_timeline_conflicts().unwrap();
-        let overlap_conflicts: Vec<_> = conflicts.iter()
+        let overlap_conflicts: Vec<_> = conflicts
+            .iter()
             .filter(|c| c.conflict_type == "same_time" || c.conflict_type == "overlapping_time")
             .collect();
         assert!(overlap_conflicts.is_empty());
@@ -14886,24 +16445,32 @@ mod tests {
     fn test_timeline_missing_time_with_pov_and_on_timeline() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Missing time".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Missing time".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s.id, &UpdateSceneRequest {
-            pov: Some("Diane".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s.id,
+            &UpdateSceneRequest {
+                pov: Some("Diane".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Scene has POV but no time — should appear as missing_time
         // BUT get_all_scenes_for_timeline filters by (time_point IS NOT NULL OR time_start IS NOT NULL)
@@ -14911,7 +16478,10 @@ mod tests {
         let conflicts = db.detect_timeline_conflicts().unwrap();
         // The detect_missing_time_conflicts operates on the results of get_all_scenes_for_timeline,
         // which ONLY includes scenes WITH time data. So a scene with POV but no time won't appear.
-        let missing: Vec<_> = conflicts.iter().filter(|c| c.conflict_type == "missing_time").collect();
+        let missing: Vec<_> = conflicts
+            .iter()
+            .filter(|c| c.conflict_type == "missing_time")
+            .collect();
         assert_eq!(missing.len(), 0);
     }
 
@@ -14921,22 +16491,32 @@ mod tests {
     fn test_compare_scene_versions_same_version() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Version one".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Version two".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Version one".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Version two".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history = db.get_scene_history(&scene.id).unwrap();
-        assert!(history.len() >= 1);
+        assert!(!history.is_empty());
 
         // Compare a version against itself
-        let (text_a, text_b) = db.compare_scene_versions(&scene.id, &history[0].id, &history[0].id).unwrap();
+        let (text_a, text_b) = db
+            .compare_scene_versions(&scene.id, &history[0].id, &history[0].id)
+            .unwrap();
         assert_eq!(text_a, text_b);
     }
 
@@ -14946,33 +16526,47 @@ mod tests {
     fn test_compare_scene_versions_returns_correct_texts() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Create v1
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("First version".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("First version".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         // Create v2 (v1 saved to history)
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Second version".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Second version".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         // Create v3 (v2 saved to history)
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Third version".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Third version".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history = db.get_scene_history(&scene.id).unwrap();
         // History is ordered DESC, so [0] = most recent, [1] = oldest
         assert!(history.len() >= 2);
 
-        let (text_a, text_b) = db.compare_scene_versions(
-            &scene.id,
-            &history[0].id,  // Second version (saved when v3 was written)
-            &history[1].id,  // First version (saved when v2 was written)
-        ).unwrap();
+        let (text_a, text_b) = db
+            .compare_scene_versions(
+                &scene.id,
+                &history[0].id, // Second version (saved when v3 was written)
+                &history[1].id, // First version (saved when v2 was written)
+            )
+            .unwrap();
 
         assert_eq!(text_a, "Second version");
         assert_eq!(text_b, "First version");
@@ -14984,16 +16578,24 @@ mod tests {
     fn test_compare_scene_versions_wrong_scene_id_fails() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("V1".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("V2".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("V1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("V2".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let history = db.get_scene_history(&scene.id).unwrap();
         assert!(!history.is_empty());
@@ -15009,14 +16611,18 @@ mod tests {
     fn test_scene_history_limited_to_100() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Create 105 versions (each update saves the previous text to history)
         for i in 0..105 {
-            db.update_scene(&scene.id, &UpdateSceneRequest {
-                text: Some(format!("Version {}", i)),
-                ..Default::default()
-            }).unwrap();
+            db.update_scene(
+                &scene.id,
+                &UpdateSceneRequest {
+                    text: Some(format!("Version {}", i)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         }
 
         let history = db.get_scene_history(&scene.id).unwrap();
@@ -15031,24 +16637,30 @@ mod tests {
     fn test_deleted_scene_not_in_get_scenes() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Keep".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Delete".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let _s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Keep".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Delete".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         db.delete_scene(&s2.id).unwrap();
 
@@ -15064,16 +16676,20 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Keep".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Delete".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let _ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Keep".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Delete".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         db.delete_chapter(&ch2.id).unwrap();
 
@@ -15089,14 +16705,15 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Delete me".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Delete me".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
         db.delete_arc(&arc.id).unwrap();
 
@@ -15111,15 +16728,17 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Delete me".to_string(),
-            description: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-            event_type: None,
-            importance: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Delete me".to_string(),
+                description: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                event_type: None,
+                importance: None,
+            })
+            .unwrap();
 
         db.delete_event(&event.id).unwrap();
 
@@ -15133,7 +16752,7 @@ mod tests {
     fn test_get_scene_fails_for_deleted_scene() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         db.delete_scene(&scene.id).unwrap();
 
@@ -15147,13 +16766,17 @@ mod tests {
     fn test_off_timeline_scene_not_in_timeline_query() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let (chapter, scene) = setup_chapter_and_scene(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            time_point: Some("Day 1".to_string()),
-            on_timeline: Some(false), // Explicitly off timeline
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                time_point: Some("Day 1".to_string()),
+                on_timeline: Some(false), // Explicitly off timeline
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let timeline_scenes = db.get_all_scenes_for_timeline().unwrap();
         assert!(timeline_scenes.is_empty());
@@ -15166,26 +16789,30 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let e1 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
-        let e2 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Bob".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let e1 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
+        let e2 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Bob".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: e1.id.clone(),
@@ -15193,7 +16820,8 @@ mod tests {
             relationship_type: "friend".to_string(),
             note: Some("Best friends".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let rels = db.get_bible_relationships(&e1.id).unwrap();
         assert_eq!(rels.len(), 1);
@@ -15211,24 +16839,31 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "A".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "B".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let ch3 = db.create_chapter(&CreateChapterRequest {
-            title: "C".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "A".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "B".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let ch3 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "C".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Reverse: C, B, A
-        db.reorder_chapters(&[ch3.id.clone(), ch2.id.clone(), ch1.id.clone()]).unwrap();
+        db.reorder_chapters(&[ch3.id.clone(), ch2.id.clone(), ch1.id.clone()])
+            .unwrap();
 
         let chapters = db.get_chapters().unwrap();
         assert_eq!(chapters[0].title, "C");
@@ -15242,33 +16877,47 @@ mod tests {
     fn test_word_count_excludes_deleted_scenes() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Keep".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Delete".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Keep".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Delete".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("one two three".to_string()),
-            ..Default::default()
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            text: Some("four five six seven".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("one two three".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                text: Some("four five six seven".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let counts_before = db.get_word_counts().unwrap();
         assert_eq!(counts_before.total, 7); // 3 + 4
@@ -15325,16 +16974,18 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let _entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let _entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         let result = db.create_association(&CreateAssociationRequest {
             scene_id: "nonexistent-scene".to_string(),
@@ -15365,14 +17016,15 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Main Arc".to_string(),
-            description: None,
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Main Arc".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
 
         let result = db.link_scene_to_arc("nonexistent-scene", &arc.id);
         assert!(result.is_err());
@@ -15385,15 +17037,17 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let event = db.create_event(&CreateEventRequest {
-            title: "Event 1".to_string(),
-            description: None,
-            event_type: None,
-            importance: None,
-            time_point: None,
-            time_start: None,
-            time_end: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "Event 1".to_string(),
+                description: None,
+                event_type: None,
+                importance: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+            })
+            .unwrap();
 
         let result = db.link_scene_to_event("nonexistent-scene", &event.id);
         assert!(result.is_err());
@@ -15408,48 +17062,58 @@ mod tests {
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
         // Add rich content to scene
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Once upon a time...</p>".to_string()),
-            summary: Some("A beginning".to_string()),
-            pov: Some("Alice".to_string()),
-            tags: Some("fantasy,opening".to_string()),
-            time_point: Some("1200".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Once upon a time...</p>".to_string()),
+                summary: Some("A beginning".to_string()),
+                pov: Some("Alice".to_string()),
+                tags: Some("fantasy,opening".to_string()),
+                time_point: Some("1200".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Create multiple bible entries
-        let char1 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Alice".to_string(),
-            aliases: Some("Ali".to_string()),
-            short_description: Some("The hero".to_string()),
-            full_description: Some("A brave adventurer".to_string()),
-            status: Some("canon".to_string()),
-            tags: Some("hero,main".to_string()),
-            color: Some("#ff0000".to_string()),
-        }).unwrap();
+        let char1 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                aliases: Some("Ali".to_string()),
+                short_description: Some("The hero".to_string()),
+                full_description: Some("A brave adventurer".to_string()),
+                status: Some("canon".to_string()),
+                tags: Some("hero,main".to_string()),
+                color: Some("#ff0000".to_string()),
+            })
+            .unwrap();
 
-        let loc1 = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "location".to_string(),
-            name: "Castle".to_string(),
-            aliases: None,
-            short_description: None,
-            full_description: None,
-            status: None,
-            tags: None,
-            color: None,
-        }).unwrap();
+        let loc1 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "location".to_string(),
+                name: "Castle".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
 
         // Create associations
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: char1.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
             scene_id: scene.id.clone(),
             bible_entry_id: loc1.id.clone(),
-        }).unwrap();
+        })
+        .unwrap();
 
         // Create bible relationship
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
@@ -15458,29 +17122,33 @@ mod tests {
             relationship_type: "lives_in".to_string(),
             note: Some("Her ancestral home".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Create arc and link
-        let arc = db.create_arc(&CreateArcRequest {
-            name: "Quest Arc".to_string(),
-            description: Some("The main quest".to_string()),
-            stakes: None,
-            characters: None,
-            status: None,
-            color: None,
-        }).unwrap();
+        let arc = db
+            .create_arc(&CreateArcRequest {
+                name: "Quest Arc".to_string(),
+                description: Some("The main quest".to_string()),
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
         db.link_scene_to_arc(&scene.id, &arc.id).unwrap();
 
         // Create event and link
-        let event = db.create_event(&CreateEventRequest {
-            title: "The Call".to_string(),
-            description: Some("Adventure begins".to_string()),
-            event_type: None,
-            importance: None,
-            time_point: Some("1200".to_string()),
-            time_start: None,
-            time_end: None,
-        }).unwrap();
+        let event = db
+            .create_event(&CreateEventRequest {
+                title: "The Call".to_string(),
+                description: Some("Adventure begins".to_string()),
+                event_type: None,
+                importance: None,
+                time_point: Some("1200".to_string()),
+                time_start: None,
+                time_end: None,
+            })
+            .unwrap();
         db.link_scene_to_event(&scene.id, &event.id).unwrap();
 
         // Export JSON
@@ -15504,7 +17172,9 @@ mod tests {
         assert_eq!(scene_data["time_point"], "1200");
 
         // Verify bible data
-        let char_data = parsed["bible_entries"].as_array().unwrap()
+        let char_data = parsed["bible_entries"]
+            .as_array()
+            .unwrap()
             .iter()
             .find(|e| e["name"] == "Alice")
             .unwrap();
@@ -15520,48 +17190,62 @@ mod tests {
         setup_project(&db);
 
         // Create chapter with all fields
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Rich Chapter".to_string(),
-            summary: Some("A detailed chapter".to_string()),
-            position: None,
-        }).unwrap();
-        db.update_chapter(&chapter.id, &UpdateChapterRequest {
-            title: None,
-            summary: None,
-            status: Some("writing".to_string()),
-            notes: Some("Author notes here".to_string()),
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Rich Chapter".to_string(),
+                summary: Some("A detailed chapter".to_string()),
+                position: None,
+            })
+            .unwrap();
+        db.update_chapter(
+            &chapter.id,
+            &UpdateChapterRequest {
+                title: None,
+                summary: None,
+                status: Some("writing".to_string()),
+                notes: Some("Author notes here".to_string()),
+                position: None,
+            },
+        )
+        .unwrap();
 
         // Create scene with all fields
-        let scene = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Rich Scene".to_string(),
-            summary: Some("Scene summary".to_string()),
-            position: None,
-        }).unwrap();
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Rich content here</p>".to_string()),
-            pov: Some("Narrator".to_string()),
-            tags: Some("tag1,tag2".to_string()),
-            notes: Some("Scene notes".to_string()),
-            status: Some("revision".to_string()),
-            time_point: Some("Day 1".to_string()),
-            on_timeline: Some(true),
-            ..Default::default()
-        }).unwrap();
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Rich Scene".to_string(),
+                summary: Some("Scene summary".to_string()),
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Rich content here</p>".to_string()),
+                pov: Some("Narrator".to_string()),
+                tags: Some("tag1,tag2".to_string()),
+                notes: Some("Scene notes".to_string()),
+                status: Some("revision".to_string()),
+                time_point: Some("Day 1".to_string()),
+                on_timeline: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Create bible entry with all fields
-        let _entry = db.create_bible_entry(&CreateBibleEntryRequest {
-            entry_type: "character".to_string(),
-            name: "Protagonist".to_string(),
-            aliases: Some("Hero, Main".to_string()),
-            short_description: Some("Short desc".to_string()),
-            full_description: Some("Full description".to_string()),
-            status: Some("canon".to_string()),
-            tags: Some("main,hero".to_string()),
-            color: Some("#00ff00".to_string()),
-        }).unwrap();
+        let _entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Protagonist".to_string(),
+                aliases: Some("Hero, Main".to_string()),
+                short_description: Some("Short desc".to_string()),
+                full_description: Some("Full description".to_string()),
+                status: Some("canon".to_string()),
+                tags: Some("main,hero".to_string()),
+                color: Some("#00ff00".to_string()),
+            })
+            .unwrap();
 
         // Export
         let json = db.export_json_backup().unwrap();
@@ -15599,13 +17283,18 @@ mod tests {
             name_type: Some("character".to_string()),
             bible_entry_id: None,
             aliases: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Create scenes mentioning Alice multiple times (not at sentence start)
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("Then Alice arrived. Later Alice spoke.".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("Then Alice arrived. Later Alice spoke.".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let (new_entries, _new_mentions) = db.scan_names().unwrap();
 
@@ -15614,7 +17303,8 @@ mod tests {
 
         // Verify only one registry entry for Alice
         let entries = db.get_name_registry_entries(None).unwrap();
-        let alice_entries: Vec<_> = entries.iter()
+        let alice_entries: Vec<_> = entries
+            .iter()
             .filter(|e| e.canonical_name.to_lowercase() == "alice")
             .collect();
         assert_eq!(alice_entries.len(), 1);
@@ -15628,22 +17318,32 @@ mod tests {
         setup_project(&db);
         let (_chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Original content for export</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Original content for export</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Export markdown before changes
         let original_markdown = db.export_markdown().unwrap();
 
         // Create snapshot
-        let snapshot = db.create_snapshot("Before changes", None, "manual").unwrap();
+        let snapshot = db
+            .create_snapshot("Before changes", None, "manual")
+            .unwrap();
 
         // Modify content
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Modified content</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Modified content</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let modified_markdown = db.export_markdown().unwrap();
         assert_ne!(original_markdown, modified_markdown);
@@ -15662,33 +17362,42 @@ mod tests {
     fn test_reorder_scenes_within_chapter() {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
-        let chapter = db.create_chapter(&CreateChapterRequest {
-            title: "Ch".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Ch".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "First".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Second".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: chapter.id.clone(),
-            title: "Third".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "First".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Second".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Third".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
         // Reverse order
-        db.reorder_scenes(&chapter.id, &[s3.id.clone(), s1.id.clone(), s2.id.clone()]).unwrap();
+        db.reorder_scenes(&chapter.id, &[s3.id.clone(), s1.id.clone(), s2.id.clone()])
+            .unwrap();
 
         let scenes = db.get_scenes(&chapter.id).unwrap();
         assert_eq!(scenes[0].title, "Third");
@@ -15703,49 +17412,71 @@ mod tests {
         let (db, _temp_dir) = create_test_db();
         setup_project(&db);
 
-        let ch1 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter One".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        let ch2 = db.create_chapter(&CreateChapterRequest {
-            title: "Chapter Two".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
+        let ch1 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter One".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        let ch2 = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter Two".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
 
-        let s1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Scene A".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s1.id, &UpdateSceneRequest {
-            text: Some("<p>Content A</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Scene A".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s1.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Content A</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let s2 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch1.id.clone(),
-            title: "Scene B".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s2.id, &UpdateSceneRequest {
-            text: Some("<p>Content B</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch1.id.clone(),
+                title: "Scene B".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s2.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Content B</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        let s3 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch2.id.clone(),
-            title: "Scene C".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s3.id, &UpdateSceneRequest {
-            text: Some("<p>Content C</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s3 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch2.id.clone(),
+                title: "Scene C".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s3.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Content C</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let markdown = db.export_markdown().unwrap();
 
@@ -15770,10 +17501,14 @@ mod tests {
         setup_project(&db);
         let (chapter, scene) = setup_chapter_and_scene(&db);
 
-        db.update_scene(&scene.id, &UpdateSceneRequest {
-            text: Some("<p>Searchable unique word xyzzyqwer</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Searchable unique word xyzzyqwer</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Verify searchable before delete
         let results = db.global_search("xyzzyqwer", None).unwrap();
@@ -15910,24 +17645,36 @@ mod tests {
             summary: Some("Aelys et Theron descendent dans les mines abandonnées sous Verendhal. Ils trouvent le premier fragment du Cristal, mais réveillent un gardien ancien. Premier combat magique d'Aelys.".to_string()),
             position: None,
         }).unwrap();
-        db.update_chapter(&ch3.id, &UpdateChapterRequest {
-            title: None, summary: None,
-            status: Some("draft".to_string()),
-            notes: Some("Le gardien doit être lié à Nyxaroth — foreshadowing subtil.".to_string()),
-            position: None,
-        }).unwrap();
+        db.update_chapter(
+            &ch3.id,
+            &UpdateChapterRequest {
+                title: None,
+                summary: None,
+                status: Some("draft".to_string()),
+                notes: Some(
+                    "Le gardien doit être lié à Nyxaroth — foreshadowing subtil.".to_string(),
+                ),
+                position: None,
+            },
+        )
+        .unwrap();
 
         let ch4 = db.create_chapter(&CreateChapterRequest {
             title: "Chapitre 3 — Le Conseil des Vents".to_string(),
             summary: Some("Arrivée à Skyreach, la cité flottante. Rencontre avec Kael, troisième héritier. Le Conseil refuse de leur remettre le second fragment. Intrigues politiques et trahison d'un conseiller.".to_string()),
             position: None,
         }).unwrap();
-        db.update_chapter(&ch4.id, &UpdateChapterRequest {
-            title: None, summary: None,
-            status: Some("in progress".to_string()),
-            notes: None,
-            position: None,
-        }).unwrap();
+        db.update_chapter(
+            &ch4.id,
+            &UpdateChapterRequest {
+                title: None,
+                summary: None,
+                status: Some("in progress".to_string()),
+                notes: None,
+                position: None,
+            },
+        )
+        .unwrap();
 
         let ch5 = db.create_chapter(&CreateChapterRequest {
             title: "Chapitre 4 — La Traversée du Voile".to_string(),
@@ -16204,15 +17951,19 @@ mod tests {
             summary: Some("Les trois héritiers arrivent au Temple. Description du lieu mystique. Préparation du rituel.".to_string()),
             position: None,
         }).unwrap();
-        db.update_scene(&s4_1.id, &UpdateSceneRequest {
-            status: Some("planned".to_string()),
-            pov: Some("Aelys".to_string()),
-            tags: Some("temple,climax,préparation".to_string()),
-            time_point: Some("An 300 — Jour 15".to_string()),
-            on_timeline: Some(true),
-            tension: Some("medium".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s4_1.id,
+            &UpdateSceneRequest {
+                status: Some("planned".to_string()),
+                pov: Some("Aelys".to_string()),
+                tags: Some("temple,climax,préparation".to_string()),
+                time_point: Some("An 300 — Jour 15".to_string()),
+                on_timeline: Some(true),
+                tension: Some("medium".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let s4_2 = db.create_scene(&CreateSceneRequest {
             chapter_id: ch5.id.clone(),
@@ -16220,34 +17971,46 @@ mod tests {
             summary: Some("Nyxaroth tente de traverser le Voile. Les héritiers doivent choisir : reconstituer le Cristal (risqué) ou le détruire définitivement (sacrifice).".to_string()),
             position: None,
         }).unwrap();
-        db.update_scene(&s4_2.id, &UpdateSceneRequest {
-            status: Some("to write".to_string()),
-            pov: Some("Aelys".to_string()),
-            tags: Some("climax,combat,choix,sacrifice".to_string()),
-            time_point: Some("An 300 — Jour 15".to_string()),
-            on_timeline: Some(true),
-            tension: Some("high".to_string()),
-            has_conflict: Some(true),
-            has_change: Some(true),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s4_2.id,
+            &UpdateSceneRequest {
+                status: Some("to write".to_string()),
+                pov: Some("Aelys".to_string()),
+                tags: Some("climax,combat,choix,sacrifice".to_string()),
+                time_point: Some("An 300 — Jour 15".to_string()),
+                on_timeline: Some(true),
+                tension: Some("high".to_string()),
+                has_conflict: Some(true),
+                has_change: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // --- Épilogue scenes (ch6 - planned) ---
-        let s5_1 = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch6.id.clone(),
-            title: "L'Aube sur les Ruines".to_string(),
-            summary: Some("Le monde après la bataille. Paysage transformé. Espoir fragile.".to_string()),
-            position: None,
-        }).unwrap();
-        db.update_scene(&s5_1.id, &UpdateSceneRequest {
-            status: Some("to cut".to_string()),
-            pov: Some("Aelys".to_string()),
-            tags: Some("épilogue,résolution,espoir".to_string()),
-            time_point: Some("An 300 — Jour 16".to_string()),
-            on_timeline: Some(true),
-            tension: Some("low".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let s5_1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch6.id.clone(),
+                title: "L'Aube sur les Ruines".to_string(),
+                summary: Some(
+                    "Le monde après la bataille. Paysage transformé. Espoir fragile.".to_string(),
+                ),
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s5_1.id,
+            &UpdateSceneRequest {
+                status: Some("to cut".to_string()),
+                pov: Some("Aelys".to_string()),
+                tags: Some("épilogue,résolution,espoir".to_string()),
+                time_point: Some("An 300 — Jour 16".to_string()),
+                on_timeline: Some(true),
+                tension: Some("low".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // Scene NOT on timeline
         let s_offscreen = db.create_scene(&CreateSceneRequest {
@@ -16267,20 +18030,32 @@ mod tests {
         }).unwrap();
 
         // Now set up setup_for/payoff_of relationships
-        db.update_scene(&s_pro2.id, &UpdateSceneRequest {
-            setup_for_scene_id: Some(s4_2.id.clone()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s_pro2.id,
+            &UpdateSceneRequest {
+                setup_for_scene_id: Some(s4_2.id.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        db.update_scene(&s4_2.id, &UpdateSceneRequest {
-            payoff_of_scene_id: Some(s_pro2.id.clone()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s4_2.id,
+            &UpdateSceneRequest {
+                payoff_of_scene_id: Some(s_pro2.id.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-        db.update_scene(&s1_2.id, &UpdateSceneRequest {
-            setup_for_scene_id: Some(s2_3.id.clone()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1_2.id,
+            &UpdateSceneRequest {
+                setup_for_scene_id: Some(s2_3.id.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // ====================================================================
         // 4. BIBLE ENTRIES — all 6 types, all 3 statuses
@@ -16459,7 +18234,7 @@ mod tests {
             custom_fields: Some(r#"{"origine":"Les Anciens (civilisation pré-impériale)","matériau":"Aether cristallisé","nombre_fragments":"3","dangerosité":"extrême"}"#.to_string()),
         }).unwrap();
 
-        let be_bague = db.create_bible_entry(&CreateBibleEntryRequest {
+        let _be_bague = db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "object".to_string(),
             name: "Bague d'Obsidienne de Malachar".to_string(),
             aliases: Some("La Bague Noire, L'Anneau de l'Ombre".to_string()),
@@ -16505,7 +18280,7 @@ mod tests {
             color: Some("#E1BEE7".to_string()),
         }).unwrap();
 
-        let be_voile = db.create_bible_entry(&CreateBibleEntryRequest {
+        let _be_voile = db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "concept".to_string(),
             name: "Le Voile".to_string(),
             aliases: Some("La Barrière, Le Seuil Dimensionnel".to_string()),
@@ -16528,7 +18303,7 @@ mod tests {
             color: Some("#311B92".to_string()),
         }).unwrap();
 
-        let be_etheriste = db.create_bible_entry(&CreateBibleEntryRequest {
+        let _be_etheriste = db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "glossary".to_string(),
             name: "Éthériste".to_string(),
             aliases: Some("Mage, Pratiquant".to_string()),
@@ -16539,7 +18314,7 @@ mod tests {
             color: None,
         }).unwrap();
 
-        let be_empire = db.create_bible_entry(&CreateBibleEntryRequest {
+        let _be_empire = db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "glossary".to_string(),
             name: "Empire Solaire".to_string(),
             aliases: Some("L'Ancien Empire, L'Empire".to_string()),
@@ -16560,7 +18335,8 @@ mod tests {
             relationship_type: "petite-fille de".to_string(),
             note: Some("Mireille est la seule famille d'Aelys. Lien protecteur.".to_string()),
             status: None, // default: active
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_mireille.id.clone(),
@@ -16568,7 +18344,8 @@ mod tests {
             relationship_type: "grand-mère de".to_string(),
             note: Some("Protège Aelys et cache le secret de sa lignée.".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_theron.id.clone(),
@@ -16576,7 +18353,8 @@ mod tests {
             relationship_type: "mentor".to_string(),
             note: Some("Theron reconnaît le potentiel d'Aelys et décide de la guider.".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_kael.id.clone(),
@@ -16584,7 +18362,8 @@ mod tests {
             relationship_type: "rival".to_string(),
             note: Some("Rivalité initiale qui évolue en respect mutuel.".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_valdris.id.clone(),
@@ -16592,7 +18371,8 @@ mod tests {
             relationship_type: "ancêtre".to_string(),
             note: Some("Aelys descend de Valdris par sa mère (lignée secrète).".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_valdris.id.clone(),
@@ -16600,7 +18380,8 @@ mod tests {
             relationship_type: "ancêtre".to_string(),
             note: Some("Kael descend de la branche aînée de Valdris.".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_malachar.id.clone(),
@@ -16608,23 +18389,30 @@ mod tests {
             relationship_type: "collègue".to_string(),
             note: Some("Siègent ensemble au Conseil. Malachar manipule Elara.".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_malachar.id.clone(),
             target_id: be_nyxaroth.id.clone(),
             relationship_type: "serviteur de".to_string(),
-            note: Some("Malachar sert Nyxaroth en échange de la promesse d'immortalité.".to_string()),
+            note: Some(
+                "Malachar sert Nyxaroth en échange de la promesse d'immortalité.".to_string(),
+            ),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_theron.id.clone(),
             target_id: be_gardiens.id.clone(),
             relationship_type: "membre de".to_string(),
-            note: Some("Theron est un Gardien du Voile — secret qu'il cache aux héritiers.".to_string()),
+            note: Some(
+                "Theron est un Gardien du Voile — secret qu'il cache aux héritiers.".to_string(),
+            ),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_elara.id.clone(),
@@ -16632,7 +18420,8 @@ mod tests {
             relationship_type: "dirige".to_string(),
             note: Some("Elara préside le Conseil des Vents.".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_valdris.id.clone(),
@@ -16640,16 +18429,21 @@ mod tests {
             relationship_type: "possédait".to_string(),
             note: Some("Valdris était le dernier porteur du Cristal intact.".to_string()),
             status: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // Inactive relationship (story evolution)
         db.create_bible_relationship(&CreateBibleRelationshipRequest {
             source_id: be_kael.id.clone(),
             target_id: be_conseil.id.clone(),
             relationship_type: "protégé par".to_string(),
-            note: Some("Kael était sous la protection du Conseil avant sa déchéance. Relation rompue.".to_string()),
+            note: Some(
+                "Kael était sous la protection du Conseil avant sa déchéance. Relation rompue."
+                    .to_string(),
+            ),
             status: Some("inactive".to_string()),
-        }).unwrap();
+        })
+        .unwrap();
 
         // ====================================================================
         // 6. CANONICAL ASSOCIATIONS (scene ↔ bible_entry)
@@ -16657,138 +18451,214 @@ mod tests {
 
         // Prologue
         db.create_association(&CreateAssociationRequest {
-            scene_id: s_pro1.id.clone(), bible_entry_id: be_valdris.id.clone(),
-        }).unwrap();
+            scene_id: s_pro1.id.clone(),
+            bible_entry_id: be_valdris.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s_pro1.id.clone(), bible_entry_id: be_cristal.id.clone(),
-        }).unwrap();
+            scene_id: s_pro1.id.clone(),
+            bible_entry_id: be_cristal.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s_pro1.id.clone(), bible_entry_id: be_nyxaroth.id.clone(),
-        }).unwrap();
+            scene_id: s_pro1.id.clone(),
+            bible_entry_id: be_nyxaroth.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s_pro2.id.clone(), bible_entry_id: be_valdris.id.clone(),
-        }).unwrap();
+            scene_id: s_pro2.id.clone(),
+            bible_entry_id: be_valdris.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s_pro2.id.clone(), bible_entry_id: be_cristal.id.clone(),
-        }).unwrap();
+            scene_id: s_pro2.id.clone(),
+            bible_entry_id: be_cristal.id.clone(),
+        })
+        .unwrap();
 
         // Chapter 1
         db.create_association(&CreateAssociationRequest {
-            scene_id: s1_1.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s1_1.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s1_1.id.clone(), bible_entry_id: be_verendhal.id.clone(),
-        }).unwrap();
+            scene_id: s1_1.id.clone(),
+            bible_entry_id: be_verendhal.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s1_2.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s1_2.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s1_2.id.clone(), bible_entry_id: be_verendhal.id.clone(),
-        }).unwrap();
+            scene_id: s1_2.id.clone(),
+            bible_entry_id: be_verendhal.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s1_2.id.clone(), bible_entry_id: be_magie.id.clone(),
-        }).unwrap();
+            scene_id: s1_2.id.clone(),
+            bible_entry_id: be_magie.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s1_3.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s1_3.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s1_3.id.clone(), bible_entry_id: be_theron.id.clone(),
-        }).unwrap();
+            scene_id: s1_3.id.clone(),
+            bible_entry_id: be_theron.id.clone(),
+        })
+        .unwrap();
 
         // Chapter 2
         db.create_association(&CreateAssociationRequest {
-            scene_id: s2_1.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s2_1.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s2_1.id.clone(), bible_entry_id: be_theron.id.clone(),
-        }).unwrap();
+            scene_id: s2_1.id.clone(),
+            bible_entry_id: be_theron.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s2_1.id.clone(), bible_entry_id: be_mines.id.clone(),
-        }).unwrap();
+            scene_id: s2_1.id.clone(),
+            bible_entry_id: be_mines.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s2_2.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s2_2.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s2_2.id.clone(), bible_entry_id: be_cristal.id.clone(),
-        }).unwrap();
+            scene_id: s2_2.id.clone(),
+            bible_entry_id: be_cristal.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s2_2.id.clone(), bible_entry_id: be_mines.id.clone(),
-        }).unwrap();
+            scene_id: s2_2.id.clone(),
+            bible_entry_id: be_mines.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s2_3.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s2_3.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s2_3.id.clone(), bible_entry_id: be_mines.id.clone(),
-        }).unwrap();
+            scene_id: s2_3.id.clone(),
+            bible_entry_id: be_mines.id.clone(),
+        })
+        .unwrap();
 
         // Chapter 3
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_1.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s3_1.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_1.id.clone(), bible_entry_id: be_skyreach.id.clone(),
-        }).unwrap();
+            scene_id: s3_1.id.clone(),
+            bible_entry_id: be_skyreach.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_2.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s3_2.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_2.id.clone(), bible_entry_id: be_kael.id.clone(),
-        }).unwrap();
+            scene_id: s3_2.id.clone(),
+            bible_entry_id: be_kael.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_2.id.clone(), bible_entry_id: be_theron.id.clone(),
-        }).unwrap();
+            scene_id: s3_2.id.clone(),
+            bible_entry_id: be_theron.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_3.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s3_3.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_3.id.clone(), bible_entry_id: be_elara.id.clone(),
-        }).unwrap();
+            scene_id: s3_3.id.clone(),
+            bible_entry_id: be_elara.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_3.id.clone(), bible_entry_id: be_conseil.id.clone(),
-        }).unwrap();
+            scene_id: s3_3.id.clone(),
+            bible_entry_id: be_conseil.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_3.id.clone(), bible_entry_id: be_malachar.id.clone(),
-        }).unwrap();
+            scene_id: s3_3.id.clone(),
+            bible_entry_id: be_malachar.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s3_4.id.clone(), bible_entry_id: be_kael.id.clone(),
-        }).unwrap();
+            scene_id: s3_4.id.clone(),
+            bible_entry_id: be_kael.id.clone(),
+        })
+        .unwrap();
 
         // Chapter 4
         db.create_association(&CreateAssociationRequest {
-            scene_id: s4_1.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s4_1.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s4_1.id.clone(), bible_entry_id: be_temple.id.clone(),
-        }).unwrap();
+            scene_id: s4_1.id.clone(),
+            bible_entry_id: be_temple.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s4_1.id.clone(), bible_entry_id: be_cristal.id.clone(),
-        }).unwrap();
+            scene_id: s4_1.id.clone(),
+            bible_entry_id: be_cristal.id.clone(),
+        })
+        .unwrap();
 
         db.create_association(&CreateAssociationRequest {
-            scene_id: s4_2.id.clone(), bible_entry_id: be_aelys.id.clone(),
-        }).unwrap();
+            scene_id: s4_2.id.clone(),
+            bible_entry_id: be_aelys.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s4_2.id.clone(), bible_entry_id: be_nyxaroth.id.clone(),
-        }).unwrap();
+            scene_id: s4_2.id.clone(),
+            bible_entry_id: be_nyxaroth.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s4_2.id.clone(), bible_entry_id: be_cristal.id.clone(),
-        }).unwrap();
+            scene_id: s4_2.id.clone(),
+            bible_entry_id: be_cristal.id.clone(),
+        })
+        .unwrap();
         db.create_association(&CreateAssociationRequest {
-            scene_id: s4_2.id.clone(), bible_entry_id: be_kael.id.clone(),
-        }).unwrap();
+            scene_id: s4_2.id.clone(),
+            bible_entry_id: be_kael.id.clone(),
+        })
+        .unwrap();
 
         // Off-screen doc
         db.create_association(&CreateAssociationRequest {
-            scene_id: s_offscreen.id.clone(), bible_entry_id: be_theron.id.clone(),
-        }).unwrap();
+            scene_id: s_offscreen.id.clone(),
+            bible_entry_id: be_theron.id.clone(),
+        })
+        .unwrap();
 
         // ====================================================================
         // 7. ARCS — all 4 statuses
@@ -16797,46 +18667,71 @@ mod tests {
             name: "La Quête du Cristal".to_string(),
             description: Some("Arc principal : retrouver et réunir les trois fragments du Cristal d'Aether.".to_string()),
             stakes: Some("Si le Cristal n'est pas reconstitué, Nyxaroth traversera le Voile et dévorera le monde.".to_string()),
-            characters: Some(format!("{},{},{}", be_aelys.id, be_kael.id, be_theron.id)),
             status: Some("active".to_string()),
             color: Some("#2196F3".to_string()),
         }).unwrap();
+        db.set_arc_characters(
+            &arc_quest.id,
+            &[
+                be_aelys.id.clone(),
+                be_kael.id.clone(),
+                be_theron.id.clone(),
+            ],
+        )
+        .unwrap();
 
         let arc_identity = db.create_arc(&CreateArcRequest {
             name: "L'Héritage d'Aelys".to_string(),
             description: Some("Arc personnel d'Aelys : découvrir ses origines et accepter son rôle.".to_string()),
             stakes: Some("Si Aelys refuse son héritage, elle ne pourra pas contrôler sa magie — danger pour elle et les autres.".to_string()),
-            characters: Some(format!("{},{}", be_aelys.id, be_mireille.id)),
             status: Some("setup".to_string()),
             color: Some("#9C27B0".to_string()),
         }).unwrap();
+        db.set_arc_characters(
+            &arc_identity.id,
+            &[be_aelys.id.clone(), be_mireille.id.clone()],
+        )
+        .unwrap();
 
         let arc_politics = db.create_arc(&CreateArcRequest {
             name: "Les Intrigues de Skyreach".to_string(),
             description: Some("Arc politique : la trahison de Malachar et l'opposition du Conseil.".to_string()),
             stakes: Some("Si Malachar réussit, le Conseil détruira les fragments et facilitera le retour de Nyxaroth.".to_string()),
-            characters: Some(format!("{},{},{}", be_malachar.id, be_elara.id, be_kael.id)),
             status: Some("climax".to_string()),
             color: Some("#F44336".to_string()),
         }).unwrap();
+        db.set_arc_characters(
+            &arc_politics.id,
+            &[
+                be_malachar.id.clone(),
+                be_elara.id.clone(),
+                be_kael.id.clone(),
+            ],
+        )
+        .unwrap();
 
         let arc_redemption = db.create_arc(&CreateArcRequest {
             name: "La Rédemption de Kael".to_string(),
             description: Some("Arc de Kael : de noble arrogant à héros véritable.".to_string()),
             stakes: Some("Si Kael ne surmonte pas son égo, il ne sera pas capable de sacrifice lorsque viendra l'heure.".to_string()),
-            characters: Some(be_kael.id.clone()),
             status: Some("resolved".to_string()),
             color: Some("#FF9800".to_string()),
         }).unwrap();
+        db.set_arc_characters(&arc_redemption.id, std::slice::from_ref(&be_kael.id))
+            .unwrap();
 
         let _arc_abandoned = db.create_arc(&CreateArcRequest {
             name: "Le Secret de Mireille".to_string(),
             description: Some("Arc secondaire abandonné : révélation du secret de Mireille sur les parents d'Aelys.".to_string()),
             stakes: Some("Si Aelys découvre la vérité trop tôt, elle pourrait rejeter Mireille.".to_string()),
-            characters: Some(format!("{},{}", be_mireille.id, be_aelys.id)),
             status: Some("abandoned".to_string()),
             color: Some("#795548".to_string()),
         }).unwrap();
+        db.set_arc_characters(
+            &_arc_abandoned.id,
+            &[be_mireille.id.clone(), be_aelys.id.clone()],
+        )
+        .unwrap();
 
         // Link scenes to arcs
         db.link_scene_to_arc(&s_pro1.id, &arc_quest.id).unwrap();
@@ -16861,15 +18756,19 @@ mod tests {
         // ====================================================================
         // 8. EVENTS — all 3 types, all 3 importance levels, with time fields
         // ====================================================================
-        let ev_fracture = db.create_event(&CreateEventRequest {
-            title: "La Fracture".to_string(),
-            description: Some("Valdris III brise le Cristal d'Aether pour repousser Nyxaroth.".to_string()),
-            time_point: Some("An 0".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("historical".to_string()),
-            importance: Some("major".to_string()),
-        }).unwrap();
+        let ev_fracture = db
+            .create_event(&CreateEventRequest {
+                title: "La Fracture".to_string(),
+                description: Some(
+                    "Valdris III brise le Cristal d'Aether pour repousser Nyxaroth.".to_string(),
+                ),
+                time_point: Some("An 0".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("historical".to_string()),
+                importance: Some("major".to_string()),
+            })
+            .unwrap();
 
         let ev_exil = db.create_event(&CreateEventRequest {
             title: "Exil de Theron".to_string(),
@@ -16881,55 +18780,76 @@ mod tests {
             importance: Some("normal".to_string()),
         }).unwrap();
 
-        let ev_marche = db.create_event(&CreateEventRequest {
-            title: "Incident au marché".to_string(),
-            description: Some("Aelys utilise involontairement la magie pour la première fois.".to_string()),
-            time_point: Some("An 300, Jour 1".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: Some("major".to_string()),
-        }).unwrap();
+        let ev_marche = db
+            .create_event(&CreateEventRequest {
+                title: "Incident au marché".to_string(),
+                description: Some(
+                    "Aelys utilise involontairement la magie pour la première fois.".to_string(),
+                ),
+                time_point: Some("An 300, Jour 1".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: Some("major".to_string()),
+            })
+            .unwrap();
 
-        let ev_mines = db.create_event(&CreateEventRequest {
-            title: "Expédition dans les mines".to_string(),
-            description: Some("Exploration des mines d'obsidienne et découverte du premier fragment.".to_string()),
-            time_start: Some("An 300, Jour 3".to_string()),
-            time_end: Some("An 300, Jour 4".to_string()),
-            time_point: None,
-            event_type: Some("scene".to_string()),
-            importance: Some("major".to_string()),
-        }).unwrap();
+        let ev_mines = db
+            .create_event(&CreateEventRequest {
+                title: "Expédition dans les mines".to_string(),
+                description: Some(
+                    "Exploration des mines d'obsidienne et découverte du premier fragment."
+                        .to_string(),
+                ),
+                time_start: Some("An 300, Jour 3".to_string()),
+                time_end: Some("An 300, Jour 4".to_string()),
+                time_point: None,
+                event_type: Some("scene".to_string()),
+                importance: Some("major".to_string()),
+            })
+            .unwrap();
 
-        let ev_conseil = db.create_event(&CreateEventRequest {
-            title: "Audience devant le Conseil".to_string(),
-            description: Some("Les héritiers demandent le second fragment au Conseil des Vents.".to_string()),
-            time_point: Some("An 300, Jour 8".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: Some("normal".to_string()),
-        }).unwrap();
+        let ev_conseil = db
+            .create_event(&CreateEventRequest {
+                title: "Audience devant le Conseil".to_string(),
+                description: Some(
+                    "Les héritiers demandent le second fragment au Conseil des Vents.".to_string(),
+                ),
+                time_point: Some("An 300, Jour 8".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: Some("normal".to_string()),
+            })
+            .unwrap();
 
-        let ev_flashback_valdris = db.create_event(&CreateEventRequest {
-            title: "Flashback : la jeunesse de Valdris".to_string(),
-            description: Some("Un souvenir montrant Valdris apprenant à maîtriser le Cristal.".to_string()),
-            time_point: Some("An -40".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("backstory".to_string()),
-            importance: Some("minor".to_string()),
-        }).unwrap();
+        let ev_flashback_valdris = db
+            .create_event(&CreateEventRequest {
+                title: "Flashback : la jeunesse de Valdris".to_string(),
+                description: Some(
+                    "Un souvenir montrant Valdris apprenant à maîtriser le Cristal.".to_string(),
+                ),
+                time_point: Some("An -40".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("backstory".to_string()),
+                importance: Some("minor".to_string()),
+            })
+            .unwrap();
 
-        let ev_confrontation = db.create_event(&CreateEventRequest {
-            title: "Confrontation finale au Temple".to_string(),
-            description: Some("Les héritiers affrontent Nyxaroth au Temple du Voile.".to_string()),
-            time_point: Some("An 300, Jour 15".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: Some("major".to_string()),
-        }).unwrap();
+        let ev_confrontation = db
+            .create_event(&CreateEventRequest {
+                title: "Confrontation finale au Temple".to_string(),
+                description: Some(
+                    "Les héritiers affrontent Nyxaroth au Temple du Voile.".to_string(),
+                ),
+                time_point: Some("An 300, Jour 15".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: Some("major".to_string()),
+            })
+            .unwrap();
 
         // Link events to scenes
         db.link_scene_to_event(&s_pro1.id, &ev_fracture.id).unwrap();
@@ -16939,32 +18859,56 @@ mod tests {
         db.link_scene_to_event(&s2_2.id, &ev_mines.id).unwrap();
         db.link_scene_to_event(&s2_3.id, &ev_mines.id).unwrap();
         db.link_scene_to_event(&s3_3.id, &ev_conseil.id).unwrap();
-        db.link_scene_to_event(&s4_2.id, &ev_confrontation.id).unwrap();
+        db.link_scene_to_event(&s4_2.id, &ev_confrontation.id)
+            .unwrap();
 
         // Link events to bible entries
-        db.link_bible_entry_to_event(&be_valdris.id, &ev_fracture.id).unwrap();
-        db.link_bible_entry_to_event(&be_cristal.id, &ev_fracture.id).unwrap();
-        db.link_bible_entry_to_event(&be_nyxaroth.id, &ev_fracture.id).unwrap();
-        db.link_bible_entry_to_event(&be_theron.id, &ev_exil.id).unwrap();
-        db.link_bible_entry_to_event(&be_skyreach.id, &ev_exil.id).unwrap();
-        db.link_bible_entry_to_event(&be_aelys.id, &ev_marche.id).unwrap();
-        db.link_bible_entry_to_event(&be_verendhal.id, &ev_marche.id).unwrap();
-        db.link_bible_entry_to_event(&be_aelys.id, &ev_mines.id).unwrap();
-        db.link_bible_entry_to_event(&be_theron.id, &ev_mines.id).unwrap();
-        db.link_bible_entry_to_event(&be_mines.id, &ev_mines.id).unwrap();
-        db.link_bible_entry_to_event(&be_cristal.id, &ev_mines.id).unwrap();
-        db.link_bible_entry_to_event(&be_aelys.id, &ev_conseil.id).unwrap();
-        db.link_bible_entry_to_event(&be_kael.id, &ev_conseil.id).unwrap();
-        db.link_bible_entry_to_event(&be_elara.id, &ev_conseil.id).unwrap();
-        db.link_bible_entry_to_event(&be_malachar.id, &ev_conseil.id).unwrap();
-        db.link_bible_entry_to_event(&be_conseil.id, &ev_conseil.id).unwrap();
-        db.link_bible_entry_to_event(&be_valdris.id, &ev_flashback_valdris.id).unwrap();
-        db.link_bible_entry_to_event(&be_cristal.id, &ev_flashback_valdris.id).unwrap();
-        db.link_bible_entry_to_event(&be_aelys.id, &ev_confrontation.id).unwrap();
-        db.link_bible_entry_to_event(&be_kael.id, &ev_confrontation.id).unwrap();
-        db.link_bible_entry_to_event(&be_nyxaroth.id, &ev_confrontation.id).unwrap();
-        db.link_bible_entry_to_event(&be_cristal.id, &ev_confrontation.id).unwrap();
-        db.link_bible_entry_to_event(&be_temple.id, &ev_confrontation.id).unwrap();
+        db.link_bible_entry_to_event(&be_valdris.id, &ev_fracture.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_cristal.id, &ev_fracture.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_nyxaroth.id, &ev_fracture.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_theron.id, &ev_exil.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_skyreach.id, &ev_exil.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_aelys.id, &ev_marche.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_verendhal.id, &ev_marche.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_aelys.id, &ev_mines.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_theron.id, &ev_mines.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_mines.id, &ev_mines.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_cristal.id, &ev_mines.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_aelys.id, &ev_conseil.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_kael.id, &ev_conseil.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_elara.id, &ev_conseil.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_malachar.id, &ev_conseil.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_conseil.id, &ev_conseil.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_valdris.id, &ev_flashback_valdris.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_cristal.id, &ev_flashback_valdris.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_aelys.id, &ev_confrontation.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_kael.id, &ev_confrontation.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_nyxaroth.id, &ev_confrontation.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_cristal.id, &ev_confrontation.id)
+            .unwrap();
+        db.link_bible_entry_to_event(&be_temple.id, &ev_confrontation.id)
+            .unwrap();
 
         // ====================================================================
         // 9. TEMPLATES — builtin + custom with steps and scene assignments
@@ -16973,61 +18917,79 @@ mod tests {
 
         let templates = db.get_templates().unwrap();
         // Find the 3-Act Structure template and activate it
-        let three_act = templates.iter().find(|t| t.name.contains("Three-Act")).unwrap();
+        let three_act = templates
+            .iter()
+            .find(|t| t.name.contains("Three-Act"))
+            .unwrap();
         db.set_active_template(&three_act.id).unwrap();
 
         let three_act_steps = db.get_template_steps(&three_act.id).unwrap();
         // Assign scenes to template steps (first few steps)
         if three_act_steps.len() >= 3 {
-            db.assign_scene_to_step(&s_pro1.id, &three_act_steps[0].id).unwrap();
-            db.assign_scene_to_step(&s1_2.id, &three_act_steps[1].id).unwrap();
-            db.assign_scene_to_step(&s4_2.id, &three_act_steps[three_act_steps.len() - 1].id).unwrap();
+            db.assign_scene_to_step(&s_pro1.id, &three_act_steps[0].id)
+                .unwrap();
+            db.assign_scene_to_step(&s1_2.id, &three_act_steps[1].id)
+                .unwrap();
+            db.assign_scene_to_step(&s4_2.id, &three_act_steps[three_act_steps.len() - 1].id)
+                .unwrap();
         }
 
         // Create a custom template
-        let custom_template = db.create_template(&CreateTemplateRequest {
-            name: "Structure Personnalisée — Quête Épique".to_string(),
-        }).unwrap();
+        let custom_template = db
+            .create_template(&CreateTemplateRequest {
+                name: "Structure Personnalisée — Quête Épique".to_string(),
+            })
+            .unwrap();
 
-        let _step_appel = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: custom_template.id.clone(),
-            name: "L'Appel".to_string(),
-            description: Some("Le héros reçoit l'appel à l'aventure.".to_string()),
-            typical_position: Some(0.1),
-            color: Some("#4CAF50".to_string()),
-        }).unwrap();
+        let _step_appel = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: custom_template.id.clone(),
+                name: "L'Appel".to_string(),
+                description: Some("Le héros reçoit l'appel à l'aventure.".to_string()),
+                typical_position: Some(0.1),
+                color: Some("#4CAF50".to_string()),
+            })
+            .unwrap();
 
-        let _step_epreuve = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: custom_template.id.clone(),
-            name: "L'Épreuve".to_string(),
-            description: Some("Le héros fait face à sa première grande épreuve.".to_string()),
-            typical_position: Some(0.35),
-            color: Some("#FF9800".to_string()),
-        }).unwrap();
+        let _step_epreuve = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: custom_template.id.clone(),
+                name: "L'Épreuve".to_string(),
+                description: Some("Le héros fait face à sa première grande épreuve.".to_string()),
+                typical_position: Some(0.35),
+                color: Some("#FF9800".to_string()),
+            })
+            .unwrap();
 
-        let _step_revelation = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: custom_template.id.clone(),
-            name: "La Révélation".to_string(),
-            description: Some("La vérité cachée est révélée.".to_string()),
-            typical_position: Some(0.6),
-            color: Some("#9C27B0".to_string()),
-        }).unwrap();
+        let _step_revelation = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: custom_template.id.clone(),
+                name: "La Révélation".to_string(),
+                description: Some("La vérité cachée est révélée.".to_string()),
+                typical_position: Some(0.6),
+                color: Some("#9C27B0".to_string()),
+            })
+            .unwrap();
 
-        let _step_climax = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: custom_template.id.clone(),
-            name: "Le Sacrifice".to_string(),
-            description: Some("Le héros doit faire un sacrifice ultime.".to_string()),
-            typical_position: Some(0.85),
-            color: Some("#F44336".to_string()),
-        }).unwrap();
+        let _step_climax = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: custom_template.id.clone(),
+                name: "Le Sacrifice".to_string(),
+                description: Some("Le héros doit faire un sacrifice ultime.".to_string()),
+                typical_position: Some(0.85),
+                color: Some("#F44336".to_string()),
+            })
+            .unwrap();
 
-        let _step_retour = db.create_template_step(&CreateTemplateStepRequest {
-            template_id: custom_template.id.clone(),
-            name: "Le Retour".to_string(),
-            description: Some("Le monde est transformé, le héros aussi.".to_string()),
-            typical_position: Some(1.0),
-            color: Some("#2196F3".to_string()),
-        }).unwrap();
+        let _step_retour = db
+            .create_template_step(&CreateTemplateStepRequest {
+                template_id: custom_template.id.clone(),
+                name: "Le Retour".to_string(),
+                description: Some("Le monde est transformé, le héros aussi.".to_string()),
+                typical_position: Some(1.0),
+                color: Some("#2196F3".to_string()),
+            })
+            .unwrap();
 
         // ====================================================================
         // 10. ANNOTATIONS — all 4 types, both statuses
@@ -17038,15 +19000,18 @@ mod tests {
             end_offset: 35,
             annotation_type: Some("comment".to_string()),
             content: "Très belle ouverture. Le rythme est parfait.".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_annotation(&CreateAnnotationRequest {
             scene_id: s_pro1.id.clone(),
             start_offset: 150,
             end_offset: 200,
             annotation_type: Some("question".to_string()),
-            content: "Est-ce que Nyxaroth devrait parler ici ou rester silencieux ? À décider.".to_string(),
-        }).unwrap();
+            content: "Est-ce que Nyxaroth devrait parler ici ou rester silencieux ? À décider."
+                .to_string(),
+        })
+        .unwrap();
 
         db.create_annotation(&CreateAnnotationRequest {
             scene_id: s1_1.id.clone(),
@@ -17054,35 +19019,48 @@ mod tests {
             end_offset: 50,
             annotation_type: Some("todo".to_string()),
             content: "Le passage sur le marché est trop long. Couper de moitié.".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
-        let ann_resolved = db.create_annotation(&CreateAnnotationRequest {
-            scene_id: s1_2.id.clone(),
-            start_offset: 100,
-            end_offset: 180,
-            annotation_type: Some("research".to_string()),
-            content: "Vérifier la cohérence avec la description de la magie éthérique dans la Bible.".to_string(),
-        }).unwrap();
-        db.update_annotation(&ann_resolved.id, &UpdateAnnotationRequest {
-            content: None,
-            status: Some("resolved".to_string()),
-        }).unwrap();
+        let ann_resolved = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: s1_2.id.clone(),
+                start_offset: 100,
+                end_offset: 180,
+                annotation_type: Some("research".to_string()),
+                content:
+                    "Vérifier la cohérence avec la description de la magie éthérique dans la Bible."
+                        .to_string(),
+            })
+            .unwrap();
+        db.update_annotation(
+            &ann_resolved.id,
+            &UpdateAnnotationRequest {
+                content: None,
+                status: Some("resolved".to_string()),
+            },
+        )
+        .unwrap();
 
         db.create_annotation(&CreateAnnotationRequest {
             scene_id: s2_3.id.clone(),
             start_offset: 50,
             end_offset: 120,
             annotation_type: Some("comment".to_string()),
-            content: "Le combat manque de détails. Ajouter des descriptions sensorielles.".to_string(),
-        }).unwrap();
+            content: "Le combat manque de détails. Ajouter des descriptions sensorielles."
+                .to_string(),
+        })
+        .unwrap();
 
         db.create_annotation(&CreateAnnotationRequest {
             scene_id: s3_3.id.clone(),
             start_offset: 0,
             end_offset: 60,
             annotation_type: Some("question".to_string()),
-            content: "Faut-il montrer la réaction de Malachar pendant le discours d'Elara ?".to_string(),
-        }).unwrap();
+            content: "Faut-il montrer la réaction de Malachar pendant le discours d'Elara ?"
+                .to_string(),
+        })
+        .unwrap();
 
         let ann_revision = db.create_annotation(&CreateAnnotationRequest {
             scene_id: s2_1.id.clone(),
@@ -17091,10 +19069,14 @@ mod tests {
             annotation_type: Some("revision".to_string()),
             content: "Réécrire ce passage pour renforcer la claustrophobie. Descriptions sensorielles à développer.".to_string(),
         }).unwrap();
-        db.update_annotation(&ann_revision.id, &UpdateAnnotationRequest {
-            content: None,
-            status: Some("in_progress".to_string()),
-        }).unwrap();
+        db.update_annotation(
+            &ann_revision.id,
+            &UpdateAnnotationRequest {
+                content: None,
+                status: Some("in_progress".to_string()),
+            },
+        )
+        .unwrap();
 
         // ====================================================================
         // 11. ISSUES — all 6 types, all 3 severities, all 3 statuses
@@ -17105,8 +19087,10 @@ mod tests {
             description: Some("Scène 'La Descente' commence Jour 3 Nuit, mais Aelys est encore au marché Jour 1. Il faut ajouter des scènes de transition ou ajuster les dates.".to_string()),
             severity: Some("warning".to_string()),
         }).unwrap();
-        db.link_scene_to_issue(&s1_1.id, &issue_timeline.id).unwrap();
-        db.link_scene_to_issue(&s2_1.id, &issue_timeline.id).unwrap();
+        db.link_scene_to_issue(&s1_1.id, &issue_timeline.id)
+            .unwrap();
+        db.link_scene_to_issue(&s2_1.id, &issue_timeline.id)
+            .unwrap();
 
         let issue_tbd = db.create_issue(&CreateIssueRequest {
             issue_type: "tbd_in_done".to_string(),
@@ -17114,11 +19098,19 @@ mod tests {
             description: Some("La scène 'Notes de Theron' est marquée comme 'done' mais contient encore du texte placeholder.".to_string()),
             severity: Some("info".to_string()),
         }).unwrap();
-        db.link_scene_to_issue(&s_offscreen.id, &issue_tbd.id).unwrap();
-        db.update_issue(&issue_tbd.id, &UpdateIssueRequest {
-            status: Some("resolved".to_string()),
-            resolution_note: Some("Le texte placeholder a été remplacé par du contenu définitif.".to_string()),
-        }).unwrap();
+        db.link_scene_to_issue(&s_offscreen.id, &issue_tbd.id)
+            .unwrap();
+        db.update_issue(
+            &issue_tbd.id,
+            &UpdateIssueRequest {
+                status: Some("resolved".to_string()),
+                resolution_note: Some(
+                    "Le texte placeholder a été remplacé par du contenu définitif.".to_string(),
+                ),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let issue_orphan = db.create_issue(&CreateIssueRequest {
             issue_type: "orphan_mention".to_string(),
@@ -17126,7 +19118,8 @@ mod tests {
             description: Some("Le conseiller Brennan est mentionné dans la description du Conseil des Vents mais n'a pas d'entrée Bible.".to_string()),
             severity: Some("warning".to_string()),
         }).unwrap();
-        db.link_bible_entry_to_issue(&be_conseil.id, &issue_orphan.id).unwrap();
+        db.link_bible_entry_to_issue(&be_conseil.id, &issue_orphan.id)
+            .unwrap();
 
         let issue_contradiction = db.create_issue(&CreateIssueRequest {
             issue_type: "bible_contradiction".to_string(),
@@ -17134,8 +19127,10 @@ mod tests {
             description: Some("La Bible dit 'yeux gris-argent' mais la scène du marché dit 'yeux bleus'. Préciser que les yeux changent pendant la magie.".to_string()),
             severity: Some("error".to_string()),
         }).unwrap();
-        db.link_bible_entry_to_issue(&be_aelys.id, &issue_contradiction.id).unwrap();
-        db.link_scene_to_issue(&s1_2.id, &issue_contradiction.id).unwrap();
+        db.link_bible_entry_to_issue(&be_aelys.id, &issue_contradiction.id)
+            .unwrap();
+        db.link_scene_to_issue(&s1_2.id, &issue_contradiction.id)
+            .unwrap();
 
         let issue_continuity = db.create_issue(&CreateIssueRequest {
             issue_type: "continuity_error".to_string(),
@@ -17143,12 +19138,21 @@ mod tests {
             description: Some("La cicatrice de Theron est sur la joue gauche dans sa fiche Bible mais sur la joue droite dans la scène de rencontre.".to_string()),
             severity: Some("error".to_string()),
         }).unwrap();
-        db.link_bible_entry_to_issue(&be_theron.id, &issue_continuity.id).unwrap();
-        db.link_scene_to_issue(&s1_3.id, &issue_continuity.id).unwrap();
-        db.update_issue(&issue_continuity.id, &UpdateIssueRequest {
-            status: Some("resolved".to_string()),
-            resolution_note: Some("Corrigé dans la scène — c'est bien la joue gauche.".to_string()),
-        }).unwrap();
+        db.link_bible_entry_to_issue(&be_theron.id, &issue_continuity.id)
+            .unwrap();
+        db.link_scene_to_issue(&s1_3.id, &issue_continuity.id)
+            .unwrap();
+        db.update_issue(
+            &issue_continuity.id,
+            &UpdateIssueRequest {
+                status: Some("resolved".to_string()),
+                resolution_note: Some(
+                    "Corrigé dans la scène — c'est bien la joue gauche.".to_string(),
+                ),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let issue_user = db.create_issue(&CreateIssueRequest {
             issue_type: "continuity_error".to_string(),
@@ -17157,10 +19161,17 @@ mod tests {
             severity: Some("info".to_string()),
         }).unwrap();
         // Mark as ignored
-        db.update_issue(&issue_user.id, &UpdateIssueRequest {
-            status: Some("ignored".to_string()),
-            resolution_note: Some("Le rythme rapide est voulu — c'est une scène d'action.".to_string()),
-        }).unwrap();
+        db.update_issue(
+            &issue_user.id,
+            &UpdateIssueRequest {
+                status: Some("ignored".to_string()),
+                resolution_note: Some(
+                    "Le rythme rapide est voulu — c'est une scène d'action.".to_string(),
+                ),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         // ====================================================================
         // 12. SNAPSHOTS — all 3 types
@@ -17169,19 +19180,18 @@ mod tests {
             "Premier brouillon complet",
             Some("Sauvegarde après avoir terminé le premier jet du prologue et des chapitres 1-2."),
             "manual",
-        ).unwrap();
+        )
+        .unwrap();
 
-        db.create_snapshot(
-            "Auto-save 2024-01-15",
-            None,
-            "pre_bulk",
-        ).unwrap();
+        db.create_snapshot("Auto-save 2024-01-15", None, "pre_bulk")
+            .unwrap();
 
         db.create_snapshot(
             "Milestone : Prologue finalisé",
             Some("Le prologue est considéré comme terminé après trois passes de révision."),
             "milestone",
-        ).unwrap();
+        )
+        .unwrap();
 
         // ====================================================================
         // 13. CUTS — with and without scene_id
@@ -17205,10 +19215,14 @@ mod tests {
         // 14. SCENE HISTORY — multiple versions for a scene
         // ====================================================================
         // Create history by updating scene text multiple times
-        db.update_scene(&s1_1.id, &UpdateSceneRequest {
-            text: Some("<p>Aelys marchait dans le marché. Il faisait beau.</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        db.update_scene(
+            &s1_1.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Aelys marchait dans le marché. Il faisait beau.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         db.update_scene(&s1_1.id, &UpdateSceneRequest {
             text: Some("<p>Aelys se faufila entre les étals colorés du marché de Verendhal. L'air était chargé d'épices et de cris de marchands.</p>".to_string()),
@@ -17223,150 +19237,193 @@ mod tests {
         // ====================================================================
         // 15. NAME REGISTRY — character + location types, confirmed/unconfirmed
         // ====================================================================
-        let nr_aelys = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Aelys".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: Some(be_aelys.id.clone()),
-            aliases: Some("Ael,La Briseuse de Vent".to_string()),
-        }).unwrap();
-        db.update_name_registry_entry(&nr_aelys.id, &UpdateNameRegistryRequest {
-            canonical_name: None,
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-            is_confirmed: Some(true),
-        }).unwrap();
+        let nr_aelys = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Aelys".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: Some(be_aelys.id.clone()),
+                aliases: Some("Ael,La Briseuse de Vent".to_string()),
+            })
+            .unwrap();
+        db.update_name_registry_entry(
+            &nr_aelys.id,
+            &UpdateNameRegistryRequest {
+                canonical_name: None,
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+                is_confirmed: Some(true),
+            },
+        )
+        .unwrap();
 
-        let nr_theron = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Theron".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: Some(be_theron.id.clone()),
-            aliases: Some("Le Professeur".to_string()),
-        }).unwrap();
-        db.update_name_registry_entry(&nr_theron.id, &UpdateNameRegistryRequest {
-            canonical_name: None,
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-            is_confirmed: Some(true),
-        }).unwrap();
+        let nr_theron = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Theron".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: Some(be_theron.id.clone()),
+                aliases: Some("Le Professeur".to_string()),
+            })
+            .unwrap();
+        db.update_name_registry_entry(
+            &nr_theron.id,
+            &UpdateNameRegistryRequest {
+                canonical_name: None,
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+                is_confirmed: Some(true),
+            },
+        )
+        .unwrap();
 
-        let nr_kael = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Kael".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: Some(be_kael.id.clone()),
-            aliases: Some("Kael Ardent,Le Prince Déchu".to_string()),
-        }).unwrap();
+        let nr_kael = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Kael".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: Some(be_kael.id.clone()),
+                aliases: Some("Kael Ardent,Le Prince Déchu".to_string()),
+            })
+            .unwrap();
 
-        let nr_malachar = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Malachar".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: Some(be_malachar.id.clone()),
-            aliases: None,
-        }).unwrap();
+        let nr_malachar = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Malachar".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: Some(be_malachar.id.clone()),
+                aliases: None,
+            })
+            .unwrap();
 
         // Unconfirmed character (detected but not validated)
-        let nr_voss = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Madame Voss".to_string(),
-            name_type: Some("character".to_string()),
-            bible_entry_id: None,
-            aliases: Some("Voss".to_string()),
-        }).unwrap();
+        let nr_voss = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Madame Voss".to_string(),
+                name_type: Some("character".to_string()),
+                bible_entry_id: None,
+                aliases: Some("Voss".to_string()),
+            })
+            .unwrap();
         // Not confirmed — stays is_confirmed=false
 
-        let nr_verendhal = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Verendhal".to_string(),
-            name_type: Some("location".to_string()),
-            bible_entry_id: Some(be_verendhal.id.clone()),
-            aliases: Some("Verendhal-sur-Fleuve".to_string()),
-        }).unwrap();
-        db.update_name_registry_entry(&nr_verendhal.id, &UpdateNameRegistryRequest {
-            canonical_name: None,
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-            is_confirmed: Some(true),
-        }).unwrap();
+        let nr_verendhal = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Verendhal".to_string(),
+                name_type: Some("location".to_string()),
+                bible_entry_id: Some(be_verendhal.id.clone()),
+                aliases: Some("Verendhal-sur-Fleuve".to_string()),
+            })
+            .unwrap();
+        db.update_name_registry_entry(
+            &nr_verendhal.id,
+            &UpdateNameRegistryRequest {
+                canonical_name: None,
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+                is_confirmed: Some(true),
+            },
+        )
+        .unwrap();
 
-        let nr_skyreach = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Skyreach".to_string(),
-            name_type: Some("location".to_string()),
-            bible_entry_id: Some(be_skyreach.id.clone()),
-            aliases: None,
-        }).unwrap();
-        db.update_name_registry_entry(&nr_skyreach.id, &UpdateNameRegistryRequest {
-            canonical_name: None,
-            name_type: None,
-            bible_entry_id: None,
-            aliases: None,
-            is_confirmed: Some(true),
-        }).unwrap();
+        let nr_skyreach = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Skyreach".to_string(),
+                name_type: Some("location".to_string()),
+                bible_entry_id: Some(be_skyreach.id.clone()),
+                aliases: None,
+            })
+            .unwrap();
+        db.update_name_registry_entry(
+            &nr_skyreach.id,
+            &UpdateNameRegistryRequest {
+                canonical_name: None,
+                name_type: None,
+                bible_entry_id: None,
+                aliases: None,
+                is_confirmed: Some(true),
+            },
+        )
+        .unwrap();
 
-        let _nr_cristal = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Cristal d'Aether".to_string(),
-            name_type: Some("object".to_string()),
-            bible_entry_id: Some(be_cristal.id.clone()),
-            aliases: Some("Le Cristal,L'Artefact".to_string()),
-        }).unwrap();
+        let _nr_cristal = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Cristal d'Aether".to_string(),
+                name_type: Some("object".to_string()),
+                bible_entry_id: Some(be_cristal.id.clone()),
+                aliases: Some("Le Cristal,L'Artefact".to_string()),
+            })
+            .unwrap();
 
-        let _nr_conseil = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "Conseil des Vents".to_string(),
-            name_type: Some("faction".to_string()),
-            bible_entry_id: Some(be_conseil.id.clone()),
-            aliases: Some("Le Conseil,Les Douze".to_string()),
-        }).unwrap();
+        let _nr_conseil = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "Conseil des Vents".to_string(),
+                name_type: Some("faction".to_string()),
+                bible_entry_id: Some(be_conseil.id.clone()),
+                aliases: Some("Le Conseil,Les Douze".to_string()),
+            })
+            .unwrap();
 
-        let _nr_fracture = db.create_name_registry_entry(&CreateNameRegistryRequest {
-            canonical_name: "La Fracture".to_string(),
-            name_type: Some("other".to_string()),
-            bible_entry_id: None,
-            aliases: Some("Jour de la Fracture".to_string()),
-        }).unwrap();
+        let _nr_fracture = db
+            .create_name_registry_entry(&CreateNameRegistryRequest {
+                canonical_name: "La Fracture".to_string(),
+                name_type: Some("other".to_string()),
+                bible_entry_id: None,
+                aliases: Some("Jour de la Fracture".to_string()),
+            })
+            .unwrap();
 
         // ====================================================================
         // 16. NAME MENTIONS — all 3 statuses (pending, accepted, ignored)
         // ====================================================================
-        let mention1 = db.create_name_mention(
-            &nr_aelys.id, &s1_1.id, "Aelys", 0, 5,
-        ).unwrap();
-        db.update_name_mention(&mention1.id, &UpdateNameMentionRequest {
-            status: "accepted".to_string(),
-        }).unwrap();
+        let mention1 = db
+            .create_name_mention(&nr_aelys.id, &s1_1.id, "Aelys", 0, 5)
+            .unwrap();
+        db.update_name_mention(
+            &mention1.id,
+            &UpdateNameMentionRequest {
+                status: "accepted".to_string(),
+            },
+        )
+        .unwrap();
 
-        let mention2 = db.create_name_mention(
-            &nr_aelys.id, &s1_2.id, "Aelys", 0, 5,
-        ).unwrap();
-        db.update_name_mention(&mention2.id, &UpdateNameMentionRequest {
-            status: "accepted".to_string(),
-        }).unwrap();
+        let mention2 = db
+            .create_name_mention(&nr_aelys.id, &s1_2.id, "Aelys", 0, 5)
+            .unwrap();
+        db.update_name_mention(
+            &mention2.id,
+            &UpdateNameMentionRequest {
+                status: "accepted".to_string(),
+            },
+        )
+        .unwrap();
 
-        db.create_name_mention(
-            &nr_theron.id, &s1_3.id, "Theron", 45, 51,
-        ).unwrap();
+        db.create_name_mention(&nr_theron.id, &s1_3.id, "Theron", 45, 51)
+            .unwrap();
         // Stays as "pending"
 
-        let mention_ignored = db.create_name_mention(
-            &nr_voss.id, &s1_1.id, "Voss", 120, 124,
-        ).unwrap();
-        db.update_name_mention(&mention_ignored.id, &UpdateNameMentionRequest {
-            status: "ignored".to_string(),
-        }).unwrap();
+        let mention_ignored = db
+            .create_name_mention(&nr_voss.id, &s1_1.id, "Voss", 120, 124)
+            .unwrap();
+        db.update_name_mention(
+            &mention_ignored.id,
+            &UpdateNameMentionRequest {
+                status: "ignored".to_string(),
+            },
+        )
+        .unwrap();
 
-        db.create_name_mention(
-            &nr_kael.id, &s3_2.id, "Kael", 0, 4,
-        ).unwrap();
+        db.create_name_mention(&nr_kael.id, &s3_2.id, "Kael", 0, 4)
+            .unwrap();
 
-        db.create_name_mention(
-            &nr_verendhal.id, &s1_1.id, "Verendhal", 30, 39,
-        ).unwrap();
+        db.create_name_mention(&nr_verendhal.id, &s1_1.id, "Verendhal", 30, 39)
+            .unwrap();
 
-        db.create_name_mention(
-            &nr_skyreach.id, &s3_1.id, "Skyreach", 0, 8,
-        ).unwrap();
+        db.create_name_mention(&nr_skyreach.id, &s3_1.id, "Skyreach", 0, 8)
+            .unwrap();
 
-        db.create_name_mention(
-            &nr_malachar.id, &s3_3.id, "Malachar", 50, 58,
-        ).unwrap();
+        db.create_name_mention(&nr_malachar.id, &s3_3.id, "Malachar", 50, 58)
+            .unwrap();
 
         // ====================================================================
         // 17. SAVED FILTERS — all 3 types
@@ -17375,46 +19432,62 @@ mod tests {
             name: "POV Aelys".to_string(),
             filter_type: "corkboard".to_string(),
             filter_data: r#"{"status":"","pov":"Aelys","tag":"","arc":""}"#.to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_saved_filter(&CreateSavedFilterRequest {
             name: "Scènes en révision".to_string(),
             filter_type: "corkboard".to_string(),
             filter_data: r#"{"status":"in revision","pov":"","tag":"","arc":""}"#.to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_saved_filter(&CreateSavedFilterRequest {
             name: "Scènes de combat".to_string(),
             filter_type: "corkboard".to_string(),
             filter_data: r#"{"status":"","pov":"","tag":"combat","arc":""}"#.to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         db.create_saved_filter(&CreateSavedFilterRequest {
             name: "Arc Quête du Cristal".to_string(),
             filter_type: "corkboard".to_string(),
-            filter_data: r#"{"status":"","pov":"","tag":"","arc":"La Quête du Cristal"}"#.to_string(),
-        }).unwrap();
+            filter_data: r#"{"status":"","pov":"","tag":"","arc":"La Quête du Cristal"}"#
+                .to_string(),
+        })
+        .unwrap();
 
         // ====================================================================
         // 18. SOFT-DELETED ENTITIES (to test trash/restore)
         // ====================================================================
 
         // Soft-deleted chapter
-        let ch_deleted = db.create_chapter(&CreateChapterRequest {
-            title: "Chapitre supprimé — Brouillon abandonné".to_string(),
-            summary: Some("Ce chapitre a été supprimé car l'intrigue secondaire a été abandonnée.".to_string()),
-            position: None,
-        }).unwrap();
-        let s_deleted = db.create_scene(&CreateSceneRequest {
-            chapter_id: ch_deleted.id.clone(),
-            title: "Scène orpheline du chapitre supprimé".to_string(),
-            summary: None,
-            position: None,
-        }).unwrap();
-        db.update_scene(&s_deleted.id, &UpdateSceneRequest {
-            text: Some("<p>Du texte qui ne sera jamais lu.</p>".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let ch_deleted = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapitre supprimé — Brouillon abandonné".to_string(),
+                summary: Some(
+                    "Ce chapitre a été supprimé car l'intrigue secondaire a été abandonnée."
+                        .to_string(),
+                ),
+                position: None,
+            })
+            .unwrap();
+        let s_deleted = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: ch_deleted.id.clone(),
+                title: "Scène orpheline du chapitre supprimé".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+        db.update_scene(
+            &s_deleted.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Du texte qui ne sera jamais lu.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         db.delete_scene(&s_deleted.id).unwrap();
         db.delete_chapter(&ch_deleted.id).unwrap();
 
@@ -17422,28 +19495,33 @@ mod tests {
         db.delete_bible_entry(&be_lyran.id).unwrap();
 
         // Arc with "abandoned" status (soft-deleted afterward)
-        let arc_deleted = db.create_arc(&CreateArcRequest {
-            name: "Arc abandonné : La Romance".to_string(),
-            description: Some("Sous-intrigue romantique retirée pour garder le focus sur l'action.".to_string()),
-            stakes: None,
-            characters: None,
-            status: Some("abandoned".to_string()),
-            color: Some("#E91E63".to_string()),
-        }).unwrap();
+        let arc_deleted = db
+            .create_arc(&CreateArcRequest {
+                name: "Arc abandonné : La Romance".to_string(),
+                description: Some(
+                    "Sous-intrigue romantique retirée pour garder le focus sur l'action."
+                        .to_string(),
+                ),
+                stakes: None,
+                status: Some("abandoned".to_string()),
+                color: Some("#E91E63".to_string()),
+            })
+            .unwrap();
         db.delete_arc(&arc_deleted.id).unwrap();
 
         // Soft-deleted event
-        let ev_deleted = db.create_event(&CreateEventRequest {
-            title: "Événement supprimé : Bal à Skyreach".to_string(),
-            description: Some("Scène de bal prévue puis retirée.".to_string()),
-            time_point: Some("An 300, Jour 9".to_string()),
-            time_start: None,
-            time_end: None,
-            event_type: Some("scene".to_string()),
-            importance: Some("minor".to_string()),
-        }).unwrap();
+        let ev_deleted = db
+            .create_event(&CreateEventRequest {
+                title: "Événement supprimé : Bal à Skyreach".to_string(),
+                description: Some("Scène de bal prévue puis retirée.".to_string()),
+                time_point: Some("An 300, Jour 9".to_string()),
+                time_start: None,
+                time_end: None,
+                event_type: Some("scene".to_string()),
+                importance: Some("minor".to_string()),
+            })
+            .unwrap();
         db.delete_event(&ev_deleted.id).unwrap();
-
     }
 
     #[test]
@@ -17470,10 +19548,15 @@ mod tests {
         assert!(statuses.contains(&"planned"));
 
         // Count all scenes (excluding soft-deleted)
-        let all_scenes: Vec<_> = chapters.iter()
+        let all_scenes: Vec<_> = chapters
+            .iter()
             .flat_map(|ch| db.get_scenes(&ch.id).unwrap())
             .collect();
-        assert!(all_scenes.len() >= 16, "Should have at least 16 active scenes, got {}", all_scenes.len());
+        assert!(
+            all_scenes.len() >= 16,
+            "Should have at least 16 active scenes, got {}",
+            all_scenes.len()
+        );
 
         // Verify all scene statuses exist
         let scene_statuses: Vec<&str> = all_scenes.iter().map(|s| s.status.as_str()).collect();

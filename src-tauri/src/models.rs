@@ -308,8 +308,9 @@ pub struct Arc {
     pub name: String,
     pub description: Option<String>,
     pub stakes: Option<String>,
-    /// Key characters involved in this arc (comma-separated Bible entry IDs)
-    pub characters: Option<String>,
+    /// Key characters involved in this arc (Bible entry IDs)
+    #[serde(deserialize_with = "deserialize_characters", default)]
+    pub characters: Vec<String>,
     pub status: String,
     pub color: Option<String>,
     pub position: i32,
@@ -317,12 +318,56 @@ pub struct Arc {
     pub updated_at: String,
 }
 
+/// Custom deserializer that accepts both old format (comma-separated string or null)
+/// and new format (array of strings) for backward compatibility with snapshots.
+fn deserialize_characters<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de;
+
+    struct CharactersVisitor;
+
+    impl<'de> de::Visitor<'de> for CharactersVisitor {
+        type Value = Vec<String>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string, array of strings, or null")
+        }
+
+        fn visit_unit<E: de::Error>(self) -> Result<Vec<String>, E> {
+            Ok(Vec::new())
+        }
+
+        fn visit_none<E: de::Error>(self) -> Result<Vec<String>, E> {
+            Ok(Vec::new())
+        }
+
+        fn visit_str<E: de::Error>(self, value: &str) -> Result<Vec<String>, E> {
+            Ok(value
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect())
+        }
+
+        fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Vec<String>, A::Error> {
+            let mut vec = Vec::new();
+            while let Some(val) = seq.next_element::<String>()? {
+                vec.push(val);
+            }
+            Ok(vec)
+        }
+    }
+
+    deserializer.deserialize_any(CharactersVisitor)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateArcRequest {
     pub name: String,
     pub description: Option<String>,
     pub stakes: Option<String>,
-    pub characters: Option<String>,
     pub status: Option<String>,
     pub color: Option<String>,
 }
@@ -332,7 +377,6 @@ pub struct UpdateArcRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     pub stakes: Option<String>,
-    pub characters: Option<String>,
     pub status: Option<String>,
     pub color: Option<String>,
 }
@@ -565,7 +609,7 @@ pub struct CreateIssueRequest {
     pub severity: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateIssueRequest {
     pub status: Option<String>,
     pub resolution_note: Option<String>,

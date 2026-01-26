@@ -21,14 +21,13 @@ impl Database {
 
         self.conn
             .execute(
-                "INSERT INTO arcs (id, name, description, stakes, characters, status, color, position, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                "INSERT INTO arcs (id, name, description, stakes, status, color, position, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     id,
                     req.name,
                     req.description,
                     req.stakes,
-                    req.characters,
                     req.status.as_deref().unwrap_or("setup"),
                     req.color,
                     position,
@@ -45,78 +44,53 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, name, description, stakes, characters, status, color, position, created_at, updated_at
+                "SELECT id, name, description, stakes, status, color, position, created_at, updated_at
              FROM arcs WHERE deleted_at IS NULL ORDER BY position",
             )
             .map_err(|e| e.to_string())?;
 
-        let arcs = stmt
-            .query_map([], Self::map_arc)
+        let mut arcs: Vec<Arc> = stmt
+            .query_map([], Self::map_arc_row)
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
+        for arc in &mut arcs {
+            arc.characters = self.get_arc_characters(&arc.id)?;
+        }
+
         Ok(arcs)
     }
 
-    fn map_arc(row: &rusqlite::Row) -> rusqlite::Result<Arc> {
-        let (id, name, description, stakes, characters) = Self::map_arc_core(row)?;
-        let (status, color, position, created_at, updated_at) = Self::map_arc_meta(row)?;
+    /// Maps a row (without characters) to an Arc with empty characters vec.
+    fn map_arc_row(row: &rusqlite::Row) -> rusqlite::Result<Arc> {
         Ok(Arc {
-            id,
-            name,
-            description,
-            stakes,
-            characters,
-            status,
-            color,
-            position,
-            created_at,
-            updated_at,
+            id: row.get(0)?,
+            name: row.get(1)?,
+            description: row.get(2)?,
+            stakes: row.get(3)?,
+            characters: Vec::new(), // loaded separately
+            status: row.get(4)?,
+            color: row.get(5)?,
+            position: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
         })
     }
 
-    #[allow(clippy::type_complexity)]
-    fn map_arc_core(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-    )> {
-        Ok((
-            row.get(0)?,
-            row.get(1)?,
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-        ))
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn map_arc_meta(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(String, Option<String>, i32, String, String)> {
-        Ok((
-            row.get(5)?,
-            row.get(6)?,
-            row.get(7)?,
-            row.get(8)?,
-            row.get(9)?,
-        ))
-    }
-
     pub fn get_arc(&self, id: &str) -> Result<Arc, String> {
-        self.conn
+        let mut arc = self
+            .conn
             .query_row(
-                "SELECT id, name, description, stakes, characters, status, color, position, created_at, updated_at
+                "SELECT id, name, description, stakes, status, color, position, created_at, updated_at
              FROM arcs WHERE id = ?1 AND deleted_at IS NULL",
                 params![id],
-                Self::map_arc,
+                Self::map_arc_row,
             )
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+
+        arc.characters = self.get_arc_characters(id)?;
+        Ok(arc)
     }
 
     pub fn update_arc(&self, id: &str, req: &UpdateArcRequest) -> Result<Arc, String> {
@@ -137,7 +111,6 @@ impl Database {
         add_field!(req.name, "name");
         add_field!(req.description, "description");
         add_field!(req.stakes, "stakes");
-        add_field!(req.characters, "characters");
         add_field!(req.status, "status");
         add_field!(req.color, "color");
 
@@ -168,9 +141,12 @@ impl Database {
     pub fn delete_arc(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Clean up junction table to avoid orphaned records
+        // Clean up junction tables to avoid orphaned records
         self.conn
             .execute("DELETE FROM scene_arcs WHERE arc_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM arc_characters WHERE arc_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
 
         self.conn
@@ -208,7 +184,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT a.id, a.name, a.description, a.stakes, a.characters, a.status, a.color, a.position, a.created_at, a.updated_at
+                "SELECT a.id, a.name, a.description, a.stakes, a.status, a.color, a.position, a.created_at, a.updated_at
              FROM arcs a
              JOIN scene_arcs sa ON a.id = sa.arc_id
              WHERE sa.scene_id = ?1 AND a.deleted_at IS NULL
@@ -216,12 +192,63 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        let arcs = stmt
-            .query_map(params![scene_id], Self::map_arc)
+        let mut arcs: Vec<Arc> = stmt
+            .query_map(params![scene_id], Self::map_arc_row)
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
+        for arc in &mut arcs {
+            arc.characters = self.get_arc_characters(&arc.id)?;
+        }
+
         Ok(arcs)
+    }
+
+    // ========================================================================
+    // Arc-Character operations
+    // ========================================================================
+
+    pub fn get_arc_characters(&self, arc_id: &str) -> Result<Vec<String>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT bible_entry_id FROM arc_characters WHERE arc_id = ?1")
+            .map_err(|e| e.to_string())?;
+
+        let ids = stmt
+            .query_map(params![arc_id], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<String>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(ids)
+    }
+
+    pub fn set_arc_characters(
+        &self,
+        arc_id: &str,
+        character_ids: &[String],
+    ) -> Result<Vec<String>, String> {
+        // Remove all existing links
+        self.conn
+            .execute(
+                "DELETE FROM arc_characters WHERE arc_id = ?1",
+                params![arc_id],
+            )
+            .map_err(|e| e.to_string())?;
+
+        // Insert new links
+        let now = chrono::Utc::now().to_rfc3339();
+        for char_id in character_ids {
+            let id = uuid::Uuid::new_v4().to_string();
+            self.conn
+                .execute(
+                    "INSERT OR IGNORE INTO arc_characters (id, arc_id, bible_entry_id, created_at) VALUES (?1, ?2, ?3, ?4)",
+                    params![id, arc_id, char_id, now],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+
+        self.get_arc_characters(arc_id)
     }
 }

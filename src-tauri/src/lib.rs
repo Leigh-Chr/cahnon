@@ -128,6 +128,7 @@ pub fn run() {
             commands::arc::link_scene_to_arc,
             commands::arc::unlink_scene_from_arc,
             commands::arc::get_scene_arcs,
+            commands::arc::set_arc_characters,
             // Event commands
             commands::event::create_event,
             commands::event::get_events,

@@ -19,9 +19,6 @@ pub fn create_arc(request: CreateArcRequest, state: State<AppState>) -> Result<A
         stakes: request
             .stakes
             .map(|s| sanitize_multiline_text(&s, MAX_SYNOPSIS_LENGTH)),
-        characters: request
-            .characters
-            .map(|c| sanitize_text(&c, MAX_SYNOPSIS_LENGTH)),
         status: request.status.map(|s| sanitize_text(&s, MAX_TITLE_LENGTH)),
         color: request.color,
     };
@@ -59,9 +56,6 @@ pub fn update_arc(
         stakes: request
             .stakes
             .map(|s| sanitize_multiline_text(&s, MAX_SYNOPSIS_LENGTH)),
-        characters: request
-            .characters
-            .map(|c| sanitize_text(&c, MAX_SYNOPSIS_LENGTH)),
         status: request.status.map(|s| sanitize_text(&s, MAX_TITLE_LENGTH)),
         color: request.color,
     };
@@ -111,4 +105,15 @@ pub fn get_scene_arcs(scene_id: String, state: State<AppState>) -> Result<Vec<Ar
     let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.get_scene_arcs(&scene_id)
+}
+
+#[tauri::command]
+pub fn set_arc_characters(
+    arc_id: String,
+    character_ids: Vec<String>,
+    state: State<AppState>,
+) -> Result<Vec<String>, String> {
+    let db = state.get_db()?;
+    let db = db.as_ref().ok_or("No project open")?;
+    db.set_arc_characters(&arc_id, &character_ids)
 }

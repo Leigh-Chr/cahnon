@@ -162,7 +162,14 @@ impl Database {
 mod tests {
     use super::*;
 
-    fn make_scene(id: &str, title: &str, pov: Option<&str>, time_point: Option<&str>, time_start: Option<&str>, time_end: Option<&str>) -> Scene {
+    fn make_scene(
+        id: &str,
+        title: &str,
+        pov: Option<&str>,
+        time_point: Option<&str>,
+        time_start: Option<&str>,
+        time_end: Option<&str>,
+    ) -> Scene {
         Scene {
             id: id.to_string(),
             chapter_id: "ch1".to_string(),
@@ -228,7 +235,14 @@ mod tests {
     #[test]
     fn test_time_range_from_scene_time_point_takes_priority() {
         // If both time_point and time_start are set, time_point wins
-        let scene = make_scene("s1", "S1", Some("Alice"), Some("1200"), Some("1000"), Some("1100"));
+        let scene = make_scene(
+            "s1",
+            "S1",
+            Some("Alice"),
+            Some("1200"),
+            Some("1000"),
+            Some("1100"),
+        );
         let range = TimeRange::from_scene(&scene).unwrap();
         assert_eq!(range.start, "1200");
         assert_eq!(range.end, "1200");
@@ -238,23 +252,41 @@ mod tests {
 
     #[test]
     fn test_overlaps_same_range() {
-        let a = TimeRange { start: "100".to_string(), end: "200".to_string() };
-        let b = TimeRange { start: "100".to_string(), end: "200".to_string() };
+        let a = TimeRange {
+            start: "100".to_string(),
+            end: "200".to_string(),
+        };
+        let b = TimeRange {
+            start: "100".to_string(),
+            end: "200".to_string(),
+        };
         assert!(a.overlaps(&b));
     }
 
     #[test]
     fn test_overlaps_partial_overlap() {
-        let a = TimeRange { start: "100".to_string(), end: "200".to_string() };
-        let b = TimeRange { start: "150".to_string(), end: "250".to_string() };
+        let a = TimeRange {
+            start: "100".to_string(),
+            end: "200".to_string(),
+        };
+        let b = TimeRange {
+            start: "150".to_string(),
+            end: "250".to_string(),
+        };
         assert!(a.overlaps(&b));
         assert!(b.overlaps(&a)); // Symmetric
     }
 
     #[test]
     fn test_overlaps_contained() {
-        let a = TimeRange { start: "100".to_string(), end: "300".to_string() };
-        let b = TimeRange { start: "150".to_string(), end: "200".to_string() };
+        let a = TimeRange {
+            start: "100".to_string(),
+            end: "300".to_string(),
+        };
+        let b = TimeRange {
+            start: "150".to_string(),
+            end: "200".to_string(),
+        };
         assert!(a.overlaps(&b));
         assert!(b.overlaps(&a));
     }
@@ -262,52 +294,94 @@ mod tests {
     #[test]
     fn test_overlaps_touching_boundaries() {
         // [100, 200] and [200, 300] — touching at 200 counts as overlap
-        let a = TimeRange { start: "100".to_string(), end: "200".to_string() };
-        let b = TimeRange { start: "200".to_string(), end: "300".to_string() };
+        let a = TimeRange {
+            start: "100".to_string(),
+            end: "200".to_string(),
+        };
+        let b = TimeRange {
+            start: "200".to_string(),
+            end: "300".to_string(),
+        };
         assert!(a.overlaps(&b));
     }
 
     #[test]
     fn test_overlaps_disjoint() {
-        let a = TimeRange { start: "100".to_string(), end: "200".to_string() };
-        let b = TimeRange { start: "300".to_string(), end: "400".to_string() };
+        let a = TimeRange {
+            start: "100".to_string(),
+            end: "200".to_string(),
+        };
+        let b = TimeRange {
+            start: "300".to_string(),
+            end: "400".to_string(),
+        };
         assert!(!a.overlaps(&b));
         assert!(!b.overlaps(&a));
     }
 
     #[test]
     fn test_overlaps_point_ranges_same() {
-        let a = TimeRange { start: "100".to_string(), end: "100".to_string() };
-        let b = TimeRange { start: "100".to_string(), end: "100".to_string() };
+        let a = TimeRange {
+            start: "100".to_string(),
+            end: "100".to_string(),
+        };
+        let b = TimeRange {
+            start: "100".to_string(),
+            end: "100".to_string(),
+        };
         assert!(a.overlaps(&b));
     }
 
     #[test]
     fn test_overlaps_point_ranges_different() {
-        let a = TimeRange { start: "100".to_string(), end: "100".to_string() };
-        let b = TimeRange { start: "200".to_string(), end: "200".to_string() };
+        let a = TimeRange {
+            start: "100".to_string(),
+            end: "100".to_string(),
+        };
+        let b = TimeRange {
+            start: "200".to_string(),
+            end: "200".to_string(),
+        };
         assert!(!a.overlaps(&b));
     }
 
     #[test]
     fn test_overlaps_point_within_range() {
-        let a = TimeRange { start: "100".to_string(), end: "300".to_string() };
-        let b = TimeRange { start: "200".to_string(), end: "200".to_string() };
+        let a = TimeRange {
+            start: "100".to_string(),
+            end: "300".to_string(),
+        };
+        let b = TimeRange {
+            start: "200".to_string(),
+            end: "200".to_string(),
+        };
         assert!(a.overlaps(&b));
     }
 
     #[test]
     fn test_overlaps_iso_dates() {
         // String comparison works for ISO dates
-        let a = TimeRange { start: "2024-01-01".to_string(), end: "2024-06-30".to_string() };
-        let b = TimeRange { start: "2024-03-15".to_string(), end: "2024-09-01".to_string() };
+        let a = TimeRange {
+            start: "2024-01-01".to_string(),
+            end: "2024-06-30".to_string(),
+        };
+        let b = TimeRange {
+            start: "2024-03-15".to_string(),
+            end: "2024-09-01".to_string(),
+        };
         assert!(a.overlaps(&b));
     }
 
     #[test]
     fn test_overlaps_iso_dates_disjoint() {
-        let a = TimeRange { start: "2024-01-01".to_string(), end: "2024-03-01".to_string() };
-        let b = TimeRange { start: "2024-06-01".to_string(), end: "2024-09-01".to_string() };
+        let a = TimeRange {
+            start: "2024-01-01".to_string(),
+            end: "2024-03-01".to_string(),
+        };
+        let b = TimeRange {
+            start: "2024-06-01".to_string(),
+            end: "2024-09-01".to_string(),
+        };
         assert!(!a.overlaps(&b));
     }
 
@@ -315,13 +389,19 @@ mod tests {
 
     #[test]
     fn test_display_point() {
-        let r = TimeRange { start: "1200".to_string(), end: "1200".to_string() };
+        let r = TimeRange {
+            start: "1200".to_string(),
+            end: "1200".to_string(),
+        };
         assert_eq!(r.display(), "1200");
     }
 
     #[test]
     fn test_display_range() {
-        let r = TimeRange { start: "1000".to_string(), end: "1200".to_string() };
+        let r = TimeRange {
+            start: "1000".to_string(),
+            end: "1200".to_string(),
+        };
         assert_eq!(r.display(), "1000 - 1200");
     }
 
@@ -336,9 +416,7 @@ mod tests {
 
     #[test]
     fn test_group_scenes_by_pov_no_pov() {
-        let scenes = vec![
-            make_scene("s1", "S1", None, Some("100"), None, None),
-        ];
+        let scenes = vec![make_scene("s1", "S1", None, Some("100"), None, None)];
         let groups = Database::group_scenes_by_pov(&scenes);
         assert!(groups.is_empty());
     }
@@ -410,27 +488,28 @@ mod tests {
 
     #[test]
     fn test_detect_missing_time_no_pov() {
-        let scenes = vec![
-            make_scene("s1", "S1", None, None, None, None),
-        ];
+        let scenes = vec![make_scene("s1", "S1", None, None, None, None)];
         let conflicts = Database::detect_missing_time_conflicts(&scenes);
         assert!(conflicts.is_empty()); // No POV → not a missing_time issue
     }
 
     #[test]
     fn test_detect_missing_time_with_pov_and_time() {
-        let scenes = vec![
-            make_scene("s1", "S1", Some("Alice"), Some("100"), None, None),
-        ];
+        let scenes = vec![make_scene(
+            "s1",
+            "S1",
+            Some("Alice"),
+            Some("100"),
+            None,
+            None,
+        )];
         let conflicts = Database::detect_missing_time_conflicts(&scenes);
         assert!(conflicts.is_empty()); // Has time → no issue
     }
 
     #[test]
     fn test_detect_missing_time_with_pov_no_time() {
-        let scenes = vec![
-            make_scene("s1", "S1", Some("Alice"), None, None, None),
-        ];
+        let scenes = vec![make_scene("s1", "S1", Some("Alice"), None, None, None)];
         let conflicts = Database::detect_missing_time_conflicts(&scenes);
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].conflict_type, "missing_time");
@@ -439,9 +518,14 @@ mod tests {
 
     #[test]
     fn test_detect_missing_time_with_start_only() {
-        let scenes = vec![
-            make_scene("s1", "S1", Some("Alice"), None, Some("100"), None),
-        ];
+        let scenes = vec![make_scene(
+            "s1",
+            "S1",
+            Some("Alice"),
+            None,
+            Some("100"),
+            None,
+        )];
         let conflicts = Database::detect_missing_time_conflicts(&scenes);
         assert!(conflicts.is_empty()); // Has time_start → not missing
     }

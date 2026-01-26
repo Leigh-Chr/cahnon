@@ -298,6 +298,12 @@ impl Database {
                 params![id],
             )
             .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "DELETE FROM arc_characters WHERE bible_entry_id = ?1",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
 
         // Soft-delete the entry itself
         self.conn

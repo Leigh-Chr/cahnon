@@ -311,6 +311,9 @@ impl Database {
             .execute("DELETE FROM scene_arcs", [])
             .map_err(|e| e.to_string())?;
         self.conn
+            .execute("DELETE FROM arc_characters", [])
+            .map_err(|e| e.to_string())?;
+        self.conn
             .execute("DELETE FROM event_scenes", [])
             .map_err(|e| e.to_string())?;
         self.conn
@@ -481,15 +484,14 @@ impl Database {
         for arc in arcs {
             self.conn
                 .execute(
-                    "INSERT INTO arcs (id, name, description, stakes, characters, status, color, position,
+                    "INSERT INTO arcs (id, name, description, stakes, status, color, position,
                      created_at, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                     params![
                         arc.id,
                         arc.name,
                         arc.description,
                         arc.stakes,
-                        arc.characters,
                         arc.status,
                         arc.color,
                         arc.position,
@@ -498,6 +500,11 @@ impl Database {
                     ],
                 )
                 .map_err(|e| e.to_string())?;
+
+            // Restore arc-character links
+            if !arc.characters.is_empty() {
+                self.set_arc_characters(&arc.id, &arc.characters)?;
+            }
         }
         Ok(())
     }

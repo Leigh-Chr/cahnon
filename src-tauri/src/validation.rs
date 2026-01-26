@@ -230,10 +230,7 @@ mod tests {
 
     #[test]
     fn test_sanitize_multiline_trims() {
-        assert_eq!(
-            sanitize_multiline_text("  \n  Hello  \n  ", 100),
-            "Hello"
-        );
+        assert_eq!(sanitize_multiline_text("  \n  Hello  \n  ", 100), "Hello");
     }
 
     // --- validate_required ---
