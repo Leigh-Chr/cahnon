@@ -569,6 +569,9 @@ pub struct CreateIssueRequest {
 pub struct UpdateIssueRequest {
     pub status: Option<String>,
     pub resolution_note: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub severity: Option<String>,
 }
 
 // ============================================================================

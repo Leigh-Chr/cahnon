@@ -97,6 +97,7 @@ export interface KeyboardShortcuts {
 	reviewGrid: ShortcutBinding;
 	importDialog: ShortcutBinding;
 	arcsManager: ShortcutBinding;
+	eventsManager: ShortcutBinding;
 	templatesManager: ShortcutBinding;
 	fullscreen: ShortcutBinding;
 	focusMode: ShortcutBinding;
@@ -122,6 +123,7 @@ export const defaultKeyboardShortcuts: KeyboardShortcuts = {
 	reviewGrid: { key: 'g', mod: true, shift: false },
 	importDialog: { key: 'i', mod: true, shift: false },
 	arcsManager: { key: 'a', mod: true, shift: false },
+	eventsManager: { key: 'v', mod: true, shift: false },
 	templatesManager: { key: 't', mod: true, shift: false },
 	fullscreen: { key: 'F11', mod: false, shift: false },
 	focusMode: { key: 'f', mod: true, shift: true },
@@ -148,6 +150,7 @@ export const shortcutLabels: Record<keyof KeyboardShortcuts, string> = {
 	reviewGrid: 'Review Grid',
 	importDialog: 'Import',
 	arcsManager: 'Arcs Manager',
+	eventsManager: 'Events Manager',
 	templatesManager: 'Templates Manager',
 	fullscreen: 'Fullscreen',
 	focusMode: 'Focus Mode',

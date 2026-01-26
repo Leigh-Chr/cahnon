@@ -27,6 +27,10 @@
 	let newType = $state('comment');
 	let pendingOffsets = $state<{ start: number; end: number } | null>(null);
 
+	// Inline edit state
+	let editingAnnotationId = $state<string | null>(null);
+	let editedContent = $state('');
+
 	const annotationTypes = [
 		{ value: 'comment', label: 'Comment', icon: '💬' },
 		{ value: 'question', label: 'Question', icon: '❓' },
@@ -115,6 +119,29 @@
 		} catch (e) {
 			console.error('Failed to delete annotation:', e);
 			showError('Failed to delete annotation');
+		}
+	}
+
+	function startEditingAnnotation(annotation: Annotation) {
+		editingAnnotationId = annotation.id;
+		editedContent = annotation.content;
+	}
+
+	function cancelEditingAnnotation() {
+		editingAnnotationId = null;
+		editedContent = '';
+	}
+
+	async function saveAnnotationContent(annotationId: string) {
+		if (!editedContent.trim()) return;
+		try {
+			const updated = await annotationApi.update(annotationId, { content: editedContent.trim() });
+			annotations = annotations.map((a) => (a.id === updated.id ? updated : a));
+			editingAnnotationId = null;
+			editedContent = '';
+		} catch (e) {
+			console.error('Failed to update annotation:', e);
+			showError('Failed to update annotation');
 		}
 	}
 
@@ -210,6 +237,17 @@
 								size="sm"
 								onclick={(e) => {
 									e.stopPropagation();
+									startEditingAnnotation(annotation);
+								}}
+								title="Edit"
+							>
+								<Icon name="edit" size={12} />
+							</Button>
+							<Button
+								variant="icon"
+								size="sm"
+								onclick={(e) => {
+									e.stopPropagation();
 									deleteAnnotation(annotation.id);
 								}}
 								title="Delete"
@@ -217,7 +255,25 @@
 								<Icon name="close" size={12} />
 							</Button>
 						</div>
-						<p class="annotation-content">{annotation.content}</p>
+						{#if editingAnnotationId === annotation.id}
+							<div class="annotation-edit" onclick={(e) => e.stopPropagation()}>
+								<textarea bind:value={editedContent} rows="3" class="annotation-edit-textarea"
+								></textarea>
+								<div class="annotation-edit-actions">
+									<button class="annotation-edit-btn" onclick={cancelEditingAnnotation}>
+										Cancel
+									</button>
+									<button
+										class="annotation-edit-btn save"
+										onclick={() => saveAnnotationContent(annotation.id)}
+									>
+										Save
+									</button>
+								</div>
+							</div>
+						{:else}
+							<p class="annotation-content">{annotation.content}</p>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -346,5 +402,43 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-text-primary);
 		line-height: var(--line-height-normal);
+	}
+
+	.annotation-edit {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.annotation-edit-textarea {
+		width: 100%;
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-xs);
+		border: 1px solid var(--color-accent);
+		border-radius: var(--border-radius-sm);
+		resize: none;
+		font-family: inherit;
+	}
+
+	.annotation-edit-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--spacing-xs);
+	}
+
+	.annotation-edit-btn {
+		font-size: var(--font-size-xs);
+		padding: 2px var(--spacing-sm);
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.annotation-edit-btn:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.annotation-edit-btn.save {
+		color: var(--color-accent);
+		font-weight: 500;
 	}
 </style>

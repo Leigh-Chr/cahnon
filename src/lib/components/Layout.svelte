@@ -14,6 +14,7 @@
 	import ContextPanel from './ContextPanel.svelte';
 	import Corkboard from './Corkboard.svelte';
 	import Editor from './Editor.svelte';
+	import EventsManager from './EventsManager.svelte';
 	import ExportDialog from './ExportDialog.svelte';
 	import ImportDialog from './ImportDialog.svelte';
 	import IssuesView from './IssuesView.svelte';
@@ -34,6 +35,7 @@
 	let showImportDialog = $state(false);
 	let showSettingsDialog = $state(false);
 	let showArcsManager = $state(false);
+	let showEventsManager = $state(false);
 	let showTemplatesManager = $state(false);
 	import type { Scene } from '$lib/api';
 	import { appState } from '$lib/stores';
@@ -122,6 +124,12 @@
 		if (appState.matchesShortcut(event, 'arcsManager')) {
 			event.preventDefault();
 			showArcsManager = !showArcsManager;
+			return;
+		}
+
+		if (appState.matchesShortcut(event, 'eventsManager')) {
+			event.preventDefault();
+			showEventsManager = !showEventsManager;
 			return;
 		}
 
@@ -308,6 +316,7 @@
 	<ImportDialog bind:isOpen={showImportDialog} />
 	<SettingsDialog bind:isOpen={showSettingsDialog} />
 	<ArcsManager isOpen={showArcsManager} onclose={() => (showArcsManager = false)} />
+	<EventsManager isOpen={showEventsManager} onclose={() => (showEventsManager = false)} />
 	<TemplatesManager isOpen={showTemplatesManager} onclose={() => (showTemplatesManager = false)} />
 	<ToastNotifications />
 

@@ -13,12 +13,13 @@
   - Status chart showing scene status distribution
 -->
 <script lang="ts">
-	import type { Annotation, BibleEntry } from '$lib/api';
+	import type { Annotation, BibleEntry, Issue } from '$lib/api';
 	import {
 		type Arc,
 		arcApi,
 		associationApi,
 		eventApi,
+		issueApi,
 		templateApi,
 		type TemplateStep,
 		type TimelineEvent,
@@ -112,9 +113,25 @@
 	let isSelectingStep = $state(false);
 	let selectedStepToAssign = $state('');
 	let linkedEvents = $state<TimelineEvent[]>([]);
+	let allEvents = $state<TimelineEvent[]>([]);
+	let isAddingEvent = $state(false);
+	let selectedEventToAdd = $state('');
+
+	// Scene issues
+	let sceneIssues = $state<Issue[]>([]);
+
+	// Timeline editing state
+	let isEditingTimeline = $state(false);
+	let editedOnTimeline = $state(false);
+	let editedTimePoint = $state('');
+	let editedTimeStart = $state('');
+	let editedTimeEnd = $state('');
 
 	// Derived: arcs not already linked to the scene
 	let availableArcs = $derived(allArcs.filter((arc) => !sceneArcs.some((sa) => sa.id === arc.id)));
+	let availableEvents = $derived(
+		allEvents.filter((ev) => !linkedEvents.some((le) => le.id === ev.id))
+	);
 
 	$effect(() => {
 		if (selectedSceneId) {
@@ -123,6 +140,8 @@
 			loadAllArcs();
 			loadTemplateStep();
 			loadLinkedEvents();
+			loadAllEvents();
+			loadSceneIssues();
 		}
 	});
 
@@ -226,6 +245,101 @@
 			} catch (e) {
 				console.error('Failed to load linked events:', e);
 				linkedEvents = [];
+			}
+		}
+	}
+
+	async function loadAllEvents() {
+		try {
+			allEvents = await eventApi.getAll();
+		} catch (e) {
+			console.error('Failed to load all events:', e);
+			allEvents = [];
+		}
+	}
+
+	async function addEventToScene() {
+		if (!selectedSceneId || !selectedEventToAdd) return;
+		try {
+			await eventApi.linkScene(selectedSceneId, selectedEventToAdd);
+			await loadLinkedEvents();
+			selectedEventToAdd = '';
+			isAddingEvent = false;
+		} catch (e) {
+			console.error('Failed to link event:', e);
+			showError('Failed to link event');
+		}
+	}
+
+	async function removeEventFromScene(eventId: string) {
+		if (!selectedSceneId) return;
+		try {
+			await eventApi.unlinkScene(selectedSceneId, eventId);
+			await loadLinkedEvents();
+		} catch (e) {
+			console.error('Failed to unlink event:', e);
+			showError('Failed to unlink event');
+		}
+	}
+
+	async function loadSceneIssues() {
+		if (selectedSceneId) {
+			try {
+				sceneIssues = await issueApi.getSceneIssues(selectedSceneId);
+			} catch (e) {
+				console.error('Failed to load scene issues:', e);
+				sceneIssues = [];
+			}
+		}
+	}
+
+	function startEditingTimeline() {
+		editedOnTimeline = selectedScene?.on_timeline ?? false;
+		editedTimePoint = selectedScene?.time_point || '';
+		editedTimeStart = selectedScene?.time_start || '';
+		editedTimeEnd = selectedScene?.time_end || '';
+		isEditingTimeline = true;
+	}
+
+	async function saveTimeline() {
+		if (selectedScene) {
+			try {
+				await appState.updateScene(selectedScene.id, {
+					on_timeline: editedOnTimeline,
+					time_point: editedTimePoint.trim() || null,
+					time_start: editedTimeStart.trim() || null,
+					time_end: editedTimeEnd.trim() || null,
+				});
+				isEditingTimeline = false;
+			} catch (e) {
+				console.error('Failed to save timeline:', e);
+				showError('Failed to save timeline info');
+			}
+		}
+	}
+
+	function cancelEditingTimeline() {
+		isEditingTimeline = false;
+	}
+
+	async function savePov(value: string) {
+		if (selectedScene) {
+			try {
+				await appState.updateScene(selectedScene.id, { pov: value.trim() || null });
+			} catch (e) {
+				console.error('Failed to save POV:', e);
+				showError('Failed to save POV');
+			}
+		}
+	}
+
+	async function saveTags(value: string) {
+		if (selectedScene) {
+			try {
+				await appState.updateScene(selectedScene.id, { tags: value.trim() || null });
+			} catch (e) {
+				console.error('Failed to save tags:', e);
+				showError('Failed to save tags');
 			}
 		}
 	}
@@ -354,6 +468,30 @@
 		<!-- Status Chart Section -->
 		<section class="panel-section">
 			<StatusChart />
+		</section>
+
+		<!-- POV Section -->
+		<section class="panel-section">
+			<h3>POV</h3>
+			<input
+				type="text"
+				class="inline-input"
+				placeholder="Point of view character..."
+				value={selectedScene.pov || ''}
+				onblur={(e) => savePov(e.currentTarget.value)}
+			/>
+		</section>
+
+		<!-- Tags Section -->
+		<section class="panel-section">
+			<h3>Tags</h3>
+			<input
+				type="text"
+				class="inline-input"
+				placeholder="tag1, tag2, tag3..."
+				value={selectedScene.tags || ''}
+				onblur={(e) => saveTags(e.currentTarget.value)}
+			/>
 		</section>
 
 		<!-- Associations Section -->
@@ -501,22 +639,70 @@
 		{/if}
 
 		<!-- Linked Timeline Events Section -->
-		{#if linkedEvents.length > 0}
-			<section class="panel-section">
+		<section class="panel-section">
+			<div class="section-header">
 				<h3>Linked Events</h3>
-				<div class="events-list">
-					{#each linkedEvents as event (event.id)}
-						<div class="event-item">
-							<div class="event-header">
-								<span class="event-title">{event.title}</span>
-								<span class="event-type">{event.event_type}</span>
+				<Button variant="icon" size="sm" onclick={() => (isAddingEvent = !isAddingEvent)}>
+					{#if isAddingEvent}
+						<Icon name="close" size={16} />
+					{:else}
+						<Icon name="plus" size={16} />
+					{/if}
+				</Button>
+			</div>
+
+			{#if isAddingEvent}
+				<div class="arc-search">
+					<select bind:value={selectedEventToAdd} onchange={addEventToScene}>
+						<option value="">Select an event...</option>
+						{#each availableEvents as event (event.id)}
+							<option value={event.id}>{event.title}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
+
+			<div class="events-list">
+				{#each linkedEvents as event (event.id)}
+					<div class="event-item">
+						<div class="event-header">
+							<span class="event-title">{event.title}</span>
+							<span class="event-type">{event.event_type}</span>
+							<button
+								class="remove-btn"
+								onclick={() => removeEventFromScene(event.id)}
+								title="Unlink event"
+							>
+								&times;
+							</button>
+						</div>
+						{#if event.time_point || event.time_start}
+							<div class="event-time">
+								{event.time_point ||
+									`${event.time_start}${event.time_end ? ` - ${event.time_end}` : ''}`}
 							</div>
-							{#if event.time_point || event.time_start}
-								<div class="event-time">
-									{event.time_point ||
-										`${event.time_start}${event.time_end ? ` - ${event.time_end}` : ''}`}
-								</div>
-							{/if}
+						{/if}
+					</div>
+				{:else}
+					<p class="empty-message">No events linked to this scene.</p>
+				{/each}
+			</div>
+		</section>
+
+		<!-- Linked Issues Section -->
+		{#if sceneIssues.length > 0}
+			<section class="panel-section">
+				<h3>Issues ({sceneIssues.length})</h3>
+				<div class="issues-list">
+					{#each sceneIssues as issue (issue.id)}
+						<div class="issue-item" data-severity={issue.severity} data-status={issue.status}>
+							<span class="issue-severity-dot"></span>
+							<div class="issue-info">
+								<span class="issue-title">{issue.title}</span>
+								<span class="issue-meta">
+									{issue.severity} &middot; {issue.status}
+								</span>
+							</div>
 						</div>
 					{/each}
 				</div>
@@ -524,27 +710,69 @@
 		{/if}
 
 		<!-- Scene Timeline Info -->
-		{#if selectedScene.on_timeline && (selectedScene.time_point || selectedScene.time_start)}
-			<section class="panel-section">
+		<section class="panel-section">
+			<div class="section-header">
 				<h3>Timeline</h3>
+				{#if !isEditingTimeline}
+					<Button variant="icon" size="sm" onclick={startEditingTimeline} title="Edit timeline">
+						<Icon name="edit" size={14} />
+					</Button>
+				{/if}
+			</div>
+			{#if isEditingTimeline}
+				<div class="timeline-edit-form">
+					<label class="checkbox-label">
+						<input type="checkbox" bind:checked={editedOnTimeline} />
+						Show on timeline
+					</label>
+					<input
+						type="text"
+						class="inline-input"
+						placeholder="Time point (e.g., Day 3)"
+						bind:value={editedTimePoint}
+					/>
+					<input
+						type="text"
+						class="inline-input"
+						placeholder="Time start"
+						bind:value={editedTimeStart}
+					/>
+					<input
+						type="text"
+						class="inline-input"
+						placeholder="Time end"
+						bind:value={editedTimeEnd}
+					/>
+					<div class="edit-actions">
+						<Button variant="ghost" size="sm" onclick={cancelEditingTimeline}>Cancel</Button>
+						<Button variant="primary" size="sm" onclick={saveTimeline}>Save</Button>
+					</div>
+				</div>
+			{:else}
 				<div class="timeline-info">
-					<div class="timeline-badge">On Timeline</div>
-					<div class="timeline-time">
-						{#if selectedScene.time_point}
+					{#if selectedScene.on_timeline}
+						<div class="timeline-badge">On Timeline</div>
+					{/if}
+					{#if selectedScene.time_point}
+						<div class="timeline-time">
 							<span class="time-label">Time:</span>
 							<span class="time-value">{selectedScene.time_point}</span>
-						{:else if selectedScene.time_start}
+						</div>
+					{:else if selectedScene.time_start}
+						<div class="timeline-time">
 							<span class="time-label">From:</span>
 							<span class="time-value">{selectedScene.time_start}</span>
 							{#if selectedScene.time_end}
 								<span class="time-label">To:</span>
 								<span class="time-value">{selectedScene.time_end}</span>
 							{/if}
-						{/if}
-					</div>
+						</div>
+					{:else if !selectedScene.on_timeline}
+						<p class="empty-message">Not on timeline.</p>
+					{/if}
 				</div>
-			</section>
-		{/if}
+			{/if}
+		</section>
 
 		<!-- Notes Section -->
 		<section class="panel-section">
@@ -1151,5 +1379,109 @@
 
 	.annotations-section :global(.annotations-panel) {
 		flex: 1;
+	}
+
+	/* Inline input for POV, Tags */
+	.inline-input {
+		width: 100%;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-primary);
+	}
+
+	.inline-input:focus {
+		outline: none;
+		border-color: var(--color-accent);
+	}
+
+	/* Timeline edit form */
+	.timeline-edit-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+	}
+
+	.checkbox-label {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+		cursor: pointer;
+	}
+
+	.checkbox-label input[type='checkbox'] {
+		width: 16px;
+		height: 16px;
+	}
+
+	/* Event item remove button visibility */
+	.event-item .remove-btn {
+		opacity: 0;
+	}
+
+	.event-item:hover .remove-btn {
+		opacity: 1;
+	}
+
+	/* Scene Issues */
+	.issues-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.issue-item {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-secondary);
+	}
+
+	.issue-severity-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+		margin-top: 5px;
+		background-color: var(--color-warning);
+	}
+
+	.issue-item[data-severity='error'] .issue-severity-dot {
+		background-color: var(--color-error);
+	}
+
+	.issue-item[data-severity='info'] .issue-severity-dot {
+		background-color: var(--color-info);
+	}
+
+	.issue-item[data-status='resolved'] .issue-severity-dot {
+		opacity: 0.4;
+	}
+
+	.issue-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.issue-title {
+		display: block;
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		color: var(--color-text-primary);
+	}
+
+	.issue-item[data-status='resolved'] .issue-title {
+		text-decoration: line-through;
+		opacity: 0.6;
+	}
+
+	.issue-meta {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
 	}
 </style>

@@ -21,9 +21,21 @@
 	import { Button, Icon } from './ui';
 
 	// Context menu state
-	let contextMenu = $state<{ x: number; y: number; sceneId: string; chapterId: string } | null>(
-		null
-	);
+	let contextMenu = $state<{
+		x: number;
+		y: number;
+		menuType: 'chapter' | 'scene';
+		sceneId: string;
+		chapterId: string;
+	} | null>(null);
+
+	// Chapter inline editing state
+	let editingChapterId = $state<string | null>(null);
+	let editingChapterTitle = $state('');
+	let showChapterDetails = $state(false);
+	let editingChapterSummary = $state('');
+	let editingChapterStatus = $state('draft');
+	let editingChapterNotes = $state('');
 
 	let expandedChapters = new SvelteSet<string>();
 
@@ -193,7 +205,7 @@
 
 	function handleContextMenu(event: MouseEvent, sceneId: string, chapterId: string) {
 		event.preventDefault();
-		contextMenu = { x: event.clientX, y: event.clientY, sceneId, chapterId };
+		contextMenu = { x: event.clientX, y: event.clientY, menuType: 'scene', sceneId, chapterId };
 	}
 
 	function closeContextMenu() {
@@ -215,6 +227,89 @@
 	async function handleDeleteScene(sceneId: string) {
 		if (confirm('Delete this scene?')) {
 			await appState.deleteScene(sceneId);
+		}
+		closeContextMenu();
+	}
+
+	function handleChapterContextMenu(event: MouseEvent, chapterId: string) {
+		event.preventDefault();
+		contextMenu = {
+			x: event.clientX,
+			y: event.clientY,
+			menuType: 'chapter',
+			sceneId: '',
+			chapterId,
+		};
+	}
+
+	function startRenamingChapter(chapterId: string) {
+		const chapter = chapters.find((c) => c.id === chapterId);
+		if (!chapter) return;
+		editingChapterId = chapterId;
+		editingChapterTitle = chapter.title;
+		closeContextMenu();
+	}
+
+	async function finishRenamingChapter() {
+		if (!editingChapterId || !editingChapterTitle.trim()) {
+			editingChapterId = null;
+			return;
+		}
+		try {
+			await chapterApi.update(editingChapterId, { title: editingChapterTitle.trim() });
+			await appState.loadChapters();
+		} catch (e) {
+			console.error('Failed to rename chapter:', e);
+			showError('Failed to rename chapter');
+		}
+		editingChapterId = null;
+	}
+
+	function cancelRenamingChapter() {
+		editingChapterId = null;
+	}
+
+	function openChapterDetails(chapterId: string) {
+		const chapter = chapters.find((c) => c.id === chapterId);
+		if (!chapter) return;
+		editingChapterId = chapterId;
+		editingChapterSummary = chapter.summary || '';
+		editingChapterStatus = chapter.status || 'draft';
+		editingChapterNotes = chapter.notes || '';
+		showChapterDetails = true;
+		closeContextMenu();
+	}
+
+	async function saveChapterDetails() {
+		if (!editingChapterId) return;
+		try {
+			await chapterApi.update(editingChapterId, {
+				summary: editingChapterSummary.trim() || undefined,
+				status: editingChapterStatus,
+				notes: editingChapterNotes.trim() || undefined,
+			});
+			await appState.loadChapters();
+		} catch (e) {
+			console.error('Failed to update chapter:', e);
+			showError('Failed to update chapter');
+		}
+		showChapterDetails = false;
+		editingChapterId = null;
+	}
+
+	function cancelChapterDetails() {
+		showChapterDetails = false;
+		editingChapterId = null;
+	}
+
+	async function handleDeleteChapter(chapterId: string) {
+		if (confirm('Delete this chapter and all its scenes? This cannot be undone.')) {
+			try {
+				await appState.deleteChapter(chapterId);
+			} catch (e) {
+				console.error('Failed to delete chapter:', e);
+				showError('Failed to delete chapter');
+			}
 		}
 		closeContextMenu();
 	}
@@ -254,6 +349,11 @@
 					draggable="true"
 					onclick={() => selectChapter(chapter.id)}
 					onkeydown={(e) => e.key === 'Enter' && selectChapter(chapter.id)}
+					oncontextmenu={(e) => handleChapterContextMenu(e, chapter.id)}
+					ondblclick={(e) => {
+						e.preventDefault();
+						startRenamingChapter(chapter.id);
+					}}
 					ondragstart={(e) => handleDragStart(e, 'chapter', chapter.id)}
 					ondragend={handleDragEnd}
 					ondragover={(e) => handleDragOver(e, 'chapter', chapter.id)}
@@ -278,7 +378,26 @@
 						style="background-color: {statusColors[chapter.status] || 'var(--color-text-muted)'}"
 					></span>
 
-					<span class="chapter-title truncate">{chapter.title}</span>
+					{#if editingChapterId === chapter.id && !showChapterDetails}
+						<input
+							type="text"
+							class="inline-rename"
+							bind:value={editingChapterTitle}
+							onkeydown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									finishRenamingChapter();
+								} else if (e.key === 'Escape') {
+									cancelRenamingChapter();
+								}
+							}}
+							onblur={finishRenamingChapter}
+							onclick={(e) => e.stopPropagation()}
+							autofocus
+						/>
+					{:else}
+						<span class="chapter-title truncate">{chapter.title}</span>
+					{/if}
 
 					<span class="word-count">{formatWordCount(wordCount)}</span>
 
@@ -360,31 +479,99 @@
 
 	{#if contextMenu}
 		<div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px" role="menu">
-			<button
-				class="context-menu-item"
-				onclick={() => handleDuplicateScene(contextMenu!.sceneId, false)}
-				role="menuitem"
+			{#if contextMenu.menuType === 'chapter'}
+				<button
+					class="context-menu-item"
+					onclick={() => startRenamingChapter(contextMenu!.chapterId)}
+					role="menuitem"
+				>
+					<Icon name="edit" size={14} />
+					Rename
+				</button>
+				<button
+					class="context-menu-item"
+					onclick={() => openChapterDetails(contextMenu!.chapterId)}
+					role="menuitem"
+				>
+					<Icon name="info" size={14} />
+					Edit Details...
+				</button>
+				<div class="context-menu-separator"></div>
+				<button
+					class="context-menu-item danger"
+					onclick={() => handleDeleteChapter(contextMenu!.chapterId)}
+					role="menuitem"
+				>
+					<Icon name="trash" size={14} />
+					Delete
+				</button>
+			{:else}
+				<button
+					class="context-menu-item"
+					onclick={() => handleDuplicateScene(contextMenu!.sceneId, false)}
+					role="menuitem"
+				>
+					<Icon name="copy" size={14} />
+					Duplicate
+				</button>
+				<button
+					class="context-menu-item"
+					onclick={() => handleDuplicateScene(contextMenu!.sceneId, true)}
+					role="menuitem"
+				>
+					<Icon name="file" size={14} />
+					Duplicate (structure only)
+				</button>
+				<div class="context-menu-separator"></div>
+				<button
+					class="context-menu-item danger"
+					onclick={() => handleDeleteScene(contextMenu!.sceneId)}
+					role="menuitem"
+				>
+					<Icon name="trash" size={14} />
+					Delete
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if showChapterDetails}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="chapter-details-overlay" onclick={cancelChapterDetails} role="presentation">
+			<div
+				class="chapter-details-dialog"
+				onclick={(e) => e.stopPropagation()}
+				role="dialog"
+				aria-modal="true"
+				tabindex="-1"
 			>
-				<Icon name="copy" size={14} />
-				Duplicate
-			</button>
-			<button
-				class="context-menu-item"
-				onclick={() => handleDuplicateScene(contextMenu!.sceneId, true)}
-				role="menuitem"
-			>
-				<Icon name="file" size={14} />
-				Duplicate (structure only)
-			</button>
-			<div class="context-menu-separator"></div>
-			<button
-				class="context-menu-item danger"
-				onclick={() => handleDeleteScene(contextMenu!.sceneId)}
-				role="menuitem"
-			>
-				<Icon name="trash" size={14} />
-				Delete
-			</button>
+				<h3>Edit Chapter Details</h3>
+				<div class="chapter-details-form">
+					<label class="form-label">
+						Summary
+						<textarea bind:value={editingChapterSummary} placeholder="Chapter summary..." rows="3"
+						></textarea>
+					</label>
+					<label class="form-label">
+						Status
+						<select bind:value={editingChapterStatus}>
+							<option value="draft">Draft</option>
+							<option value="in_progress">In Progress</option>
+							<option value="revised">Revised</option>
+							<option value="done">Done</option>
+						</select>
+					</label>
+					<label class="form-label">
+						Notes
+						<textarea bind:value={editingChapterNotes} placeholder="Private notes..." rows="3"
+						></textarea>
+					</label>
+					<div class="chapter-details-actions">
+						<Button variant="ghost" size="sm" onclick={cancelChapterDetails}>Cancel</Button>
+						<Button variant="primary" size="sm" onclick={saveChapterDetails}>Save</Button>
+					</div>
+				</div>
+			</div>
 		</div>
 	{/if}
 </div>
@@ -638,5 +825,81 @@
 		height: 1px;
 		background-color: var(--color-border);
 		margin: var(--spacing-xs) 0;
+	}
+
+	/* Inline rename */
+	.inline-rename {
+		flex: 1;
+		min-width: 0;
+		padding: 0 var(--spacing-xs);
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		border: 1px solid var(--color-accent);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-primary);
+		outline: none;
+	}
+
+	/* Chapter details dialog */
+	.chapter-details-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-color: var(--overlay-backdrop);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+	}
+
+	.chapter-details-dialog {
+		background-color: var(--color-bg-primary);
+		border-radius: var(--border-radius-lg);
+		box-shadow: var(--shadow-lg);
+		padding: var(--spacing-lg);
+		width: 400px;
+		max-width: 90%;
+	}
+
+	.chapter-details-dialog h3 {
+		font-size: var(--font-size-lg);
+		margin: 0 0 var(--spacing-md) 0;
+		text-transform: none;
+		letter-spacing: normal;
+		color: var(--color-text-primary);
+	}
+
+	.chapter-details-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-md);
+	}
+
+	.form-label {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		color: var(--color-text-secondary);
+	}
+
+	.form-label textarea,
+	.form-label select {
+		padding: var(--spacing-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-secondary);
+		font-size: var(--font-size-sm);
+		font-family: inherit;
+		resize: vertical;
+	}
+
+	.chapter-details-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--spacing-sm);
 	}
 </style>

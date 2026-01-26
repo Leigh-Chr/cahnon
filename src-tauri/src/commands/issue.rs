@@ -52,6 +52,13 @@ pub fn update_issue(
         resolution_note: request
             .resolution_note
             .map(|n| sanitize_multiline_text(&n, MAX_NOTES_LENGTH)),
+        title: request
+            .title
+            .map(|t| sanitize_text(&t, MAX_TITLE_LENGTH)),
+        description: request
+            .description
+            .map(|d| sanitize_multiline_text(&d, MAX_NOTES_LENGTH)),
+        severity: request.severity,
     };
 
     let db = state.get_db()?;

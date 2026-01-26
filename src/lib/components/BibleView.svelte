@@ -11,7 +11,13 @@
   - Status tracking (active, minor, mentioned, deceased)
 -->
 <script lang="ts">
-	import { type BibleEntry, type BibleRelationshipWithEntry, relationshipApi } from '$lib/api';
+	import {
+		type BibleEntry,
+		type BibleRelationshipWithEntry,
+		eventApi,
+		relationshipApi,
+		type TimelineEvent,
+	} from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { bibleEntryTypes, bibleStatuses } from '$lib/utils';
@@ -24,9 +30,27 @@
 
 	// Relationships
 	let relationships = $state<BibleRelationshipWithEntry[]>([]);
+	let linkedEvents = $state<TimelineEvent[]>([]);
 	let showRelationshipForm = $state(false);
 	let newRelationshipTarget = $state('');
 	let newRelationshipType = $state('related_to');
+
+	// Relationship editing
+	let editingRelationshipId = $state<string | null>(null);
+	let editedRelType = $state('related_to');
+	let editedRelNote = $state('');
+
+	const entryColors = [
+		'#ef4444', // red
+		'#f97316', // orange
+		'#eab308', // yellow
+		'#22c55e', // green
+		'#06b6d4', // cyan
+		'#3b82f6', // blue
+		'#6366f1', // indigo
+		'#8b5cf6', // violet
+		'#ec4899', // pink
+	];
 
 	const relationshipTypes = [
 		// General
@@ -69,10 +93,11 @@
 			: null
 	);
 
-	// Side effect: load relationships when selection changes
+	// Side effect: load relationships and events when selection changes
 	$effect(() => {
 		if (appState.selectedBibleEntryId) {
 			loadRelationships(appState.selectedBibleEntryId);
+			loadLinkedEvents(appState.selectedBibleEntryId);
 		}
 	});
 
@@ -82,6 +107,15 @@
 		} catch (e) {
 			console.error('Failed to load relationships:', e);
 			relationships = [];
+		}
+	}
+
+	async function loadLinkedEvents(entryId: string) {
+		try {
+			linkedEvents = await eventApi.getBibleEntryEvents(entryId);
+		} catch (e) {
+			console.error('Failed to load linked events:', e);
+			linkedEvents = [];
 		}
 	}
 
@@ -105,12 +139,38 @@
 
 	async function deleteRelationship(relationshipId: string) {
 		if (!selectedEntry) return;
+		if (!confirm('Remove this relationship?')) return;
 		try {
 			await relationshipApi.delete(relationshipId);
 			await loadRelationships(selectedEntry.id);
 		} catch (e) {
 			console.error('Failed to delete relationship:', e);
 			showError('Failed to delete relationship');
+		}
+	}
+
+	function startEditingRelationship(rel: BibleRelationshipWithEntry) {
+		editingRelationshipId = rel.id;
+		editedRelType = rel.relationship_type;
+		editedRelNote = rel.note || '';
+	}
+
+	function cancelEditingRelationship() {
+		editingRelationshipId = null;
+	}
+
+	async function saveRelationshipEdit() {
+		if (!editingRelationshipId || !selectedEntry) return;
+		try {
+			await relationshipApi.update(editingRelationshipId, {
+				relationship_type: editedRelType,
+				note: editedRelNote.trim() || undefined,
+			});
+			await loadRelationships(selectedEntry.id);
+			editingRelationshipId = null;
+		} catch (e) {
+			console.error('Failed to update relationship:', e);
+			showError('Failed to update relationship');
 		}
 	}
 
@@ -432,31 +492,90 @@
 					{#if relationships.length > 0}
 						<div class="relationships-list">
 							{#each relationships as rel (rel.id)}
-								<div class="relationship-item">
-									<span class="relationship-type"
-										>{getRelationshipLabel(rel.relationship_type)}</span
-									>
-									<button
-										class="relationship-target"
-										onclick={() => (appState.selectedBibleEntryId = rel.related_entry_id)}
-									>
-										{rel.related_entry_name}
-									</button>
-									<Button
-										variant="icon"
-										size="sm"
-										onclick={() => deleteRelationship(rel.id)}
-										title="Remove relationship"
-									>
-										<Icon name="close" size={12} />
-									</Button>
-								</div>
+								{#if editingRelationshipId === rel.id}
+									<div class="relationship-edit-form">
+										<select bind:value={editedRelType}>
+											{#each relationshipTypes as type (type.value)}
+												<option value={type.value}>{type.label}</option>
+											{/each}
+										</select>
+										<input
+											type="text"
+											class="rel-note-input"
+											placeholder="Note (optional)"
+											bind:value={editedRelNote}
+										/>
+										<FormActions>
+											<Button variant="ghost" size="sm" onclick={cancelEditingRelationship}
+												>Cancel</Button
+											>
+											<Button variant="primary" size="sm" onclick={saveRelationshipEdit}
+												>Save</Button
+											>
+										</FormActions>
+									</div>
+								{:else}
+									<div class="relationship-item">
+										<span class="relationship-type"
+											>{getRelationshipLabel(rel.relationship_type)}</span
+										>
+										<button
+											class="relationship-target"
+											onclick={() => (appState.selectedBibleEntryId = rel.related_entry_id)}
+										>
+											{rel.related_entry_name}
+										</button>
+										{#if rel.note}
+											<span class="relationship-note">{rel.note}</span>
+										{/if}
+										<Button
+											variant="icon"
+											size="sm"
+											onclick={() => startEditingRelationship(rel)}
+											title="Edit relationship"
+										>
+											<Icon name="edit" size={12} />
+										</Button>
+										<Button
+											variant="icon"
+											size="sm"
+											onclick={() => deleteRelationship(rel.id)}
+											title="Remove relationship"
+										>
+											<Icon name="close" size={12} />
+										</Button>
+									</div>
+								{/if}
 							{/each}
 						</div>
 					{:else if !showRelationshipForm}
 						<p class="no-relationships">No relationships defined</p>
 					{/if}
 				</div>
+
+				<!-- Linked Events Section -->
+				{#if linkedEvents.length > 0}
+					<div class="events-section">
+						<div class="section-header">
+							<h4>Linked Events ({linkedEvents.length})</h4>
+						</div>
+						<div class="linked-events-list">
+							{#each linkedEvents as event (event.id)}
+								<div class="linked-event-item">
+									<span class="linked-event-type">{event.event_type}</span>
+									<span class="linked-event-title">{event.title}</span>
+									{#if event.time_point}
+										<span class="linked-event-time">{event.time_point}</span>
+									{:else if event.time_start}
+										<span class="linked-event-time">
+											{event.time_start}{event.time_end ? ` - ${event.time_end}` : ''}
+										</span>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
 
 				<!-- Image Section -->
 				<div class="image-section">
@@ -484,6 +603,33 @@
 							/>
 						</div>
 					{/if}
+				</div>
+
+				<!-- Color Section -->
+				<div class="color-section">
+					<div class="section-header">
+						<h4>Color</h4>
+					</div>
+					<div class="color-palette">
+						{#each entryColors as color (color)}
+							<button
+								class="color-swatch"
+								class:selected={selectedEntry.color === color}
+								style="background-color: {color}"
+								onclick={() => updateEntry('color', color)}
+								title={color}
+							></button>
+						{/each}
+						{#if selectedEntry.color}
+							<button
+								class="color-swatch clear-color"
+								onclick={() => updateEntry('color', '')}
+								title="Clear color"
+							>
+								<Icon name="close" size={10} />
+							</button>
+						{/if}
+					</div>
 				</div>
 
 				<!-- Custom Fields Section -->
@@ -817,6 +963,89 @@
 		color: var(--color-text-muted);
 	}
 
+	.relationship-edit-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-tertiary);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.relationship-edit-form select,
+	.rel-note-input {
+		width: 100%;
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-primary);
+		color: var(--color-text-primary);
+	}
+
+	.relationship-note {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		font-style: italic;
+		flex-shrink: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.relationship-item :global(.btn-icon) {
+		opacity: 0;
+		transition: opacity var(--transition-fast);
+		flex-shrink: 0;
+	}
+
+	.relationship-item:hover :global(.btn-icon) {
+		opacity: 1;
+	}
+
+	/* Linked Events Section */
+	.events-section {
+		margin-top: var(--spacing-lg);
+		padding-top: var(--spacing-lg);
+		border-top: 1px solid var(--color-border-light);
+	}
+
+	.linked-events-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.linked-event-item {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.linked-event-type {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+		text-transform: capitalize;
+	}
+
+	.linked-event-title {
+		flex: 1;
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		color: var(--color-text-primary);
+	}
+
+	.linked-event-time {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-secondary);
+		flex-shrink: 0;
+	}
+
 	/* Image Section */
 	.image-section {
 		padding: var(--spacing-md);
@@ -856,6 +1085,47 @@
 		background-color: var(--color-bg-primary);
 		font-size: var(--font-size-sm);
 		color: var(--color-text-primary);
+	}
+
+	/* Color Section */
+	.color-section {
+		padding: var(--spacing-md);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-md);
+	}
+
+	.color-palette {
+		display: flex;
+		gap: var(--spacing-sm);
+		flex-wrap: wrap;
+		margin-top: var(--spacing-sm);
+	}
+
+	.color-swatch {
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 2px solid transparent;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.color-swatch:hover {
+		transform: scale(1.15);
+	}
+
+	.color-swatch.selected {
+		border-color: var(--color-text-primary);
+		box-shadow: 0 0 0 2px var(--color-bg-primary);
+	}
+
+	.color-swatch.clear-color {
+		background-color: var(--color-bg-tertiary);
+		border: 1px dashed var(--color-border);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--color-text-muted);
 	}
 
 	/* Custom Fields Section */

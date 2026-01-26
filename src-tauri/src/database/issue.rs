@@ -126,6 +126,30 @@ impl Database {
                 )
                 .map_err(|e| e.to_string())?;
         }
+        if let Some(title) = &req.title {
+            self.conn
+                .execute(
+                    "UPDATE issues SET title = ?1, updated_at = ?2 WHERE id = ?3",
+                    rusqlite::params![title, now, id],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        if let Some(description) = &req.description {
+            self.conn
+                .execute(
+                    "UPDATE issues SET description = ?1, updated_at = ?2 WHERE id = ?3",
+                    rusqlite::params![description, now, id],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        if let Some(severity) = &req.severity {
+            self.conn
+                .execute(
+                    "UPDATE issues SET severity = ?1, updated_at = ?2 WHERE id = ?3",
+                    rusqlite::params![severity, now, id],
+                )
+                .map_err(|e| e.to_string())?;
+        }
 
         self.get_issue(id)
     }

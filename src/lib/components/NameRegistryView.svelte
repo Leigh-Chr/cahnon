@@ -44,6 +44,12 @@
 	let mergeMode = $state(false);
 	let mergeTargetId = $state<string | null>(null);
 
+	// Edit mode
+	let isEditingEntry = $state(false);
+	let editedCanonicalName = $state('');
+	let editedNameType = $state('character');
+	let editedAliases = $state('');
+
 	// Fuzzy match results
 	let similarGroups = $state<Array<{ entries: NameRegistryEntry[]; similarity: string }>>([]);
 
@@ -193,6 +199,34 @@
 			entries = entries.map((e) => (e.id === updated.id ? updated : e));
 		} catch (e) {
 			console.error('Failed to create bible entry:', e);
+		}
+	}
+
+	function startEditingEntry() {
+		if (!selectedEntry) return;
+		editedCanonicalName = selectedEntry.canonical_name;
+		editedNameType = selectedEntry.name_type;
+		editedAliases = selectedEntry.aliases || '';
+		isEditingEntry = true;
+	}
+
+	function cancelEditingEntry() {
+		isEditingEntry = false;
+	}
+
+	async function saveEditedEntry() {
+		if (!selectedEntry || !editedCanonicalName.trim()) return;
+		try {
+			const updated = await nameRegistryApi.update(selectedEntry.id, {
+				canonical_name: editedCanonicalName.trim(),
+				name_type: editedNameType,
+				aliases: editedAliases.trim() || undefined,
+			});
+			entries = entries.map((e) => (e.id === updated.id ? updated : e));
+			isEditingEntry = false;
+			detectSimilarNames();
+		} catch (e) {
+			console.error('Failed to update entry:', e);
 		}
 	}
 
@@ -438,67 +472,99 @@
 			</div>
 		{:else if selectedEntry}
 			<div class="detail-content">
-				<div class="detail-header">
-					<h3>{selectedEntry.canonical_name}</h3>
-					<span class="type-badge">
-						{nameTypes.find((t) => t.value === selectedEntry.name_type)?.label ||
-							selectedEntry.name_type}
-					</span>
-					{#if selectedEntry.is_confirmed}
-						<span class="confirmed-badge">Confirmed</span>
-					{:else}
-						<span class="unconfirmed-detail-badge">Unconfirmed</span>
-					{/if}
-				</div>
-
-				{#if selectedEntry.aliases}
-					<div class="aliases-section">
-						<strong>Aliases:</strong>
-						<div class="alias-tags">
-							{#each selectedEntry.aliases.split(',') as alias, idx (idx)}
-								<span class="alias-tag">{alias.trim()}</span>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				{#if selectedEntry.bible_entry_id}
-					<div class="bible-link">
-						<strong>Bible Entry:</strong>
-						<button
-							class="link-btn"
-							onclick={() => {
-								if (selectedEntry?.bible_entry_id) {
-									appState.selectedBibleEntryId = selectedEntry.bible_entry_id;
-									appState.setViewMode('bible');
-								}
-							}}
-						>
-							{getBibleEntryName(selectedEntry.bible_entry_id)}
-						</button>
-					</div>
-				{/if}
-
-				<div class="actions">
-					{#if !selectedEntry.is_confirmed}
-						<Button size="sm" onclick={() => confirmEntry(selectedEntry!.id)}>Confirm</Button>
-					{/if}
-					{#if !selectedEntry.bible_entry_id}
-						<Button size="sm" onclick={() => createBibleEntry(selectedEntry!)}>
-							Create Bible Entry
-						</Button>
-					{/if}
-					<Button
-						size="sm"
-						onclick={() => {
-							mergeMode = true;
-							mergeTargetId = selectedEntry!.id;
+				{#if isEditingEntry}
+					<h3>Edit Name</h3>
+					<form
+						onsubmit={(e) => {
+							e.preventDefault();
+							saveEditedEntry();
 						}}
 					>
-						Merge Into This
-					</Button>
-					<Button size="sm" onclick={() => deleteEntry(selectedEntry!.id)}>Delete</Button>
-				</div>
+						<FormGroup label="Canonical Name">
+							<input type="text" bind:value={editedCanonicalName} placeholder="e.g. John Smith" />
+						</FormGroup>
+
+						<FormGroup label="Type">
+							<select bind:value={editedNameType}>
+								{#each nameTypes as type (type.value)}
+									<option value={type.value}>{type.label}</option>
+								{/each}
+							</select>
+						</FormGroup>
+
+						<FormGroup label="Aliases (comma-separated)">
+							<input type="text" bind:value={editedAliases} placeholder="e.g. Johnny, J. Smith" />
+						</FormGroup>
+
+						<FormActions>
+							<Button onclick={cancelEditingEntry}>Cancel</Button>
+							<Button variant="primary" type="submit">Save Changes</Button>
+						</FormActions>
+					</form>
+				{:else}
+					<div class="detail-header">
+						<h3>{selectedEntry.canonical_name}</h3>
+						<span class="type-badge">
+							{nameTypes.find((t) => t.value === selectedEntry.name_type)?.label ||
+								selectedEntry.name_type}
+						</span>
+						{#if selectedEntry.is_confirmed}
+							<span class="confirmed-badge">Confirmed</span>
+						{:else}
+							<span class="unconfirmed-detail-badge">Unconfirmed</span>
+						{/if}
+					</div>
+
+					{#if selectedEntry.aliases}
+						<div class="aliases-section">
+							<strong>Aliases:</strong>
+							<div class="alias-tags">
+								{#each selectedEntry.aliases.split(',') as alias, idx (idx)}
+									<span class="alias-tag">{alias.trim()}</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					{#if selectedEntry.bible_entry_id}
+						<div class="bible-link">
+							<strong>Bible Entry:</strong>
+							<button
+								class="link-btn"
+								onclick={() => {
+									if (selectedEntry?.bible_entry_id) {
+										appState.selectedBibleEntryId = selectedEntry.bible_entry_id;
+										appState.setViewMode('bible');
+									}
+								}}
+							>
+								{getBibleEntryName(selectedEntry.bible_entry_id)}
+							</button>
+						</div>
+					{/if}
+
+					<div class="actions">
+						<Button size="sm" onclick={startEditingEntry}>Edit</Button>
+						{#if !selectedEntry.is_confirmed}
+							<Button size="sm" onclick={() => confirmEntry(selectedEntry!.id)}>Confirm</Button>
+						{/if}
+						{#if !selectedEntry.bible_entry_id}
+							<Button size="sm" onclick={() => createBibleEntry(selectedEntry!)}>
+								Create Bible Entry
+							</Button>
+						{/if}
+						<Button
+							size="sm"
+							onclick={() => {
+								mergeMode = true;
+								mergeTargetId = selectedEntry!.id;
+							}}
+						>
+							Merge Into This
+						</Button>
+						<Button size="sm" onclick={() => deleteEntry(selectedEntry!.id)}>Delete</Button>
+					</div>
+				{/if}
 
 				<!-- Mentions section -->
 				<div class="mentions-section">

@@ -269,6 +269,23 @@
 		isRestoringScene = false;
 	}
 
+	async function cleanupExpired() {
+		if (!confirm('Remove all expired snapshots? This cannot be undone.')) return;
+		try {
+			const removed = await snapshotApi.cleanupExpired();
+			if (removed > 0) {
+				await loadSnapshots();
+				selectedSnapshot = null;
+				showSuccess(`Removed ${removed} expired snapshot${removed > 1 ? 's' : ''}`);
+			} else {
+				showSuccess('No expired snapshots to clean up');
+			}
+		} catch (e) {
+			console.error('Failed to cleanup snapshots:', e);
+			showError('Failed to cleanup expired snapshots');
+		}
+	}
+
 	async function restoreSnapshot(snapshot: Snapshot) {
 		if (
 			!confirm(
@@ -320,6 +337,11 @@
 					{#if compareMode}
 						<Button variant="ghost" onclick={exitCompare}>Exit Compare</Button>
 					{:else}
+						{#if snapshots.length > 0}
+							<Button variant="ghost" onclick={cleanupExpired} title="Remove expired snapshots">
+								Cleanup
+							</Button>
+						{/if}
 						<Button variant="secondary" onclick={startCompare} disabled={snapshots.length < 2}>
 							Compare
 						</Button>

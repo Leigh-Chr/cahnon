@@ -36,6 +36,10 @@
 	// Template form
 	let newTemplateName = $state('');
 
+	// Rename state
+	let isRenaming = $state(false);
+	let renameValue = $state('');
+
 	// Step form
 	let stepName = $state('');
 	let stepDescription = $state('');
@@ -232,6 +236,31 @@
 		}
 	}
 
+	function startRenaming() {
+		if (!selectedTemplate || selectedTemplate.is_builtin) return;
+		renameValue = selectedTemplate.name;
+		isRenaming = true;
+	}
+
+	async function finishRenaming() {
+		if (!selectedTemplate || !renameValue.trim()) {
+			isRenaming = false;
+			return;
+		}
+		try {
+			const updated = await templateApi.update(selectedTemplate.id, renameValue.trim());
+			templates = templates.map((t) => (t.id === updated.id ? updated : t));
+			isRenaming = false;
+		} catch (e) {
+			console.error('Failed to rename template:', e);
+			showError('Failed to rename template');
+		}
+	}
+
+	function cancelRenaming() {
+		isRenaming = false;
+	}
+
 	function handleOverlayClick(event: MouseEvent) {
 		if (event.target === event.currentTarget) {
 			onclose();
@@ -391,7 +420,26 @@
 					{:else if selectedTemplate}
 						<div class="template-detail">
 							<div class="detail-header">
-								<h3>{selectedTemplate.name}</h3>
+								{#if isRenaming}
+									<input
+										type="text"
+										class="rename-input"
+										bind:value={renameValue}
+										onkeydown={(e) => {
+											if (e.key === 'Enter') finishRenaming();
+											if (e.key === 'Escape') cancelRenaming();
+										}}
+										onblur={finishRenaming}
+									/>
+								{:else}
+									<h3
+										ondblclick={() => {
+											if (selectedTemplate && !selectedTemplate.is_builtin) startRenaming();
+										}}
+									>
+										{selectedTemplate.name}
+									</h3>
+								{/if}
 								<div class="detail-actions">
 									{#if !selectedTemplate.is_active}
 										<Button
@@ -405,6 +453,7 @@
 										</Button>
 									{/if}
 									{#if !selectedTemplate.is_builtin}
+										<Button size="sm" onclick={startRenaming}>Rename</Button>
 										<Button
 											size="sm"
 											onclick={() => {
@@ -696,6 +745,18 @@
 
 	.detail-header h3 {
 		margin: 0;
+	}
+
+	.rename-input {
+		font-size: var(--font-size-lg);
+		font-weight: 600;
+		border: none;
+		border-bottom: 2px solid var(--color-accent);
+		background: none;
+		padding: 0;
+		outline: none;
+		flex: 1;
+		min-width: 0;
 	}
 
 	.detail-actions {

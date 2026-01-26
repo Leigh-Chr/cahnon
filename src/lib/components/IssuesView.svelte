@@ -35,6 +35,44 @@
 	let linkedSceneIds = $state<string[]>([]);
 	let linkedBibleIds = $state<string[]>([]);
 
+	// Edit mode
+	let isEditing = $state(false);
+	let editedTitle = $state('');
+	let editedDescription = $state('');
+	let editedSeverity = $state('warning');
+
+	// Linking
+	let isAddingScene = $state(false);
+	let selectedSceneToLink = $state('');
+	let isAddingBibleEntry = $state(false);
+	let bibleSearchQuery = $state('');
+
+	let allScenes = $derived.by(() => {
+		const result: Array<{ id: string; title: string }> = [];
+		for (const chapter of appState.chapters) {
+			const chapterScenes = appState.scenes.get(chapter.id) || [];
+			for (const scene of chapterScenes) {
+				result.push({ id: scene.id, title: scene.title });
+			}
+		}
+		return result;
+	});
+
+	let availableScenesToLink = $derived(allScenes.filter((s) => !linkedSceneIds.includes(s.id)));
+
+	let filteredBibleEntriesToLink = $derived(
+		bibleSearchQuery
+			? appState.bibleEntries
+					.filter(
+						(e) =>
+							!linkedBibleIds.includes(e.id) &&
+							(e.name.toLowerCase().includes(bibleSearchQuery.toLowerCase()) ||
+								(e.aliases && e.aliases.toLowerCase().includes(bibleSearchQuery.toLowerCase())))
+					)
+					.slice(0, 10)
+			: []
+	);
+
 	const issueTypes = [
 		{ value: 'timeline_conflict', label: 'Timeline Conflict', icon: 'clock', auto: true },
 		{ value: 'tbd_in_done', label: 'TBD in Done Scene', icon: 'alert-circle', auto: true },
@@ -178,6 +216,82 @@
 		} catch (e) {
 			console.error('Failed to delete issue:', e);
 			showError('Failed to delete issue');
+		}
+	}
+
+	function startEditing() {
+		if (!selectedIssue) return;
+		editedTitle = selectedIssue.title;
+		editedDescription = selectedIssue.description || '';
+		editedSeverity = selectedIssue.severity;
+		isEditing = true;
+	}
+
+	function cancelEditing() {
+		isEditing = false;
+	}
+
+	async function saveEdit() {
+		if (!selectedIssue || !editedTitle.trim()) return;
+		try {
+			const updated = await issueApi.update(selectedIssue.id, {
+				title: editedTitle.trim(),
+				description: editedDescription.trim() || undefined,
+				severity: editedSeverity,
+			});
+			issues = issues.map((i) => (i.id === updated.id ? updated : i));
+			isEditing = false;
+		} catch (e) {
+			console.error('Failed to update issue:', e);
+			showError('Failed to update issue');
+		}
+	}
+
+	async function linkSceneToIssue() {
+		if (!selectedIssue || !selectedSceneToLink) return;
+		try {
+			await issueApi.linkScene(selectedSceneToLink, selectedIssue.id);
+			await loadLinkedItems(selectedIssue.id);
+			selectedSceneToLink = '';
+			isAddingScene = false;
+		} catch (e) {
+			console.error('Failed to link scene:', e);
+			showError('Failed to link scene');
+		}
+	}
+
+	async function unlinkSceneFromIssue(sceneId: string) {
+		if (!selectedIssue) return;
+		try {
+			await issueApi.unlinkScene(sceneId, selectedIssue.id);
+			await loadLinkedItems(selectedIssue.id);
+		} catch (e) {
+			console.error('Failed to unlink scene:', e);
+			showError('Failed to unlink scene');
+		}
+	}
+
+	async function linkBibleEntryToIssue(entryId: string) {
+		if (!selectedIssue) return;
+		try {
+			await issueApi.linkBibleEntry(entryId, selectedIssue.id);
+			await loadLinkedItems(selectedIssue.id);
+			bibleSearchQuery = '';
+			isAddingBibleEntry = false;
+		} catch (e) {
+			console.error('Failed to link bible entry:', e);
+			showError('Failed to link bible entry');
+		}
+	}
+
+	async function unlinkBibleEntryFromIssue(entryId: string) {
+		if (!selectedIssue) return;
+		try {
+			await issueApi.unlinkBibleEntry(entryId, selectedIssue.id);
+			await loadLinkedItems(selectedIssue.id);
+		} catch (e) {
+			console.error('Failed to unlink bible entry:', e);
+			showError('Failed to unlink bible entry');
 		}
 	}
 
@@ -351,79 +465,172 @@
 			</div>
 		{:else if selectedIssue}
 			<div class="detail-content">
-				<div class="detail-header">
-					<span
-						class="severity-badge"
-						style="background-color: {getSeverityInfo(selectedIssue.severity).color}"
+				{#if isEditing}
+					<h3>Edit Issue</h3>
+					<form
+						onsubmit={(e) => {
+							e.preventDefault();
+							saveEdit();
+						}}
 					>
-						{getSeverityInfo(selectedIssue.severity).label}
-					</span>
-					<span class="type-badge">{getTypeInfo(selectedIssue.issue_type).label}</span>
-				</div>
+						<FormGroup label="Title">
+							<input type="text" bind:value={editedTitle} placeholder="Issue title" />
+						</FormGroup>
 
-				<h3>{selectedIssue.title}</h3>
+						<FormGroup label="Description">
+							<textarea
+								bind:value={editedDescription}
+								rows="4"
+								placeholder="Detailed explanation..."
+							></textarea>
+						</FormGroup>
 
-				{#if selectedIssue.description}
-					<p class="description">{selectedIssue.description}</p>
-				{/if}
+						<FormGroup label="Severity">
+							<select bind:value={editedSeverity}>
+								{#each severities as severity (severity.value)}
+									<option value={severity.value}>{severity.label}</option>
+								{/each}
+							</select>
+						</FormGroup>
 
-				<div class="status-section">
-					<strong>Status:</strong>
-					{getStatusInfo(selectedIssue.status).label}
-					{#if selectedIssue.resolution_note}
-						<p class="resolution-note">{selectedIssue.resolution_note}</p>
+						<FormActions>
+							<Button onclick={cancelEditing}>Cancel</Button>
+							<Button variant="primary" type="submit">Save Changes</Button>
+						</FormActions>
+					</form>
+				{:else}
+					<div class="detail-header">
+						<span
+							class="severity-badge"
+							style="background-color: {getSeverityInfo(selectedIssue.severity).color}"
+						>
+							{getSeverityInfo(selectedIssue.severity).label}
+						</span>
+						<span class="type-badge">{getTypeInfo(selectedIssue.issue_type).label}</span>
+					</div>
+
+					<h3>{selectedIssue.title}</h3>
+
+					{#if selectedIssue.description}
+						<p class="description">{selectedIssue.description}</p>
 					{/if}
-				</div>
 
-				{#if linkedSceneIds.length > 0}
+					<div class="status-section">
+						<strong>Status:</strong>
+						{getStatusInfo(selectedIssue.status).label}
+						{#if selectedIssue.resolution_note}
+							<p class="resolution-note">{selectedIssue.resolution_note}</p>
+						{/if}
+					</div>
+
 					<div class="linked-items">
-						<strong>Linked Scenes:</strong>
+						<div class="linked-header">
+							<strong>Linked Scenes:</strong>
+							<button class="add-link-btn" onclick={() => (isAddingScene = !isAddingScene)}>
+								{isAddingScene ? '×' : '+'}
+							</button>
+						</div>
+						{#if isAddingScene}
+							<select
+								class="link-select"
+								bind:value={selectedSceneToLink}
+								onchange={linkSceneToIssue}
+							>
+								<option value="">Select a scene...</option>
+								{#each availableScenesToLink as scene (scene.id)}
+									<option value={scene.id}>{scene.title}</option>
+								{/each}
+							</select>
+						{/if}
 						<ul>
 							{#each linkedSceneIds as sceneId (sceneId)}
 								<li>
 									<button class="link-btn" onclick={() => navigateToScene(sceneId)}>
 										{getSceneTitle(sceneId)}
 									</button>
+									<button
+										class="unlink-btn"
+										onclick={() => unlinkSceneFromIssue(sceneId)}
+										title="Unlink">&times;</button
+									>
 								</li>
+							{:else}
+								<li class="empty-link">No scenes linked.</li>
 							{/each}
 						</ul>
 					</div>
-				{/if}
 
-				{#if linkedBibleIds.length > 0}
 					<div class="linked-items">
-						<strong>Linked Bible Entries:</strong>
+						<div class="linked-header">
+							<strong>Linked Bible Entries:</strong>
+							<button
+								class="add-link-btn"
+								onclick={() => (isAddingBibleEntry = !isAddingBibleEntry)}
+							>
+								{isAddingBibleEntry ? '×' : '+'}
+							</button>
+						</div>
+						{#if isAddingBibleEntry}
+							<input
+								type="text"
+								class="link-select"
+								placeholder="Search bible entries..."
+								bind:value={bibleSearchQuery}
+							/>
+							{#if filteredBibleEntriesToLink.length > 0}
+								<div class="link-search-results">
+									{#each filteredBibleEntriesToLink as entry (entry.id)}
+										<button
+											class="link-search-result"
+											onclick={() => linkBibleEntryToIssue(entry.id)}
+										>
+											{entry.name}
+										</button>
+									{/each}
+								</div>
+							{/if}
+						{/if}
 						<ul>
 							{#each linkedBibleIds as entryId (entryId)}
 								<li>
 									<button class="link-btn" onclick={() => navigateToBibleEntry(entryId)}>
 										{getBibleEntryName(entryId)}
 									</button>
+									<button
+										class="unlink-btn"
+										onclick={() => unlinkBibleEntryFromIssue(entryId)}
+										title="Unlink">&times;</button
+									>
 								</li>
+							{:else}
+								<li class="empty-link">No bible entries linked.</li>
 							{/each}
 						</ul>
 					</div>
-				{/if}
 
-				{#if selectedIssue.status === 'open'}
-					<div class="actions">
-						<Button onclick={() => updateIssueStatus('resolved', 'Marked as resolved')}>
-							Mark Resolved
-						</Button>
-						<Button onclick={() => updateIssueStatus('ignored', 'Ignored by user')}>Ignore</Button>
-						<Button onclick={deleteIssue} variant="danger">Delete</Button>
-					</div>
-				{:else}
-					<div class="actions">
-						<Button onclick={() => updateIssueStatus('open')}>Reopen</Button>
-						<Button onclick={deleteIssue} variant="danger">Delete</Button>
+					{#if selectedIssue.status === 'open'}
+						<div class="actions">
+							<Button onclick={startEditing}>Edit</Button>
+							<Button onclick={() => updateIssueStatus('resolved', 'Marked as resolved')}>
+								Mark Resolved
+							</Button>
+							<Button onclick={() => updateIssueStatus('ignored', 'Ignored by user')}>Ignore</Button
+							>
+							<Button onclick={deleteIssue} variant="danger">Delete</Button>
+						</div>
+					{:else}
+						<div class="actions">
+							<Button onclick={startEditing}>Edit</Button>
+							<Button onclick={() => updateIssueStatus('open')}>Reopen</Button>
+							<Button onclick={deleteIssue} variant="danger">Delete</Button>
+						</div>
+					{/if}
+
+					<div class="meta">
+						<small>Created: {new Date(selectedIssue.created_at).toLocaleString()}</small>
+						<small>Updated: {new Date(selectedIssue.updated_at).toLocaleString()}</small>
 					</div>
 				{/if}
-
-				<div class="meta">
-					<small>Created: {new Date(selectedIssue.created_at).toLocaleString()}</small>
-					<small>Updated: {new Date(selectedIssue.updated_at).toLocaleString()}</small>
-				</div>
 			</div>
 		{:else}
 			<EmptyState title="Select an issue to view details" />
@@ -670,5 +877,87 @@
 
 	.detail-content textarea {
 		resize: vertical;
+	}
+
+	.linked-header {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+	}
+
+	.add-link-btn {
+		width: 20px;
+		height: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-size-md);
+		font-weight: 700;
+		color: var(--color-accent);
+		background: none;
+		border: 1px solid var(--color-accent);
+	}
+
+	.add-link-btn:hover {
+		background-color: var(--color-accent);
+		color: white;
+	}
+
+	.link-select {
+		width: 100%;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		margin-top: var(--spacing-xs);
+		font-size: var(--font-size-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-secondary);
+	}
+
+	.link-search-results {
+		margin-top: var(--spacing-xs);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		max-height: 150px;
+		overflow-y: auto;
+	}
+
+	.link-search-result {
+		display: block;
+		width: 100%;
+		text-align: left;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+	}
+
+	.link-search-result:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.linked-items li {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+	}
+
+	.unlink-btn {
+		color: var(--color-text-muted);
+		font-size: var(--font-size-md);
+		opacity: 0;
+		transition: opacity var(--transition-fast);
+	}
+
+	.linked-items li:hover .unlink-btn {
+		opacity: 1;
+	}
+
+	.unlink-btn:hover {
+		color: var(--color-error);
+	}
+
+	.empty-link {
+		color: var(--color-text-muted);
+		font-style: italic;
+		font-size: var(--font-size-sm);
 	}
 </style>

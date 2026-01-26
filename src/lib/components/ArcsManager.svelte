@@ -37,6 +37,26 @@
 	let formColor = $state('#6366f1');
 	let formCharacters = $state('');
 
+	// Character selector
+	let characterSearch = $state('');
+	let showCharacterDropdown = $state(false);
+
+	let selectedCharacterIds = $derived(
+		formCharacters
+			.split(',')
+			.map((id) => id.trim())
+			.filter((id) => id)
+	);
+
+	let availableCharacters = $derived(
+		appState.bibleEntries
+			.filter((e) => e.entry_type === 'character')
+			.filter((e) => !selectedCharacterIds.includes(e.id))
+			.filter(
+				(e) => !characterSearch || e.name.toLowerCase().includes(characterSearch.toLowerCase())
+			)
+	);
+
 	const arcStatuses = [
 		{ value: 'setup', label: 'Setup' },
 		{ value: 'active', label: 'Active' },
@@ -178,6 +198,19 @@
 			});
 	}
 
+	function addCharacter(id: string) {
+		const ids = selectedCharacterIds.includes(id)
+			? selectedCharacterIds
+			: [...selectedCharacterIds, id];
+		formCharacters = ids.join(',');
+		characterSearch = '';
+		showCharacterDropdown = false;
+	}
+
+	function removeCharacter(id: string) {
+		formCharacters = selectedCharacterIds.filter((cid) => cid !== id).join(',');
+	}
+
 	function handleOverlayClick(event: MouseEvent) {
 		if (event.target === event.currentTarget) {
 			onclose();
@@ -288,12 +321,48 @@
 								</div>
 							</FormGroup>
 
-							<FormGroup label="Key Characters (Bible entry IDs, comma-separated)">
-								<input
-									type="text"
-									bind:value={formCharacters}
-									placeholder="Optional: character IDs"
-								/>
+							<FormGroup label="Key Characters">
+								<div class="character-selector">
+									{#if selectedCharacterIds.length > 0}
+										<div class="character-chips">
+											{#each selectedCharacterIds as charId (charId)}
+												{@const entry = appState.bibleEntries.find((e) => e.id === charId)}
+												<span class="character-chip">
+													{entry?.name || charId}
+													<button
+														type="button"
+														class="chip-remove"
+														onclick={() => removeCharacter(charId)}
+													>
+														<Icon name="close" size={10} />
+													</button>
+												</span>
+											{/each}
+										</div>
+									{/if}
+									<div class="character-search-wrapper">
+										<input
+											type="text"
+											bind:value={characterSearch}
+											placeholder="Search characters..."
+											onfocus={() => (showCharacterDropdown = true)}
+											onblur={() => setTimeout(() => (showCharacterDropdown = false), 200)}
+										/>
+										{#if showCharacterDropdown && availableCharacters.length > 0}
+											<div class="character-dropdown">
+												{#each availableCharacters.slice(0, 10) as entry (entry.id)}
+													<button
+														type="button"
+														class="character-dropdown-item"
+														onmousedown={() => addCharacter(entry.id)}
+													>
+														{entry.name}
+													</button>
+												{/each}
+											</div>
+										{/if}
+									</div>
+								</div>
 							</FormGroup>
 
 							<FormActions>
@@ -656,5 +725,73 @@
 		gap: var(--spacing-xs);
 		font-size: var(--font-size-sm);
 		color: var(--color-text-secondary);
+	}
+
+	/* Character Selector */
+	.character-selector {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+	}
+
+	.character-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-xs);
+	}
+
+	.character-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		padding: 2px 8px;
+		background-color: var(--color-bg-tertiary);
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-size-sm);
+	}
+
+	.chip-remove {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1px;
+		border-radius: 50%;
+		color: var(--color-text-muted);
+		cursor: pointer;
+	}
+
+	.chip-remove:hover {
+		color: var(--color-error);
+		background-color: var(--color-bg-hover);
+	}
+
+	.character-search-wrapper {
+		position: relative;
+	}
+
+	.character-dropdown {
+		position: absolute;
+		top: 100%;
+		left: 0;
+		right: 0;
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		box-shadow: var(--shadow-md);
+		z-index: 10;
+		max-height: 200px;
+		overflow-y: auto;
+	}
+
+	.character-dropdown-item {
+		width: 100%;
+		padding: var(--spacing-sm);
+		text-align: left;
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+	}
+
+	.character-dropdown-item:hover {
+		background-color: var(--color-bg-hover);
 	}
 </style>

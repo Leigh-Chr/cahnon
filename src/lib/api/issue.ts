@@ -35,10 +35,18 @@ export const issueApi = {
 	get: (id: string) => invoke<Issue>('get_issue', { id }),
 
 	/**
-	 * Update an issue's status or resolution note.
+	 * Update an issue's status, resolution note, title, description, or severity.
 	 */
-	update: (id: string, request: { status?: string; resolution_note?: string }) =>
-		invoke<Issue>('update_issue', { id, request }),
+	update: (
+		id: string,
+		request: {
+			status?: string;
+			resolution_note?: string;
+			title?: string;
+			description?: string;
+			severity?: string;
+		}
+	) => invoke<Issue>('update_issue', { id, request }),
 
 	/**
 	 * Delete an issue and its links.
