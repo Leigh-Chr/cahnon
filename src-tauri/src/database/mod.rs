@@ -106,4 +106,27 @@ impl Database {
         db.run_migrations()?;
         Ok(db)
     }
+
+    /// Runs a closure inside a BEGIN/COMMIT transaction, rolling back on error.
+    pub(crate) fn run_in_transaction<F>(&self, f: F) -> Result<(), String>
+    where
+        F: FnOnce() -> Result<(), String>,
+    {
+        self.conn
+            .execute("BEGIN TRANSACTION", [])
+            .map_err(|e| e.to_string())?;
+
+        match f() {
+            Ok(()) => {
+                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+                Ok(())
+            }
+            Err(e) => {
+                if let Err(rollback_err) = self.conn.execute("ROLLBACK", []) {
+                    eprintln!("Failed to rollback transaction: {}", rollback_err);
+                }
+                Err(e)
+            }
+        }
+    }
 }

@@ -476,11 +476,15 @@ fn remove_demo_files(path: &Path) {
 /// The temporary file is deleted when the project is closed.
 #[tauri::command]
 pub fn open_demo_project(state: State<AppState>) -> Result<Project, String> {
-    let temp_path = std::env::temp_dir().join("cahnon-demo.cahnon");
-
-    // Clean up any leftover files from a previous session to prevent
-    // SQLite from replaying old WAL changes over the fresh demo data.
-    remove_demo_files(&temp_path);
+    // Use a securely generated unique temp file to avoid predictable path attacks
+    let temp_path = tempfile::Builder::new()
+        .prefix("cahnon-demo-")
+        .suffix(".cahnon")
+        .tempfile()
+        .map_err(|e| format!("Failed to create temp file: {}", e))?
+        .into_temp_path()
+        .keep()
+        .map_err(|e| format!("Failed to persist temp file: {}", e))?;
 
     // Write embedded data to temp file
     fs::write(&temp_path, DEMO_DATA).map_err(|e| format!("Failed to write demo file: {}", e))?;

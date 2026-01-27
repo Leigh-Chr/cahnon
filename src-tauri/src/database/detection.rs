@@ -9,6 +9,100 @@ use rusqlite::params;
 
 use super::Database;
 
+/// A scene reference used for setup/payoff validation.
+struct SceneRef<'a> {
+    id: &'a str,
+    title: &'a str,
+    chapter_id: &'a str,
+    position: i32,
+}
+
+/// Placeholder markers to look for in scene text.
+const UPPER_MARKERS: &[&str] = &["TBD", "TODO", "XXX"];
+const PLAIN_MARKERS: &[&str] = &["??"];
+
+/// Returns placeholder markers found in the given text.
+///
+/// Checks for `TBD`, `TODO`, `XXX` (case-insensitive) and `??` (literal).
+fn find_placeholder_markers(text: &str) -> Vec<&'static str> {
+    let plain = super::HTML_TAG_REGEX.replace_all(text, " ");
+    let upper = plain.to_uppercase();
+
+    let mut found: Vec<&'static str> = UPPER_MARKERS
+        .iter()
+        .filter(|m| upper.contains(**m))
+        .copied()
+        .collect();
+
+    found.extend(
+        PLAIN_MARKERS
+            .iter()
+            .filter(|m| plain.contains(**m))
+            .copied(),
+    );
+
+    found
+}
+
+/// Describes a scene reference direction (setup or payoff) for reuse across checks.
+struct RefDirection {
+    /// Whether the scene must come *before* its target (`true` for setup).
+    must_come_before: bool,
+    /// Generates the title when the target scene is missing.
+    missing_title: fn(&str) -> String,
+    /// Generates the description when the target scene is missing.
+    missing_desc: fn(&str) -> String,
+    /// Generates the title when ordering is wrong.
+    ordering_title: fn(&str) -> String,
+    /// Generates the description when ordering is wrong.
+    ordering_desc: fn(&str) -> String,
+}
+
+const SETUP_DIRECTION: RefDirection = RefDirection {
+    must_come_before: true,
+    missing_title: |t| format!("Setup target missing for scene \"{}\"", t),
+    missing_desc: |t| {
+        format!(
+            "Scene \"{}\" references a setup target scene that no longer exists.",
+            t
+        )
+    },
+    ordering_title: |t| format!("Setup scene \"{}\" comes after its target", t),
+    ordering_desc: |t| {
+        format!(
+            "Scene \"{}\" is marked as setup for another scene, but it \
+             appears at the same position or later in the manuscript. \
+             Setup scenes should come before their target.",
+            t
+        )
+    },
+};
+
+const PAYOFF_DIRECTION: RefDirection = RefDirection {
+    must_come_before: false,
+    missing_title: |t| format!("Payoff source missing for scene \"{}\"", t),
+    missing_desc: |t| {
+        format!(
+            "Scene \"{}\" references a payoff source scene that no longer exists.",
+            t
+        )
+    },
+    ordering_title: |t| format!("Payoff scene \"{}\" comes before its source", t),
+    ordering_desc: |t| {
+        format!(
+            "Scene \"{}\" is marked as payoff of another scene, but it \
+             appears at the same position or earlier in the manuscript. \
+             Payoff scenes should come after the scene they pay off.",
+            t
+        )
+    },
+};
+
+/// Computes a global ordering value from chapter position and scene position.
+fn global_position(chapter_pos: i32, scene_pos: i32) -> i64 {
+    chapter_pos as i64 * 100_000 + scene_pos as i64
+}
+
 impl Database {
     /// Runs all detectors and collects results into a single list.
     #[allow(clippy::type_complexity)]
@@ -54,41 +148,27 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        let mut issues = Vec::new();
-
-        for (id, title, text) in rows {
-            let plain = super::HTML_TAG_REGEX.replace_all(&text, " ");
-            let upper = plain.to_uppercase();
-
-            let mut markers_found = Vec::new();
-            if upper.contains("TBD") {
-                markers_found.push("TBD");
-            }
-            if upper.contains("TODO") {
-                markers_found.push("TODO");
-            }
-            if upper.contains("XXX") {
-                markers_found.push("XXX");
-            }
-            if plain.contains("??") {
-                markers_found.push("??");
-            }
-
-            if !markers_found.is_empty() {
-                issues.push(DetectedIssue {
+        let issues = rows
+            .into_iter()
+            .filter_map(|(id, title, text)| {
+                let markers = find_placeholder_markers(&text);
+                if markers.is_empty() {
+                    return None;
+                }
+                Some(DetectedIssue {
                     issue_type: "tbd_in_done".to_string(),
                     title: format!("Placeholder text in completed scene \"{}\"", title),
                     description: format!(
                         "Scene \"{}\" is marked as done but still contains placeholder markers: {}",
                         title,
-                        markers_found.join(", ")
+                        markers.join(", ")
                     ),
                     severity: "warning".to_string(),
                     scene_ids: vec![id],
                     bible_entry_ids: vec![],
-                });
-            }
-        }
+                })
+            })
+            .collect();
 
         Ok(issues)
     }
@@ -98,9 +178,6 @@ impl Database {
     // ========================================================================
 
     fn detect_broken_setup_payoff(&self) -> Result<Vec<DetectedIssue>, String> {
-        let mut issues = Vec::new();
-
-        // Fetch scenes with setup or payoff references
         let mut stmt = self
             .conn
             .prepare(
@@ -128,113 +205,76 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
+        let mut issues = Vec::new();
+
         for (scene_id, scene_title, scene_chapter_id, scene_position, setup_for, payoff_of) in &rows
         {
-            // Check setup_for_scene_id
-            if let Some(target_id) = setup_for {
-                match self.get_scene_position_info(target_id) {
-                    Ok(Some((_target_chapter_id, target_position, target_chapter_pos))) => {
-                        // Setup scene should come BEFORE its target
-                        let scene_chapter_pos =
-                            self.get_chapter_position(scene_chapter_id).unwrap_or(0);
-                        let scene_global =
-                            scene_chapter_pos as i64 * 100_000 + *scene_position as i64;
-                        let target_global =
-                            target_chapter_pos as i64 * 100_000 + target_position as i64;
+            let scene_ref = SceneRef {
+                id: scene_id,
+                title: scene_title,
+                chapter_id: scene_chapter_id,
+                position: *scene_position,
+            };
 
-                        if scene_global >= target_global {
-                            issues.push(DetectedIssue {
-                                issue_type: "broken_setup_payoff".to_string(),
-                                title: format!(
-                                    "Setup scene \"{}\" comes after its target",
-                                    scene_title
-                                ),
-                                description: format!(
-                                    "Scene \"{}\" is marked as setup for another scene, but it \
-                                     appears at the same position or later in the manuscript. \
-                                     Setup scenes should come before their target.",
-                                    scene_title
-                                ),
-                                severity: "warning".to_string(),
-                                scene_ids: vec![scene_id.clone(), target_id.clone()],
-                                bible_entry_ids: vec![],
-                            });
-                        }
-                    }
-                    Ok(None) => {
-                        // Target scene doesn't exist or is deleted
-                        issues.push(DetectedIssue {
-                            issue_type: "broken_setup_payoff".to_string(),
-                            title: format!(
-                                "Setup target missing for scene \"{}\"",
-                                scene_title
-                            ),
-                            description: format!(
-                                "Scene \"{}\" references a setup target scene that no longer exists.",
-                                scene_title
-                            ),
-                            severity: "error".to_string(),
-                            scene_ids: vec![scene_id.clone()],
-                            bible_entry_ids: vec![],
-                        });
-                    }
-                    Err(_) => {}
-                }
+            if let Some(target_id) = setup_for {
+                self.check_scene_ref(&mut issues, &scene_ref, target_id, &SETUP_DIRECTION);
             }
 
-            // Check payoff_of_scene_id
             if let Some(target_id) = payoff_of {
-                match self.get_scene_position_info(target_id) {
-                    Ok(Some((_target_chapter_id, target_position, target_chapter_pos))) => {
-                        // Payoff scene should come AFTER its target
-                        let scene_chapter_pos =
-                            self.get_chapter_position(scene_chapter_id).unwrap_or(0);
-                        let scene_global =
-                            scene_chapter_pos as i64 * 100_000 + *scene_position as i64;
-                        let target_global =
-                            target_chapter_pos as i64 * 100_000 + target_position as i64;
-
-                        if scene_global <= target_global {
-                            issues.push(DetectedIssue {
-                                issue_type: "broken_setup_payoff".to_string(),
-                                title: format!(
-                                    "Payoff scene \"{}\" comes before its source",
-                                    scene_title
-                                ),
-                                description: format!(
-                                    "Scene \"{}\" is marked as payoff of another scene, but it \
-                                     appears at the same position or earlier in the manuscript. \
-                                     Payoff scenes should come after the scene they pay off.",
-                                    scene_title
-                                ),
-                                severity: "warning".to_string(),
-                                scene_ids: vec![scene_id.clone(), target_id.clone()],
-                                bible_entry_ids: vec![],
-                            });
-                        }
-                    }
-                    Ok(None) => {
-                        issues.push(DetectedIssue {
-                            issue_type: "broken_setup_payoff".to_string(),
-                            title: format!(
-                                "Payoff source missing for scene \"{}\"",
-                                scene_title
-                            ),
-                            description: format!(
-                                "Scene \"{}\" references a payoff source scene that no longer exists.",
-                                scene_title
-                            ),
-                            severity: "error".to_string(),
-                            scene_ids: vec![scene_id.clone()],
-                            bible_entry_ids: vec![],
-                        });
-                    }
-                    Err(_) => {}
-                }
+                self.check_scene_ref(&mut issues, &scene_ref, target_id, &PAYOFF_DIRECTION);
             }
         }
 
         Ok(issues)
+    }
+
+    /// Validates a single setup/payoff reference and appends any issues found.
+    fn check_scene_ref(
+        &self,
+        issues: &mut Vec<DetectedIssue>,
+        scene: &SceneRef,
+        target_id: &str,
+        dir: &RefDirection,
+    ) {
+        let target_info = match self.get_scene_position_info(target_id) {
+            Ok(info) => info,
+            Err(_) => return,
+        };
+
+        match target_info {
+            Some((_target_chapter_id, target_position, target_chapter_pos)) => {
+                let scene_chapter_pos = self.get_chapter_position(scene.chapter_id).unwrap_or(0);
+                let scene_global = global_position(scene_chapter_pos, scene.position);
+                let target_global = global_position(target_chapter_pos, target_position);
+
+                let ordering_violated = if dir.must_come_before {
+                    scene_global >= target_global
+                } else {
+                    scene_global <= target_global
+                };
+
+                if ordering_violated {
+                    issues.push(DetectedIssue {
+                        issue_type: "broken_setup_payoff".to_string(),
+                        title: (dir.ordering_title)(scene.title),
+                        description: (dir.ordering_desc)(scene.title),
+                        severity: "warning".to_string(),
+                        scene_ids: vec![scene.id.to_string(), target_id.to_string()],
+                        bible_entry_ids: vec![],
+                    });
+                }
+            }
+            None => {
+                issues.push(DetectedIssue {
+                    issue_type: "broken_setup_payoff".to_string(),
+                    title: (dir.missing_title)(scene.title),
+                    description: (dir.missing_desc)(scene.title),
+                    severity: "error".to_string(),
+                    scene_ids: vec![scene.id.to_string()],
+                    bible_entry_ids: vec![],
+                });
+            }
+        }
     }
 
     /// Returns (chapter_id, scene_position, chapter_position) for a scene, or None if deleted/missing.
@@ -333,36 +373,48 @@ impl Database {
 
     fn detect_referential_integrity(&self) -> Result<Vec<DetectedIssue>, String> {
         let mut issues = Vec::new();
+        self.detect_broken_scene_refs(&mut issues, "setup_for_scene_id", "setup")?;
+        self.detect_broken_scene_refs(&mut issues, "payoff_of_scene_id", "payoff")?;
+        self.detect_broken_bible_relationships(&mut issues)?;
+        Ok(issues)
+    }
 
-        // 7a. setup_for_scene_id pointing to deleted scenes
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT s.id, s.title, s.setup_for_scene_id
-                 FROM scenes s
-                 WHERE s.deleted_at IS NULL
-                   AND s.setup_for_scene_id IS NOT NULL
-                   AND NOT EXISTS (
-                       SELECT 1 FROM scenes target
-                       WHERE target.id = s.setup_for_scene_id AND target.deleted_at IS NULL
-                   )",
-            )
-            .map_err(|e| e.to_string())?;
+    /// Detects scenes whose `ref_column` points to a deleted or missing scene.
+    fn detect_broken_scene_refs(
+        &self,
+        issues: &mut Vec<DetectedIssue>,
+        ref_column: &str,
+        label: &str,
+    ) -> Result<(), String> {
+        // ref_column is always a compile-time literal, safe to interpolate.
+        let sql = format!(
+            "SELECT s.id, s.title, s.{col}
+             FROM scenes s
+             WHERE s.deleted_at IS NULL
+               AND s.{col} IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM scenes target
+                   WHERE target.id = s.{col} AND target.deleted_at IS NULL
+               )",
+            col = ref_column
+        );
 
-        let broken_setups: Vec<(String, String, String)> = stmt
+        let mut stmt = self.conn.prepare(&sql).map_err(|e| e.to_string())?;
+
+        let rows: Vec<(String, String, String)> = stmt
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        for (scene_id, scene_title, _target_id) in broken_setups {
+        for (scene_id, scene_title, _target_id) in rows {
             issues.push(DetectedIssue {
                 issue_type: "referential_integrity".to_string(),
-                title: format!("Broken setup reference in scene \"{}\"", scene_title),
+                title: format!("Broken {} reference in scene \"{}\"", label, scene_title),
                 description: format!(
-                    "Scene \"{}\" has a setup_for_scene_id that points to a deleted or \
+                    "Scene \"{}\" has a {} that points to a deleted or \
                      non-existent scene. The reference should be cleared.",
-                    scene_title
+                    scene_title, ref_column
                 ),
                 severity: "error".to_string(),
                 scene_ids: vec![scene_id],
@@ -370,43 +422,14 @@ impl Database {
             });
         }
 
-        // 7b. payoff_of_scene_id pointing to deleted scenes
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT s.id, s.title, s.payoff_of_scene_id
-                 FROM scenes s
-                 WHERE s.deleted_at IS NULL
-                   AND s.payoff_of_scene_id IS NOT NULL
-                   AND NOT EXISTS (
-                       SELECT 1 FROM scenes target
-                       WHERE target.id = s.payoff_of_scene_id AND target.deleted_at IS NULL
-                   )",
-            )
-            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
 
-        let broken_payoffs: Vec<(String, String, String)> = stmt
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-
-        for (scene_id, scene_title, _target_id) in broken_payoffs {
-            issues.push(DetectedIssue {
-                issue_type: "referential_integrity".to_string(),
-                title: format!("Broken payoff reference in scene \"{}\"", scene_title),
-                description: format!(
-                    "Scene \"{}\" has a payoff_of_scene_id that points to a deleted or \
-                     non-existent scene. The reference should be cleared.",
-                    scene_title
-                ),
-                severity: "error".to_string(),
-                scene_ids: vec![scene_id],
-                bible_entry_ids: vec![],
-            });
-        }
-
-        // 7c. bible_relationships pointing to deleted entries
+    /// Detects bible relationships where one or both entries have been deleted.
+    fn detect_broken_bible_relationships(
+        &self,
+        issues: &mut Vec<DetectedIssue>,
+    ) -> Result<(), String> {
         let mut stmt = self
             .conn
             .prepare(
@@ -420,7 +443,7 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        let broken_rels: Vec<(String, String, String, String, String, String)> = stmt
+        let rows: Vec<(String, String, String, String, String, String)> = stmt
             .query_map([], |row| {
                 Ok((
                     row.get(0)?,
@@ -435,14 +458,12 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        for (_rel_id, source_id, target_id, rel_type, source_name, target_name) in broken_rels {
-            let mut entry_ids = Vec::new();
-            if source_name != "[deleted]" {
-                entry_ids.push(source_id.clone());
-            }
-            if target_name != "[deleted]" {
-                entry_ids.push(target_id.clone());
-            }
+        for (_rel_id, source_id, target_id, rel_type, source_name, target_name) in rows {
+            let entry_ids = [(&source_name, &source_id), (&target_name, &target_id)]
+                .iter()
+                .filter(|(name, _)| name.as_str() != "[deleted]")
+                .map(|(_, id)| (*id).clone())
+                .collect();
 
             issues.push(DetectedIssue {
                 issue_type: "referential_integrity".to_string(),
@@ -461,7 +482,7 @@ impl Database {
             });
         }
 
-        Ok(issues)
+        Ok(())
     }
 }
 

@@ -2,29 +2,96 @@
 
 use super::Database;
 
+/// Type alias for a migration step function.
+type MigrationFn = fn(&Database) -> Result<(), String>;
+
+/// Ordered list of migration steps. Each entry is run in sequence when
+/// opening an existing database. Steps must be idempotent (safe to re-run)
+/// because there is no version tracking — every step runs on every open.
+const MIGRATIONS: &[MigrationFn] = &[
+    Database::migrate_scene_revision_fields,
+    Database::migrate_name_registry_tables,
+    Database::migrate_saved_filters_table,
+    Database::migrate_daily_word_target,
+    Database::migrate_arcs_tables,
+    Database::migrate_events_tables,
+    Database::migrate_templates_tables,
+    Database::migrate_issue_tables,
+    Database::migrate_annotations_table,
+    Database::migrate_arc_characters_table,
+    Database::migrate_missing_indexes,
+    Database::migrate_bible_relationships_unique,
+    Database::migrate_word_count_cache,
+    Database::migrate_writing_sessions_table,
+    Database::migrate_facts_tables,
+];
+
 impl Database {
-    /// Runs migrations to update an existing database to the latest schema.
-    pub(super) fn run_migrations(&self) -> Result<(), String> {
-        self.migrate_scene_revision_fields()?;
-        self.migrate_name_registry_tables()?;
-        self.migrate_saved_filters_table()?;
-        self.migrate_daily_word_target()?;
-        self.migrate_arcs_tables()?;
-        self.migrate_events_tables()?;
-        self.migrate_templates_tables()?;
-        self.migrate_issue_tables()?;
-        self.migrate_annotations_table()?;
-        self.migrate_arc_characters_table()?;
-        self.migrate_missing_indexes()?;
-        self.migrate_bible_relationships_unique()?;
-        self.migrate_word_count_cache()?;
-        self.migrate_writing_sessions_table()?;
-        self.migrate_facts_tables()?;
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    /// Executes a batch of independent SQL statements, returning the first
+    /// error encountered (if any).
+    fn execute_all(&self, statements: &[&str]) -> Result<(), String> {
+        for sql in statements {
+            self.conn.execute(sql, []).map_err(|e| e.to_string())?;
+        }
         Ok(())
     }
 
+    /// Returns `true` when `column` already exists in `table`.
+    fn has_column(&self, table: &str, column: &str) -> bool {
+        self.conn
+            .prepare(&format!("SELECT {column} FROM {table} LIMIT 0"))
+            .is_ok()
+    }
+
+    /// Adds `column` with the given `col_type` to `table` if it does not
+    /// already exist.
+    fn add_column_if_missing(
+        &self,
+        table: &str,
+        column: &str,
+        col_type: &str,
+    ) -> Result<(), String> {
+        if !self.has_column(table, column) {
+            self.conn
+                .execute(
+                    &format!("ALTER TABLE {table} ADD COLUMN {column} {col_type}"),
+                    [],
+                )
+                .map_err(|e| format!("Failed to add column {column} to {table}: {e}"))?;
+        }
+        Ok(())
+    }
+
+    // ------------------------------------------------------------------
+    // Public entry points
+    // ------------------------------------------------------------------
+
+    /// Runs migrations to update an existing database to the latest schema.
+    pub(super) fn run_migrations(&self) -> Result<(), String> {
+        for migration in MIGRATIONS {
+            migration(self)?;
+        }
+        Ok(())
+    }
+
+    /// Initializes the full database schema for a new project.
+    pub(super) fn init_schema(&self) -> Result<(), String> {
+        self.conn
+            .execute_batch(SCHEMA_SQL)
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    // ------------------------------------------------------------------
+    // Individual migration steps (private, idempotent)
+    // ------------------------------------------------------------------
+
     fn migrate_scene_revision_fields(&self) -> Result<(), String> {
-        let columns_to_add = vec![
+        const COLUMNS: &[(&str, &str)] = &[
             ("pov_goal", "TEXT"),
             ("has_conflict", "INTEGER"),
             ("has_change", "INTEGER"),
@@ -34,29 +101,15 @@ impl Database {
             ("revision_notes", "TEXT"),
             ("revision_checklist", "TEXT"),
         ];
-
-        for (column, col_type) in columns_to_add {
-            let column_exists: bool = self
-                .conn
-                .prepare(&format!("SELECT {} FROM scenes LIMIT 1", column))
-                .is_ok();
-
-            if !column_exists {
-                self.conn
-                    .execute(
-                        &format!("ALTER TABLE scenes ADD COLUMN {} {}", column, col_type),
-                        [],
-                    )
-                    .map_err(|e| e.to_string())?;
-            }
+        for &(column, col_type) in COLUMNS {
+            self.add_column_if_missing("scenes", column, col_type)?;
         }
         Ok(())
     }
 
     fn migrate_name_registry_tables(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS name_registry (
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS name_registry (
                 id TEXT PRIMARY KEY,
                 canonical_name TEXT NOT NULL,
                 name_type TEXT NOT NULL DEFAULT 'character',
@@ -67,13 +120,7 @@ impl Database {
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS name_mentions (
+            "CREATE TABLE IF NOT EXISTS name_mentions (
                 id TEXT PRIMARY KEY,
                 name_registry_id TEXT NOT NULL,
                 scene_id TEXT NOT NULL,
@@ -85,41 +132,16 @@ impl Database {
                 FOREIGN KEY (name_registry_id) REFERENCES name_registry(id),
                 FOREIGN KEY (scene_id) REFERENCES scenes(id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_name_registry_type ON name_registry(name_type)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_name_registry_bible ON name_registry(bible_entry_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_name_mentions_registry ON name_mentions(name_registry_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_name_mentions_scene ON name_mentions(scene_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            "CREATE INDEX IF NOT EXISTS idx_name_registry_type ON name_registry(name_type)",
+            "CREATE INDEX IF NOT EXISTS idx_name_registry_bible ON name_registry(bible_entry_id)",
+            "CREATE INDEX IF NOT EXISTS idx_name_mentions_registry ON name_mentions(name_registry_id)",
+            "CREATE INDEX IF NOT EXISTS idx_name_mentions_scene ON name_mentions(scene_id)",
+        ])
     }
 
     fn migrate_saved_filters_table(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS saved_filters (
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS saved_filters (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 filter_type TEXT NOT NULL,
@@ -127,39 +149,17 @@ impl Database {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_saved_filters_type ON saved_filters(filter_type)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            "CREATE INDEX IF NOT EXISTS idx_saved_filters_type ON saved_filters(filter_type)",
+        ])
     }
 
     fn migrate_daily_word_target(&self) -> Result<(), String> {
-        let has_daily_target: bool = self
-            .conn
-            .prepare("SELECT daily_word_target FROM project LIMIT 1")
-            .is_ok();
-        if !has_daily_target {
-            self.conn
-                .execute(
-                    "ALTER TABLE project ADD COLUMN daily_word_target INTEGER",
-                    [],
-                )
-                .map_err(|e| format!("Failed to add daily_word_target column: {}", e))?;
-        }
-        Ok(())
+        self.add_column_if_missing("project", "daily_word_target", "INTEGER")
     }
 
     fn migrate_arcs_tables(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS arcs (
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS arcs (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT,
@@ -172,13 +172,7 @@ impl Database {
                 updated_at TEXT NOT NULL,
                 deleted_at TEXT
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS scene_arcs (
+            "CREATE TABLE IF NOT EXISTS scene_arcs (
                 id TEXT PRIMARY KEY,
                 scene_id TEXT NOT NULL,
                 arc_id TEXT NOT NULL,
@@ -187,16 +181,12 @@ impl Database {
                 FOREIGN KEY (arc_id) REFERENCES arcs(id),
                 UNIQUE(scene_id, arc_id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        ])
     }
 
     fn migrate_events_tables(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS events (
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS events (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
                 description TEXT,
@@ -209,13 +199,7 @@ impl Database {
                 updated_at TEXT NOT NULL,
                 deleted_at TEXT
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS event_scenes (
+            "CREATE TABLE IF NOT EXISTS event_scenes (
                 id TEXT PRIMARY KEY,
                 event_id TEXT NOT NULL,
                 scene_id TEXT NOT NULL,
@@ -224,13 +208,7 @@ impl Database {
                 FOREIGN KEY (scene_id) REFERENCES scenes(id),
                 UNIQUE(event_id, scene_id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS event_bible (
+            "CREATE TABLE IF NOT EXISTS event_bible (
                 id TEXT PRIMARY KEY,
                 event_id TEXT NOT NULL,
                 bible_entry_id TEXT NOT NULL,
@@ -239,16 +217,12 @@ impl Database {
                 FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
                 UNIQUE(event_id, bible_entry_id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        ])
     }
 
     fn migrate_templates_tables(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS templates (
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS templates (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 is_active INTEGER NOT NULL DEFAULT 0,
@@ -256,13 +230,7 @@ impl Database {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS template_steps (
+            "CREATE TABLE IF NOT EXISTS template_steps (
                 id TEXT PRIMARY KEY,
                 template_id TEXT NOT NULL,
                 name TEXT NOT NULL,
@@ -272,13 +240,7 @@ impl Database {
                 position INTEGER NOT NULL,
                 FOREIGN KEY (template_id) REFERENCES templates(id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS scene_steps (
+            "CREATE TABLE IF NOT EXISTS scene_steps (
                 id TEXT PRIMARY KEY,
                 scene_id TEXT NOT NULL,
                 step_id TEXT NOT NULL,
@@ -287,16 +249,12 @@ impl Database {
                 FOREIGN KEY (step_id) REFERENCES template_steps(id),
                 UNIQUE(scene_id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        ])
     }
 
     fn migrate_issue_tables(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS issues (
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS issues (
                 id TEXT PRIMARY KEY,
                 issue_type TEXT NOT NULL,
                 title TEXT NOT NULL,
@@ -307,13 +265,7 @@ impl Database {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS issue_scenes (
+            "CREATE TABLE IF NOT EXISTS issue_scenes (
                 id TEXT PRIMARY KEY,
                 issue_id TEXT NOT NULL,
                 scene_id TEXT NOT NULL,
@@ -321,13 +273,7 @@ impl Database {
                 FOREIGN KEY (scene_id) REFERENCES scenes(id),
                 UNIQUE(issue_id, scene_id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS issue_bible (
+            "CREATE TABLE IF NOT EXISTS issue_bible (
                 id TEXT PRIMARY KEY,
                 issue_id TEXT NOT NULL,
                 bible_entry_id TEXT NOT NULL,
@@ -335,31 +281,13 @@ impl Database {
                 FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
                 UNIQUE(issue_id, bible_entry_id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        // Add UNIQUE indexes for existing databases that were created before the constraint
-        self.conn
-            .execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_issue_scenes_unique ON issue_scenes(issue_id, scene_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_issue_bible_unique ON issue_bible(issue_id, bible_entry_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        Ok(())
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_issue_scenes_unique ON issue_scenes(issue_id, scene_id)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_issue_bible_unique ON issue_bible(issue_id, bible_entry_id)",
+        ])
     }
 
     fn migrate_annotations_table(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS annotations (
+        self.execute_all(&["CREATE TABLE IF NOT EXISTS annotations (
                 id TEXT PRIMARY KEY,
                 scene_id TEXT NOT NULL,
                 start_offset INTEGER NOT NULL,
@@ -370,18 +298,18 @@ impl Database {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (scene_id) REFERENCES scenes(id)
-            )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            )"])
     }
 
     fn migrate_arc_characters_table(&self) -> Result<(), String> {
-        // Create the junction table
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS arc_characters (
+        self.migrate_arc_characters_schema()?;
+        self.migrate_arc_characters_data()
+    }
+
+    /// Creates the `arc_characters` junction table and its indexes.
+    fn migrate_arc_characters_schema(&self) -> Result<(), String> {
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS arc_characters (
                 id TEXT PRIMARY KEY,
                 arc_id TEXT NOT NULL,
                 bible_entry_id TEXT NOT NULL,
@@ -390,74 +318,69 @@ impl Database {
                 FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
                 UNIQUE(arc_id, bible_entry_id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
+            "CREATE INDEX IF NOT EXISTS idx_arc_characters_arc ON arc_characters(arc_id)",
+            "CREATE INDEX IF NOT EXISTS idx_arc_characters_bible ON arc_characters(bible_entry_id)",
+        ])
+    }
 
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_arc_characters_arc ON arc_characters(arc_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_arc_characters_bible ON arc_characters(bible_entry_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        // Migrate existing data from arcs.characters column (if it exists)
-        let has_characters_column: bool = self
-            .conn
-            .prepare("SELECT characters FROM arcs LIMIT 1")
-            .is_ok();
-
-        if has_characters_column {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT id, characters FROM arcs WHERE characters IS NOT NULL AND characters != ''")
-                .map_err(|e| e.to_string())?;
-
-            let rows: Vec<(String, String)> = stmt
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-
-            let now = chrono::Utc::now().to_rfc3339();
-            for (arc_id, characters) in rows {
-                for char_id in characters
-                    .split(',')
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                {
-                    // Verify the bible entry exists before inserting
-                    let exists: bool = self
-                        .conn
-                        .query_row(
-                            "SELECT COUNT(*) > 0 FROM bible_entries WHERE id = ?1",
-                            rusqlite::params![char_id],
-                            |row| row.get(0),
-                        )
-                        .unwrap_or(false);
-
-                    if exists {
-                        let id = uuid::Uuid::new_v4().to_string();
-                        let _ = self.conn.execute(
-                            "INSERT OR IGNORE INTO arc_characters (id, arc_id, bible_entry_id, created_at) VALUES (?1, ?2, ?3, ?4)",
-                            rusqlite::params![id, arc_id, char_id, now],
-                        );
-                    }
-                }
-            }
+    /// Migrates existing data from the legacy `arcs.characters` CSV column
+    /// into the `arc_characters` junction table.
+    fn migrate_arc_characters_data(&self) -> Result<(), String> {
+        if !self.has_column("arcs", "characters") {
+            return Ok(());
         }
 
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, characters FROM arcs \
+                 WHERE characters IS NOT NULL AND characters != ''",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        let now = chrono::Utc::now().to_rfc3339();
+        for (arc_id, characters) in rows {
+            self.insert_arc_characters(&arc_id, &characters, &now);
+        }
         Ok(())
     }
 
+    /// Inserts individual character IDs parsed from a CSV string into
+    /// `arc_characters`, verifying each bible entry exists first.
+    fn insert_arc_characters(&self, arc_id: &str, characters_csv: &str, now: &str) {
+        for char_id in characters_csv
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
+            let exists: bool = self
+                .conn
+                .query_row(
+                    "SELECT COUNT(*) > 0 FROM bible_entries WHERE id = ?1",
+                    rusqlite::params![char_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(false);
+
+            if exists {
+                let id = uuid::Uuid::new_v4().to_string();
+                let _ = self.conn.execute(
+                    "INSERT OR IGNORE INTO arc_characters (id, arc_id, bible_entry_id, created_at) \
+                     VALUES (?1, ?2, ?3, ?4)",
+                    rusqlite::params![id, arc_id, char_id, now],
+                );
+            }
+        }
+    }
+
     fn migrate_missing_indexes(&self) -> Result<(), String> {
-        let indexes = [
+        self.execute_all(&[
             "CREATE INDEX IF NOT EXISTS idx_event_scenes_scene ON event_scenes(scene_id)",
             "CREATE INDEX IF NOT EXISTS idx_event_bible_bible ON event_bible(bible_entry_id)",
             "CREATE INDEX IF NOT EXISTS idx_issue_scenes_scene ON issue_scenes(scene_id)",
@@ -467,55 +390,45 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_cuts_scene ON cuts(scene_id)",
             "CREATE INDEX IF NOT EXISTS idx_scenes_pov ON scenes(pov) WHERE pov IS NOT NULL AND deleted_at IS NULL",
             "CREATE INDEX IF NOT EXISTS idx_scenes_time ON scenes(time_point, time_start) WHERE deleted_at IS NULL",
-        ];
-        for sql in &indexes {
-            self.conn.execute(sql, []).map_err(|e| e.to_string())?;
-        }
-        Ok(())
+        ])
     }
 
     fn migrate_word_count_cache(&self) -> Result<(), String> {
-        let has_word_count: bool = self
+        if self.has_column("scenes", "word_count") {
+            return Ok(());
+        }
+        self.add_column_if_missing("scenes", "word_count", "INTEGER NOT NULL DEFAULT 0")?;
+        self.backfill_word_counts()
+    }
+
+    /// Computes and stores word counts for all non-empty scenes.
+    fn backfill_word_counts(&self) -> Result<(), String> {
+        let mut stmt = self
             .conn
-            .prepare("SELECT word_count FROM scenes LIMIT 0")
-            .is_ok();
-        if !has_word_count {
+            .prepare("SELECT id, text FROM scenes WHERE text != ''")
+            .map_err(|e| e.to_string())?;
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        for (id, text) in rows {
+            let plain = crate::database::HTML_TAG_REGEX.replace_all(&text, " ");
+            let wc = plain.split_whitespace().count() as i32;
             self.conn
                 .execute(
-                    "ALTER TABLE scenes ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0",
-                    [],
+                    "UPDATE scenes SET word_count = ?1 WHERE id = ?2",
+                    rusqlite::params![wc, id],
                 )
-                .map_err(|e| format!("Failed to add word_count column: {}", e))?;
-
-            // Backfill existing scenes
-            let mut stmt = self
-                .conn
-                .prepare("SELECT id, text FROM scenes WHERE text != ''")
                 .map_err(|e| e.to_string())?;
-            let rows: Vec<(String, String)> = stmt
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-
-            for (id, text) in rows {
-                let plain = crate::database::HTML_TAG_REGEX.replace_all(&text, " ");
-                let wc = plain.split_whitespace().count() as i32;
-                self.conn
-                    .execute(
-                        "UPDATE scenes SET word_count = ?1 WHERE id = ?2",
-                        rusqlite::params![wc, id],
-                    )
-                    .map_err(|e| e.to_string())?;
-            }
         }
         Ok(())
     }
 
     fn migrate_writing_sessions_table(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS writing_sessions (
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS writing_sessions (
                 id TEXT PRIMARY KEY,
                 date TEXT NOT NULL,
                 words_start INTEGER NOT NULL DEFAULT 0,
@@ -524,22 +437,13 @@ impl Database {
                 scenes_edited TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_writing_sessions_date ON writing_sessions(date)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            "CREATE INDEX IF NOT EXISTS idx_writing_sessions_date ON writing_sessions(date)",
+        ])
     }
 
     fn migrate_facts_tables(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS facts (
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS facts (
                 id TEXT PRIMARY KEY,
                 content TEXT NOT NULL,
                 category TEXT NOT NULL DEFAULT 'plot',
@@ -549,12 +453,7 @@ impl Database {
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (revealed_in_scene_id) REFERENCES scenes(id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS fact_characters (
+            "CREATE TABLE IF NOT EXISTS fact_characters (
                 id TEXT PRIMARY KEY,
                 fact_id TEXT NOT NULL,
                 bible_entry_id TEXT NOT NULL,
@@ -565,64 +464,22 @@ impl Database {
                 FOREIGN KEY (learned_in_scene_id) REFERENCES scenes(id),
                 UNIQUE(fact_id, bible_entry_id)
             )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_facts_status ON facts(status)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_facts_revealed ON facts(revealed_in_scene_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_fact_characters_fact ON fact_characters(fact_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS idx_fact_characters_bible ON fact_characters(bible_entry_id)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            "CREATE INDEX IF NOT EXISTS idx_facts_status ON facts(status)",
+            "CREATE INDEX IF NOT EXISTS idx_facts_revealed ON facts(revealed_in_scene_id)",
+            "CREATE INDEX IF NOT EXISTS idx_fact_characters_fact ON fact_characters(fact_id)",
+            "CREATE INDEX IF NOT EXISTS idx_fact_characters_bible ON fact_characters(bible_entry_id)",
+        ])
     }
 
     fn migrate_bible_relationships_unique(&self) -> Result<(), String> {
-        // Remove duplicates before creating the unique index
-        self.conn
-            .execute(
-                "DELETE FROM bible_relationships WHERE id NOT IN (
-                    SELECT MIN(id) FROM bible_relationships
-                    GROUP BY source_id, target_id, relationship_type
-                )",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.conn
-            .execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_bible_relationships_unique
-                    ON bible_relationships(source_id, target_id, relationship_type)",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    }
-
-    /// Initializes the full database schema for a new project.
-    pub(super) fn init_schema(&self) -> Result<(), String> {
-        self.conn
-            .execute_batch(SCHEMA_SQL)
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        self.execute_all(&[
+            "DELETE FROM bible_relationships WHERE id NOT IN (
+                SELECT MIN(id) FROM bible_relationships
+                GROUP BY source_id, target_id, relationship_type
+            )",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_bible_relationships_unique
+                ON bible_relationships(source_id, target_id, relationship_type)",
+        ])
     }
 }
 

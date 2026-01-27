@@ -35,6 +35,9 @@ impl Database {
             .join(" ")
     }
 
+    const DEFAULT_SEARCH_SCOPES: &'static [&'static str] =
+        &["scenes", "bible", "events", "annotations", "cuts"];
+
     pub fn global_search(
         &self,
         query: &str,
@@ -45,38 +48,41 @@ impl Database {
             return Ok(Vec::new());
         }
 
+        let default_scope: Vec<String>;
+        let scope = match &scope {
+            Some(s) => s.as_slice(),
+            None => {
+                default_scope = Self::DEFAULT_SEARCH_SCOPES
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                &default_scope
+            }
+        };
+
         let mut results = Vec::new();
-        let scope = scope.unwrap_or_else(|| {
-            vec![
-                "scenes".to_string(),
-                "bible".to_string(),
-                "events".to_string(),
-                "annotations".to_string(),
-                "cuts".to_string(),
-            ]
-        });
-
-        if scope.contains(&"scenes".to_string()) {
-            results.extend(self.search_scenes(&sanitized)?);
+        for name in scope {
+            let hits = self.search_by_scope(name, query, &sanitized)?;
+            results.extend(hits);
         }
-
-        if scope.contains(&"bible".to_string()) {
-            results.extend(self.search_bible_entries(&sanitized)?);
-        }
-
-        if scope.contains(&"events".to_string()) {
-            results.extend(self.search_events(query)?);
-        }
-
-        if scope.contains(&"annotations".to_string()) {
-            results.extend(self.search_annotations(query)?);
-        }
-
-        if scope.contains(&"cuts".to_string()) {
-            results.extend(self.search_cuts(query)?);
-        }
-
         Ok(results)
+    }
+
+    /// Dispatch a search to the appropriate handler based on scope name.
+    fn search_by_scope(
+        &self,
+        scope: &str,
+        raw_query: &str,
+        fts_query: &str,
+    ) -> Result<Vec<SearchResult>, String> {
+        match scope {
+            "scenes" => self.search_scenes(fts_query),
+            "bible" => self.search_bible_entries(fts_query),
+            "events" => self.search_events(raw_query),
+            "annotations" => self.search_annotations(raw_query),
+            "cuts" => self.search_cuts(raw_query),
+            _ => Ok(Vec::new()),
+        }
     }
 
     fn search_scenes(&self, query: &str) -> Result<Vec<SearchResult>, String> {
@@ -249,11 +255,22 @@ impl Database {
         whole_word: bool,
         chapter_id: Option<&str>,
     ) -> Result<i32, String> {
-        use regex::RegexBuilder;
-
         if find.is_empty() {
             return Ok(0);
         }
+
+        let re = Self::build_find_regex(find, case_sensitive, whole_word)?;
+        let scenes = self.fetch_scenes_for_replace(chapter_id)?;
+        self.apply_replacements_in_transaction(&re, &scenes, replace)
+    }
+
+    /// Build a regex from a find string with case-sensitivity and whole-word options.
+    fn build_find_regex(
+        find: &str,
+        case_sensitive: bool,
+        whole_word: bool,
+    ) -> Result<regex::Regex, String> {
+        use regex::RegexBuilder;
 
         let escaped = regex::escape(find);
         let pattern = if whole_word {
@@ -262,57 +279,60 @@ impl Database {
             escaped
         };
 
-        let re = RegexBuilder::new(&pattern)
+        RegexBuilder::new(&pattern)
             .case_insensitive(!case_sensitive)
             .build()
-            .map_err(|e| format!("Invalid search pattern: {}", e))?;
+            .map_err(|e| format!("Invalid search pattern: {}", e))
+    }
 
-        // Fetch scenes to process
-        let scenes: Vec<(String, String)> = if let Some(cid) = chapter_id {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT id, text FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL")
-                .map_err(|e| e.to_string())?;
-            let result = stmt
-                .query_map(params![cid], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-            result
-        } else {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT id, text FROM scenes WHERE deleted_at IS NULL")
-                .map_err(|e| e.to_string())?;
-            let result = stmt
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-            result
-        };
+    /// Fetch all (id, text) pairs for scenes, optionally filtered by chapter.
+    fn fetch_scenes_for_replace(
+        &self,
+        chapter_id: Option<&str>,
+    ) -> Result<Vec<(String, String)>, String> {
+        let row_mapper = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?));
 
-        // We need to replace within text nodes only, not HTML tags.
-        // Extract text content, find positions, and replace.
+        match chapter_id {
+            Some(cid) => {
+                let mut stmt = self
+                    .conn
+                    .prepare(
+                        "SELECT id, text FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL",
+                    )
+                    .map_err(|e| e.to_string())?;
+                let results = stmt
+                    .query_map(params![cid], row_mapper)
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                Ok(results)
+            }
+            None => {
+                let mut stmt = self
+                    .conn
+                    .prepare("SELECT id, text FROM scenes WHERE deleted_at IS NULL")
+                    .map_err(|e| e.to_string())?;
+                let results = stmt
+                    .query_map([], row_mapper)
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                Ok(results)
+            }
+        }
+    }
+
+    /// Apply regex replacements across scenes within a transaction.
+    /// Returns the number of scenes modified.
+    fn apply_replacements_in_transaction(
+        &self,
+        re: &regex::Regex,
+        scenes: &[(String, String)],
+        replace: &str,
+    ) -> Result<i32, String> {
         self.conn.execute("BEGIN", []).map_err(|e| e.to_string())?;
 
-        let result = (|| -> Result<i32, String> {
-            let mut count = 0;
-            for (scene_id, html) in &scenes {
-                // Only replace within text content (between tags), not in tag attributes
-                let new_html = Self::replace_in_html_text(&re, html, replace);
-                if &new_html != html {
-                    self.conn
-                        .execute(
-                            "UPDATE scenes SET text = ?1, updated_at = datetime('now') WHERE id = ?2",
-                            params![new_html, scene_id],
-                        )
-                        .map_err(|e| e.to_string())?;
-                    count += 1;
-                }
-            }
-            Ok(count)
-        })();
+        let result = self.replace_matching_scenes(re, scenes, replace);
 
         match result {
             Ok(count) => {
@@ -324,6 +344,29 @@ impl Database {
                 Err(e)
             }
         }
+    }
+
+    /// Iterate over scenes and update those where the regex matches text content.
+    fn replace_matching_scenes(
+        &self,
+        re: &regex::Regex,
+        scenes: &[(String, String)],
+        replace: &str,
+    ) -> Result<i32, String> {
+        let mut count = 0;
+        for (scene_id, html) in scenes {
+            let new_html = Self::replace_in_html_text(re, html, replace);
+            if new_html != *html {
+                self.conn
+                    .execute(
+                        "UPDATE scenes SET text = ?1, updated_at = datetime('now') WHERE id = ?2",
+                        params![new_html, scene_id],
+                    )
+                    .map_err(|e| e.to_string())?;
+                count += 1;
+            }
+        }
+        Ok(count)
     }
 
     /// Replace regex matches only within HTML text nodes, preserving tags.

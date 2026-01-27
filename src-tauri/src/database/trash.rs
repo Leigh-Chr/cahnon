@@ -60,62 +60,67 @@ impl Database {
     pub fn purge_expired_trash(&self) -> Result<(usize, usize), String> {
         let threshold = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
 
-        // Get expired scene IDs for junction cleanup
+        let expired_scene_ids = self.get_expired_scene_ids(&threshold)?;
+
+        for sid in &expired_scene_ids {
+            self.cleanup_scene_junctions_for_purge(sid);
+        }
+
+        let scenes_purged = self.purge_expired_scenes(&threshold)?;
+        let chapters_purged = self.purge_expired_chapters(&threshold)?;
+
+        Ok((scenes_purged, chapters_purged))
+    }
+
+    fn get_expired_scene_ids(&self, threshold: &str) -> Result<Vec<String>, String> {
         let mut stmt = self
             .conn
             .prepare("SELECT id FROM scenes WHERE deleted_at IS NOT NULL AND deleted_at < ?1")
             .map_err(|e| e.to_string())?;
-        let expired_scene_ids: Vec<String> = stmt
+        let ids = stmt
             .query_map(params![threshold], |row| row.get(0))
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
-        drop(stmt);
+        Ok(ids)
+    }
 
-        // Clean junction tables for expired scenes
-        for sid in &expired_scene_ids {
+    /// Removes all junction table entries for a scene being purged.
+    /// Ignores errors since the scene will be deleted anyway.
+    fn cleanup_scene_junctions_for_purge(&self, scene_id: &str) {
+        const JUNCTION_TABLES: &[&str] = &[
+            "canonical_associations",
+            "scene_arcs",
+            "event_scenes",
+            "issue_scenes",
+            "scene_steps",
+            "annotations",
+            "scene_history",
+        ];
+        for table in JUNCTION_TABLES {
             let _ = self.conn.execute(
-                "DELETE FROM canonical_associations WHERE scene_id = ?1",
-                params![sid],
-            );
-            let _ = self
-                .conn
-                .execute("DELETE FROM scene_arcs WHERE scene_id = ?1", params![sid]);
-            let _ = self
-                .conn
-                .execute("DELETE FROM event_scenes WHERE scene_id = ?1", params![sid]);
-            let _ = self
-                .conn
-                .execute("DELETE FROM issue_scenes WHERE scene_id = ?1", params![sid]);
-            let _ = self
-                .conn
-                .execute("DELETE FROM scene_steps WHERE scene_id = ?1", params![sid]);
-            let _ = self
-                .conn
-                .execute("DELETE FROM annotations WHERE scene_id = ?1", params![sid]);
-            let _ = self.conn.execute(
-                "DELETE FROM scene_history WHERE scene_id = ?1",
-                params![sid],
+                &format!("DELETE FROM {} WHERE scene_id = ?1", table),
+                params![scene_id],
             );
         }
+    }
 
-        let scenes_purged = self
-            .conn
+    fn purge_expired_scenes(&self, threshold: &str) -> Result<usize, String> {
+        self.conn
             .execute(
                 "DELETE FROM scenes WHERE deleted_at IS NOT NULL AND deleted_at < ?1",
                 params![threshold],
             )
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())
+    }
 
-        let chapters_purged = self
-            .conn
+    fn purge_expired_chapters(&self, threshold: &str) -> Result<usize, String> {
+        self.conn
             .execute(
                 "DELETE FROM chapters WHERE deleted_at IS NOT NULL AND deleted_at < ?1",
                 params![threshold],
             )
-            .map_err(|e| e.to_string())?;
-
-        Ok((scenes_purged, chapters_purged))
+            .map_err(|e| e.to_string())
     }
 
     pub fn restore_chapter(&self, id: &str) -> Result<Chapter, String> {

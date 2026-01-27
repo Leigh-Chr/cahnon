@@ -71,11 +71,7 @@ impl Database {
         // Verify the template exists before changing anything
         self.get_template(template_id)?;
 
-        self.conn
-            .execute("BEGIN TRANSACTION", [])
-            .map_err(|e| e.to_string())?;
-
-        let result = (|| -> Result<(), String> {
+        self.run_in_transaction(|| {
             self.conn
                 .execute("UPDATE templates SET is_active = 0", [])
                 .map_err(|e| e.to_string())?;
@@ -86,18 +82,7 @@ impl Database {
                 )
                 .map_err(|e| e.to_string())?;
             Ok(())
-        })();
-
-        match result {
-            Ok(()) => {
-                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-                Ok(())
-            }
-            Err(e) => {
-                let _ = self.conn.execute("ROLLBACK", []);
-                Err(e)
-            }
-        }
+        })
     }
 
     pub fn assign_scene_to_step(&self, scene_id: &str, step_id: &str) -> Result<(), String> {
@@ -382,41 +367,30 @@ impl Database {
             return Err("Cannot delete builtin templates".to_string());
         }
 
-        self.conn.execute("BEGIN", []).map_err(|e| e.to_string())?;
+        self.run_in_transaction(|| self.delete_template_cascade(id))
+    }
 
-        let result = (|| -> Result<(), String> {
-            // Clean up scene assignments for all steps in this template
-            self.conn
-                .execute(
-                    "DELETE FROM scene_steps WHERE step_id IN (SELECT id FROM template_steps WHERE template_id = ?1)",
-                    params![id],
-                )
-                .map_err(|e| e.to_string())?;
+    fn delete_template_cascade(&self, id: &str) -> Result<(), String> {
+        // Clean up scene assignments for all steps in this template
+        self.conn
+            .execute(
+                "DELETE FROM scene_steps WHERE step_id IN (SELECT id FROM template_steps WHERE template_id = ?1)",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
 
-            self.conn
-                .execute(
-                    "DELETE FROM template_steps WHERE template_id = ?1",
-                    params![id],
-                )
-                .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "DELETE FROM template_steps WHERE template_id = ?1",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
 
-            self.conn
-                .execute("DELETE FROM templates WHERE id = ?1", params![id])
-                .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM templates WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
 
-            Ok(())
-        })();
-
-        match result {
-            Ok(()) => {
-                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-                Ok(())
-            }
-            Err(e) => {
-                let _ = self.conn.execute("ROLLBACK", []);
-                Err(e)
-            }
-        }
+        Ok(())
     }
 
     pub fn create_template_step(

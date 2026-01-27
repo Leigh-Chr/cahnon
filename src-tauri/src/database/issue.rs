@@ -110,44 +110,42 @@ impl Database {
     ) -> Result<crate::models::Issue, String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        if let Some(status) = &req.status {
-            self.conn
-                .execute(
-                    "UPDATE issues SET status = ?1, updated_at = ?2 WHERE id = ?3",
-                    rusqlite::params![status, now, id],
-                )
-                .map_err(|e| e.to_string())?;
+        let mut set_clauses = Vec::new();
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+        macro_rules! add_field {
+            ($field:expr, $column:literal) => {
+                if let Some(val) = &$field {
+                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
+                    params_vec.push(Box::new(val.clone()));
+                }
+            };
         }
-        if let Some(resolution_note) = &req.resolution_note {
+
+        add_field!(req.status, "status");
+        add_field!(req.resolution_note, "resolution_note");
+        add_field!(req.title, "title");
+        add_field!(req.description, "description");
+        add_field!(req.severity, "severity");
+
+        if !set_clauses.is_empty() {
+            set_clauses.push(format!("updated_at = ?{}", params_vec.len() + 1));
+            params_vec.push(Box::new(now));
+
+            let id_param_idx = params_vec.len() + 1;
+            let query = format!(
+                "UPDATE issues SET {} WHERE id = ?{}",
+                set_clauses.join(", "),
+                id_param_idx
+            );
+
+            let params_refs: Vec<&dyn rusqlite::ToSql> =
+                params_vec.iter().map(|p| p.as_ref()).collect();
+            let mut all_params = params_refs;
+            all_params.push(&id);
+
             self.conn
-                .execute(
-                    "UPDATE issues SET resolution_note = ?1, updated_at = ?2 WHERE id = ?3",
-                    rusqlite::params![resolution_note, now, id],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        if let Some(title) = &req.title {
-            self.conn
-                .execute(
-                    "UPDATE issues SET title = ?1, updated_at = ?2 WHERE id = ?3",
-                    rusqlite::params![title, now, id],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        if let Some(description) = &req.description {
-            self.conn
-                .execute(
-                    "UPDATE issues SET description = ?1, updated_at = ?2 WHERE id = ?3",
-                    rusqlite::params![description, now, id],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        if let Some(severity) = &req.severity {
-            self.conn
-                .execute(
-                    "UPDATE issues SET severity = ?1, updated_at = ?2 WHERE id = ?3",
-                    rusqlite::params![severity, now, id],
-                )
+                .execute(&query, all_params.as_slice())
                 .map_err(|e| e.to_string())?;
         }
 

@@ -23,6 +23,30 @@ struct SceneRow {
 impl Database {
     /// Computes health scores for all non-deleted scenes in the project.
     pub fn get_scene_health_batch(&self) -> Result<Vec<SceneHealth>, String> {
+        let scenes = self.fetch_scene_rows_for_health()?;
+        let scenes_with_open_issues = self.health_scenes_with_open_issues()?;
+
+        let results = scenes
+            .iter()
+            .map(|scene| {
+                let checks = Self::compute_health_checks(
+                    scene,
+                    scenes_with_open_issues.contains(&scene.id),
+                    self.health_check_setup_payoff_intact(scene),
+                );
+                let score = Self::compute_health_score(&checks);
+                SceneHealth {
+                    scene_id: scene.id.clone(),
+                    score,
+                    checks,
+                }
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    fn fetch_scene_rows_for_health(&self) -> Result<Vec<SceneRow>, String> {
         let mut stmt = self
             .conn
             .prepare(
@@ -35,7 +59,7 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        let scenes: Vec<SceneRow> = stmt
+        let rows = stmt
             .query_map([], |row| {
                 Ok(SceneRow {
                     id: row.get(0)?,
@@ -49,37 +73,20 @@ impl Database {
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
 
-        let scenes_with_open_issues = self.health_scenes_with_open_issues()?;
-
-        let mut results = Vec::with_capacity(scenes.len());
-
-        for scene in &scenes {
-            let checks = Self::compute_health_checks(
-                scene,
-                scenes_with_open_issues.contains(&scene.id),
-                self.health_check_setup_payoff_intact(scene),
-            );
-
-            let total_weight: f64 = checks.iter().map(|c| c.weight).sum();
-            let score = if total_weight > 0.0 {
-                checks
-                    .iter()
-                    .map(|c| if c.passed { c.weight } else { 0.0 })
-                    .sum::<f64>()
-                    / total_weight
-            } else {
-                1.0
-            };
-
-            results.push(SceneHealth {
-                scene_id: scene.id.clone(),
-                score,
-                checks,
-            });
+    fn compute_health_score(checks: &[HealthCheck]) -> f64 {
+        let total_weight: f64 = checks.iter().map(|c| c.weight).sum();
+        if total_weight > 0.0 {
+            checks
+                .iter()
+                .map(|c| if c.passed { c.weight } else { 0.0 })
+                .sum::<f64>()
+                / total_weight
+        } else {
+            1.0
         }
-
-        Ok(results)
     }
 
     fn compute_health_checks(
@@ -132,37 +139,23 @@ impl Database {
 
     /// Check that setup/payoff scene references still exist.
     fn health_check_setup_payoff_intact(&self, scene: &SceneRow) -> bool {
-        if let Some(ref setup_id) = scene.setup_for_scene_id {
-            if !setup_id.is_empty() {
-                let exists: bool = self
-                    .conn
-                    .query_row(
-                        "SELECT COUNT(*) > 0 FROM scenes WHERE id = ?1 AND deleted_at IS NULL",
-                        params![setup_id],
-                        |row| row.get(0),
-                    )
-                    .unwrap_or(false);
-                if !exists {
-                    return false;
-                }
-            }
+        self.scene_ref_exists(&scene.setup_for_scene_id)
+            && self.scene_ref_exists(&scene.payoff_of_scene_id)
+    }
+
+    /// Returns true if the optional scene ID is None, empty, or points to an existing scene.
+    fn scene_ref_exists(&self, scene_id: &Option<String>) -> bool {
+        match scene_id {
+            Some(id) if !id.is_empty() => self
+                .conn
+                .query_row(
+                    "SELECT COUNT(*) > 0 FROM scenes WHERE id = ?1 AND deleted_at IS NULL",
+                    params![id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(false),
+            _ => true,
         }
-        if let Some(ref payoff_id) = scene.payoff_of_scene_id {
-            if !payoff_id.is_empty() {
-                let exists: bool = self
-                    .conn
-                    .query_row(
-                        "SELECT COUNT(*) > 0 FROM scenes WHERE id = ?1 AND deleted_at IS NULL",
-                        params![payoff_id],
-                        |row| row.get(0),
-                    )
-                    .unwrap_or(false);
-                if !exists {
-                    return false;
-                }
-            }
-        }
-        true
     }
 
     fn health_scenes_with_open_issues(&self) -> Result<Vec<String>, String> {

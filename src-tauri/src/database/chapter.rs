@@ -141,58 +141,10 @@ impl Database {
     pub fn delete_chapter(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Collect scene IDs in this chapter for junction cleanup
-        let scene_ids: Vec<String> = {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT id FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL")
-                .map_err(|e| e.to_string())?;
-            let result = stmt
-                .query_map(params![id], |row| row.get(0))
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-            result
-        };
+        let scene_ids = self.get_chapter_scene_ids(id)?;
 
-        // Clean up junction tables for all scenes in this chapter
         for scene_id in &scene_ids {
-            self.conn
-                .execute(
-                    "DELETE FROM canonical_associations WHERE scene_id = ?1",
-                    params![scene_id],
-                )
-                .map_err(|e| e.to_string())?;
-            self.conn
-                .execute(
-                    "DELETE FROM scene_arcs WHERE scene_id = ?1",
-                    params![scene_id],
-                )
-                .map_err(|e| e.to_string())?;
-            self.conn
-                .execute(
-                    "DELETE FROM event_scenes WHERE scene_id = ?1",
-                    params![scene_id],
-                )
-                .map_err(|e| e.to_string())?;
-            self.conn
-                .execute(
-                    "DELETE FROM issue_scenes WHERE scene_id = ?1",
-                    params![scene_id],
-                )
-                .map_err(|e| e.to_string())?;
-            self.conn
-                .execute(
-                    "DELETE FROM scene_steps WHERE scene_id = ?1",
-                    params![scene_id],
-                )
-                .map_err(|e| e.to_string())?;
-            self.conn
-                .execute(
-                    "DELETE FROM annotations WHERE scene_id = ?1",
-                    params![scene_id],
-                )
-                .map_err(|e| e.to_string())?;
+            self.cleanup_scene_junctions(scene_id)?;
         }
 
         self.conn
@@ -213,14 +165,44 @@ impl Database {
         Ok(())
     }
 
+    fn get_chapter_scene_ids(&self, chapter_id: &str) -> Result<Vec<String>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL")
+            .map_err(|e| e.to_string())?;
+        let ids = stmt
+            .query_map(params![chapter_id], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(ids)
+    }
+
+    /// Removes all junction table entries for a given scene.
+    pub(crate) fn cleanup_scene_junctions(&self, scene_id: &str) -> Result<(), String> {
+        const JUNCTION_TABLES: &[&str] = &[
+            "canonical_associations",
+            "scene_arcs",
+            "event_scenes",
+            "issue_scenes",
+            "scene_steps",
+            "annotations",
+        ];
+        for table in JUNCTION_TABLES {
+            self.conn
+                .execute(
+                    &format!("DELETE FROM {} WHERE scene_id = ?1", table),
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
     pub fn reorder_chapters(&self, ids: &[String]) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        self.conn
-            .execute("BEGIN TRANSACTION", [])
-            .map_err(|e| e.to_string())?;
-
-        let result = (|| -> Result<(), String> {
+        self.run_in_transaction(|| {
             for (i, id) in ids.iter().enumerate() {
                 self.conn
                     .execute(
@@ -230,17 +212,6 @@ impl Database {
                     .map_err(|e| e.to_string())?;
             }
             Ok(())
-        })();
-
-        match result {
-            Ok(()) => {
-                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-                Ok(())
-            }
-            Err(e) => {
-                let _ = self.conn.execute("ROLLBACK", []);
-                Err(e)
-            }
-        }
+        })
     }
 }

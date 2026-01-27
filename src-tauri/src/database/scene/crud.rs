@@ -72,65 +72,13 @@ impl Database {
             self.save_scene_to_history(id, &now)?;
         }
 
-        // Build dynamic update query
         let mut set_clauses = Vec::new();
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        // Helper macro to add optional field updates
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val.clone()));
-                }
-            };
-            ($field:expr, $column:literal, bool) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val as i32));
-                }
-            };
-            ($field:expr, $column:literal, int) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val));
-                }
-            };
-        }
+        Self::collect_scene_content_fields(req, &mut set_clauses, &mut params);
+        Self::collect_scene_meta_fields(req, &mut set_clauses, &mut params);
+        Self::collect_scene_revision_fields(req, &mut set_clauses, &mut params);
 
-        // Add all optional fields
-        add_field!(req.title, "title");
-        add_field!(req.summary, "summary");
-        add_field!(req.text, "text");
-        // Cache word count when text changes
-        if let Some(text) = &req.text {
-            let plain = crate::database::HTML_TAG_REGEX.replace_all(text, " ");
-            let wc = plain.split_whitespace().count() as i32;
-            set_clauses.push(format!("word_count = ?{}", params.len() + 1));
-            params.push(Box::new(wc));
-        }
-        add_field!(req.status, "status");
-        add_field!(req.pov, "pov");
-        add_field!(req.tags, "tags");
-        add_field!(req.notes, "notes");
-        add_field!(req.todos, "todos");
-        add_field!(req.word_target, "word_target", int);
-        add_field!(req.time_point, "time_point");
-        add_field!(req.time_start, "time_start");
-        add_field!(req.time_end, "time_end");
-        add_field!(req.on_timeline, "on_timeline", bool);
-        add_field!(req.position, "position", int);
-        // Revision fields
-        add_field!(req.pov_goal, "pov_goal");
-        add_field!(req.has_conflict, "has_conflict", bool);
-        add_field!(req.has_change, "has_change", bool);
-        add_field!(req.tension, "tension");
-        add_field!(req.setup_for_scene_id, "setup_for_scene_id");
-        add_field!(req.payoff_of_scene_id, "payoff_of_scene_id");
-        add_field!(req.revision_notes, "revision_notes");
-        add_field!(req.revision_checklist, "revision_checklist");
-
-        // Only execute if there are fields to update
         if !set_clauses.is_empty() {
             set_clauses.push(format!("updated_at = ?{}", params.len() + 1));
             params.push(Box::new(now));
@@ -155,31 +103,107 @@ impl Database {
         self.get_scene(id)
     }
 
+    fn collect_scene_content_fields(
+        req: &UpdateSceneRequest,
+        set_clauses: &mut Vec<String>,
+        params: &mut Vec<Box<dyn rusqlite::ToSql>>,
+    ) {
+        macro_rules! add_field {
+            ($field:expr, $column:literal) => {
+                if let Some(val) = &$field {
+                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
+                    params.push(Box::new(val.clone()));
+                }
+            };
+        }
+
+        add_field!(req.title, "title");
+        add_field!(req.summary, "summary");
+        add_field!(req.text, "text");
+
+        // Cache word count when text changes
+        if let Some(text) = &req.text {
+            let plain = crate::database::HTML_TAG_REGEX.replace_all(text, " ");
+            let wc = plain.split_whitespace().count() as i32;
+            set_clauses.push(format!("word_count = ?{}", params.len() + 1));
+            params.push(Box::new(wc));
+        }
+    }
+
+    fn collect_scene_meta_fields(
+        req: &UpdateSceneRequest,
+        set_clauses: &mut Vec<String>,
+        params: &mut Vec<Box<dyn rusqlite::ToSql>>,
+    ) {
+        macro_rules! add_field {
+            ($field:expr, $column:literal) => {
+                if let Some(val) = &$field {
+                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
+                    params.push(Box::new(val.clone()));
+                }
+            };
+            ($field:expr, $column:literal, bool) => {
+                if let Some(val) = $field {
+                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
+                    params.push(Box::new(val as i32));
+                }
+            };
+            ($field:expr, $column:literal, int) => {
+                if let Some(val) = $field {
+                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
+                    params.push(Box::new(val));
+                }
+            };
+        }
+
+        add_field!(req.status, "status");
+        add_field!(req.pov, "pov");
+        add_field!(req.tags, "tags");
+        add_field!(req.notes, "notes");
+        add_field!(req.todos, "todos");
+        add_field!(req.word_target, "word_target", int);
+        add_field!(req.time_point, "time_point");
+        add_field!(req.time_start, "time_start");
+        add_field!(req.time_end, "time_end");
+        add_field!(req.on_timeline, "on_timeline", bool);
+        add_field!(req.position, "position", int);
+    }
+
+    fn collect_scene_revision_fields(
+        req: &UpdateSceneRequest,
+        set_clauses: &mut Vec<String>,
+        params: &mut Vec<Box<dyn rusqlite::ToSql>>,
+    ) {
+        macro_rules! add_field {
+            ($field:expr, $column:literal) => {
+                if let Some(val) = &$field {
+                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
+                    params.push(Box::new(val.clone()));
+                }
+            };
+            ($field:expr, $column:literal, bool) => {
+                if let Some(val) = $field {
+                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
+                    params.push(Box::new(val as i32));
+                }
+            };
+        }
+
+        add_field!(req.pov_goal, "pov_goal");
+        add_field!(req.has_conflict, "has_conflict", bool);
+        add_field!(req.has_change, "has_change", bool);
+        add_field!(req.tension, "tension");
+        add_field!(req.setup_for_scene_id, "setup_for_scene_id");
+        add_field!(req.payoff_of_scene_id, "payoff_of_scene_id");
+        add_field!(req.revision_notes, "revision_notes");
+        add_field!(req.revision_checklist, "revision_checklist");
+    }
+
     pub fn delete_scene(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
         // Clean up junction tables to avoid orphaned records
-        self.conn
-            .execute(
-                "DELETE FROM canonical_associations WHERE scene_id = ?1",
-                params![id],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM scene_arcs WHERE scene_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM event_scenes WHERE scene_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM issue_scenes WHERE scene_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM scene_steps WHERE scene_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM annotations WHERE scene_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        self.cleanup_scene_junctions(id)?;
 
         // Soft-delete the scene itself
         self.conn
@@ -194,11 +218,7 @@ impl Database {
     pub fn reorder_scenes(&self, chapter_id: &str, ids: &[String]) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        self.conn
-            .execute("BEGIN TRANSACTION", [])
-            .map_err(|e| e.to_string())?;
-
-        let result = (|| -> Result<(), String> {
+        self.run_in_transaction(|| {
             for (i, id) in ids.iter().enumerate() {
                 self.conn
                     .execute(
@@ -208,18 +228,7 @@ impl Database {
                     .map_err(|e| e.to_string())?;
             }
             Ok(())
-        })();
-
-        match result {
-            Ok(()) => {
-                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-                Ok(())
-            }
-            Err(e) => {
-                let _ = self.conn.execute("ROLLBACK", []);
-                Err(e)
-            }
-        }
+        })
     }
 
     pub fn move_scene_to_chapter(

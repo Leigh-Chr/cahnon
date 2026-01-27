@@ -4,33 +4,65 @@ use rusqlite::params;
 
 use super::Database;
 
+/// A CSV field: either a required string or an optional string.
+/// Used to build CSV rows generically.
+enum CsvField {
+    Str(String),
+    Opt(Option<String>),
+    Bool(Option<bool>),
+    Int(i32),
+}
+
+/// Escape a value for CSV: wrap in quotes if it contains commas, quotes, or newlines.
+/// Double any existing quote characters.
+fn csv_escape(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
+/// Format an optional string for CSV output, returning empty string for None.
+fn csv_opt(value: &Option<String>) -> String {
+    match value {
+        Some(v) => csv_escape(v),
+        None => String::new(),
+    }
+}
+
+/// Format an optional bool for CSV output.
+fn format_bool_csv(value: Option<bool>) -> String {
+    match value {
+        Some(true) => "true".to_string(),
+        Some(false) => "false".to_string(),
+        None => String::new(),
+    }
+}
+
+/// Build a CSV row from a list of fields, joining with commas and appending a newline.
+fn csv_row(fields: &[CsvField]) -> String {
+    let parts: Vec<String> = fields
+        .iter()
+        .map(|f| match f {
+            CsvField::Str(s) => csv_escape(s),
+            CsvField::Opt(o) => csv_opt(o),
+            CsvField::Bool(b) => format_bool_csv(*b),
+            CsvField::Int(i) => i.to_string(),
+        })
+        .collect();
+    let mut row = parts.join(",");
+    row.push('\n');
+    row
+}
+
 impl Database {
-    /// Escape a value for CSV: wrap in quotes if it contains commas, quotes, or newlines.
-    /// Double any existing quote characters.
-    fn csv_escape(value: &str) -> String {
-        if value.contains(',')
-            || value.contains('"')
-            || value.contains('\n')
-            || value.contains('\r')
-        {
-            format!("\"{}\"", value.replace('"', "\"\""))
-        } else {
-            value.to_string()
-        }
-    }
-
-    /// Format an optional string for CSV output, returning empty string for None.
-    fn csv_opt(value: &Option<String>) -> String {
-        match value {
-            Some(v) => Self::csv_escape(v),
-            None => String::new(),
-        }
-    }
-
     /// Export all bible entries as CSV.
     ///
     /// Columns: id, name, type, aliases, short_description, status, tags
     pub fn export_bible_csv(&self) -> Result<String, String> {
+        let mut output = String::from("id,name,type,aliases,short_description,status,tags\n");
+
         let mut stmt = self
             .conn
             .prepare(
@@ -41,42 +73,22 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        let mut output = String::from("id,name,type,aliases,short_description,status,tags\n");
-
         let rows = stmt
             .query_map([], |row| {
-                let id: String = row.get(0)?;
-                let name: String = row.get(1)?;
-                let entry_type: String = row.get(2)?;
-                let aliases: Option<String> = row.get(3)?;
-                let short_description: Option<String> = row.get(4)?;
-                let status: String = row.get(5)?;
-                let tags: Option<String> = row.get(6)?;
-                Ok((
-                    id,
-                    name,
-                    entry_type,
-                    aliases,
-                    short_description,
-                    status,
-                    tags,
-                ))
+                Ok(csv_row(&[
+                    CsvField::Str(row.get(0)?),
+                    CsvField::Str(row.get(1)?),
+                    CsvField::Str(row.get(2)?),
+                    CsvField::Opt(row.get(3)?),
+                    CsvField::Opt(row.get(4)?),
+                    CsvField::Str(row.get(5)?),
+                    CsvField::Opt(row.get(6)?),
+                ]))
             })
             .map_err(|e| e.to_string())?;
 
         for row in rows {
-            let (id, name, entry_type, aliases, short_description, status, tags) =
-                row.map_err(|e| e.to_string())?;
-            output.push_str(&format!(
-                "{},{},{},{},{},{},{}\n",
-                Self::csv_escape(&id),
-                Self::csv_escape(&name),
-                Self::csv_escape(&entry_type),
-                Self::csv_opt(&aliases),
-                Self::csv_opt(&short_description),
-                Self::csv_escape(&status),
-                Self::csv_opt(&tags),
-            ));
+            output.push_str(&row.map_err(|e| e.to_string())?);
         }
 
         Ok(output)
@@ -91,7 +103,14 @@ impl Database {
             "type,id,title,description,time_point,time_start,time_end,event_type,importance\n",
         );
 
-        // Export events
+        self.append_timeline_events(&mut output)?;
+        self.append_timeline_scenes(&mut output)?;
+
+        Ok(output)
+    }
+
+    /// Append event rows to the timeline CSV output.
+    fn append_timeline_events(&self, output: &mut String) -> Result<(), String> {
         let mut stmt = self
             .conn
             .prepare(
@@ -102,46 +121,31 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        let events = stmt
+        let rows = stmt
             .query_map([], |row| {
-                let id: String = row.get(0)?;
-                let title: String = row.get(1)?;
-                let description: Option<String> = row.get(2)?;
-                let time_point: Option<String> = row.get(3)?;
-                let time_start: Option<String> = row.get(4)?;
-                let time_end: Option<String> = row.get(5)?;
-                let event_type: String = row.get(6)?;
-                let importance: String = row.get(7)?;
-                Ok((
-                    id,
-                    title,
-                    description,
-                    time_point,
-                    time_start,
-                    time_end,
-                    event_type,
-                    importance,
-                ))
+                Ok(csv_row(&[
+                    CsvField::Str("event".to_string()),
+                    CsvField::Str(row.get(0)?),
+                    CsvField::Str(row.get(1)?),
+                    CsvField::Opt(row.get(2)?),
+                    CsvField::Opt(row.get(3)?),
+                    CsvField::Opt(row.get(4)?),
+                    CsvField::Opt(row.get(5)?),
+                    CsvField::Str(row.get(6)?),
+                    CsvField::Str(row.get(7)?),
+                ]))
             })
             .map_err(|e| e.to_string())?;
 
-        for row in events {
-            let (id, title, description, time_point, time_start, time_end, event_type, importance) =
-                row.map_err(|e| e.to_string())?;
-            output.push_str(&format!(
-                "event,{},{},{},{},{},{},{},{}\n",
-                Self::csv_escape(&id),
-                Self::csv_escape(&title),
-                Self::csv_opt(&description),
-                Self::csv_opt(&time_point),
-                Self::csv_opt(&time_start),
-                Self::csv_opt(&time_end),
-                Self::csv_escape(&event_type),
-                Self::csv_escape(&importance),
-            ));
+        for row in rows {
+            output.push_str(&row.map_err(|e| e.to_string())?);
         }
 
-        // Export scenes on timeline
+        Ok(())
+    }
+
+    /// Append scene rows to the timeline CSV output.
+    fn append_timeline_scenes(&self, output: &mut String) -> Result<(), String> {
         let mut stmt = self
             .conn
             .prepare(
@@ -153,33 +157,27 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
-        let scenes = stmt
+        let rows = stmt
             .query_map([], |row| {
-                let id: String = row.get(0)?;
-                let title: String = row.get(1)?;
-                let summary: Option<String> = row.get(2)?;
-                let time_point: Option<String> = row.get(3)?;
-                let time_start: Option<String> = row.get(4)?;
-                let time_end: Option<String> = row.get(5)?;
-                Ok((id, title, summary, time_point, time_start, time_end))
+                Ok(csv_row(&[
+                    CsvField::Str("scene".to_string()),
+                    CsvField::Str(row.get(0)?),
+                    CsvField::Str(row.get(1)?),
+                    CsvField::Opt(row.get(2)?),
+                    CsvField::Opt(row.get(3)?),
+                    CsvField::Opt(row.get(4)?),
+                    CsvField::Opt(row.get(5)?),
+                    CsvField::Str(String::new()),
+                    CsvField::Str(String::new()),
+                ]))
             })
             .map_err(|e| e.to_string())?;
 
-        for row in scenes {
-            let (id, title, summary, time_point, time_start, time_end) =
-                row.map_err(|e| e.to_string())?;
-            output.push_str(&format!(
-                "scene,{},{},{},{},{},{},,\n",
-                Self::csv_escape(&id),
-                Self::csv_escape(&title),
-                Self::csv_opt(&summary),
-                Self::csv_opt(&time_point),
-                Self::csv_opt(&time_start),
-                Self::csv_opt(&time_end),
-            ));
+        for row in rows {
+            output.push_str(&row.map_err(|e| e.to_string())?);
         }
 
-        Ok(output)
+        Ok(())
     }
 
     /// Export review grid data as CSV.
@@ -204,65 +202,46 @@ impl Database {
 
         let rows = stmt
             .query_map([], |row| {
-                let title: String = row.get(0)?;
-                let chapter_title: String = row.get(1)?;
-                let status: String = row.get(2)?;
-                let word_count: i32 = row.get(3)?;
-                let pov: Option<String> = row.get(4)?;
-                let tension: Option<String> = row.get(5)?;
-                let has_conflict: Option<bool> = row.get(6)?;
-                let has_change: Option<bool> = row.get(7)?;
-                let setup_for: Option<String> = row.get(8)?;
-                let payoff_of: Option<String> = row.get(9)?;
-                Ok((
-                    title,
-                    chapter_title,
-                    status,
-                    word_count,
-                    pov,
-                    tension,
-                    has_conflict,
-                    has_change,
-                    setup_for,
-                    payoff_of,
-                ))
+                Ok(ReviewGridRow {
+                    title: row.get(0)?,
+                    chapter_title: row.get(1)?,
+                    status: row.get(2)?,
+                    word_count: row.get(3)?,
+                    pov: row.get(4)?,
+                    tension: row.get(5)?,
+                    has_conflict: row.get(6)?,
+                    has_change: row.get(7)?,
+                    setup_for: row.get(8)?,
+                    payoff_of: row.get(9)?,
+                })
             })
             .map_err(|e| e.to_string())?;
 
         for row in rows {
-            let (
-                title,
-                chapter_title,
-                status,
-                word_count,
-                pov,
-                tension,
-                has_conflict,
-                has_change,
-                setup_for,
-                payoff_of,
-            ) = row.map_err(|e| e.to_string())?;
-
-            // Resolve setup_for and payoff_of scene IDs to titles
-            let setup_for_title = self.resolve_scene_title(&setup_for);
-            let payoff_of_title = self.resolve_scene_title(&payoff_of);
-
-            output.push_str(&format!(
-                "{},{},{},{},{},{},{},{},{},{}\n",
-                Self::csv_escape(&title),
-                Self::csv_escape(&chapter_title),
-                Self::csv_escape(&status),
-                word_count,
-                Self::csv_opt(&pov),
-                Self::csv_opt(&tension),
-                Self::format_bool_csv(has_conflict),
-                Self::format_bool_csv(has_change),
-                Self::csv_opt(&setup_for_title),
-                Self::csv_opt(&payoff_of_title),
-            ));
+            let r = row.map_err(|e| e.to_string())?;
+            output.push_str(&self.format_review_grid_row(&r));
         }
 
         Ok(output)
+    }
+
+    /// Format a single review grid row as CSV, resolving scene ID references to titles.
+    fn format_review_grid_row(&self, r: &ReviewGridRow) -> String {
+        let setup_for_title = self.resolve_scene_title(&r.setup_for);
+        let payoff_of_title = self.resolve_scene_title(&r.payoff_of);
+
+        csv_row(&[
+            CsvField::Str(r.title.clone()),
+            CsvField::Str(r.chapter_title.clone()),
+            CsvField::Str(r.status.clone()),
+            CsvField::Int(r.word_count),
+            CsvField::Opt(r.pov.clone()),
+            CsvField::Opt(r.tension.clone()),
+            CsvField::Bool(r.has_conflict),
+            CsvField::Bool(r.has_change),
+            CsvField::Opt(setup_for_title),
+            CsvField::Opt(payoff_of_title),
+        ])
     }
 
     /// Resolve an optional scene ID to a scene title.
@@ -278,87 +257,81 @@ impl Database {
         })
     }
 
-    /// Format an optional bool for CSV output.
-    fn format_bool_csv(value: Option<bool>) -> String {
-        match value {
-            Some(true) => "true".to_string(),
-            Some(false) => "false".to_string(),
-            None => String::new(),
-        }
-    }
-
     /// Export word count stats as CSV.
     ///
     /// Two sections: by_chapter and by_status, separated by a blank line.
     pub fn export_stats_csv(&self) -> Result<String, String> {
         let mut output = String::from("section,label,word_count,scene_count\n");
 
-        // By chapter
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT c.title,
+        self.append_stats_section(
+            &mut output,
+            "by_chapter",
+            "SELECT c.title,
                     COALESCE(SUM(s.word_count), 0) as wc,
                     COUNT(s.id) as sc
-                 FROM chapters c
-                 LEFT JOIN scenes s ON s.chapter_id = c.id AND s.deleted_at IS NULL
-                 WHERE c.deleted_at IS NULL
-                 GROUP BY c.id, c.title
-                 ORDER BY c.position",
-            )
-            .map_err(|e| e.to_string())?;
+             FROM chapters c
+             LEFT JOIN scenes s ON s.chapter_id = c.id AND s.deleted_at IS NULL
+             WHERE c.deleted_at IS NULL
+             GROUP BY c.id, c.title
+             ORDER BY c.position",
+        )?;
 
-        let chapters = stmt
-            .query_map([], |row| {
-                let title: String = row.get(0)?;
-                let word_count: i32 = row.get(1)?;
-                let scene_count: i32 = row.get(2)?;
-                Ok((title, word_count, scene_count))
-            })
-            .map_err(|e| e.to_string())?;
-
-        for row in chapters {
-            let (title, word_count, scene_count) = row.map_err(|e| e.to_string())?;
-            output.push_str(&format!(
-                "by_chapter,{},{},{}\n",
-                Self::csv_escape(&title),
-                word_count,
-                scene_count,
-            ));
-        }
-
-        // By status
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT status,
+        self.append_stats_section(
+            &mut output,
+            "by_status",
+            "SELECT status,
                     COALESCE(SUM(word_count), 0) as wc,
                     COUNT(*) as sc
-                 FROM scenes
-                 WHERE deleted_at IS NULL
-                 GROUP BY status",
-            )
-            .map_err(|e| e.to_string())?;
-
-        let statuses = stmt
-            .query_map([], |row| {
-                let status: String = row.get(0)?;
-                let word_count: i32 = row.get(1)?;
-                let scene_count: i32 = row.get(2)?;
-                Ok((status, word_count, scene_count))
-            })
-            .map_err(|e| e.to_string())?;
-
-        for row in statuses {
-            let (status, word_count, scene_count) = row.map_err(|e| e.to_string())?;
-            output.push_str(&format!(
-                "by_status,{},{},{}\n",
-                Self::csv_escape(&status),
-                word_count,
-                scene_count,
-            ));
-        }
+             FROM scenes
+             WHERE deleted_at IS NULL
+             GROUP BY status",
+        )?;
 
         Ok(output)
     }
+
+    /// Append a stats section (label, word_count, scene_count) to the output.
+    fn append_stats_section(
+        &self,
+        output: &mut String,
+        section: &str,
+        sql: &str,
+    ) -> Result<(), String> {
+        let mut stmt = self.conn.prepare(sql).map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let label: String = row.get(0)?;
+                let word_count: i32 = row.get(1)?;
+                let scene_count: i32 = row.get(2)?;
+                Ok((label, word_count, scene_count))
+            })
+            .map_err(|e| e.to_string())?;
+
+        for row in rows {
+            let (label, word_count, scene_count) = row.map_err(|e| e.to_string())?;
+            output.push_str(&csv_row(&[
+                CsvField::Str(section.to_string()),
+                CsvField::Str(label),
+                CsvField::Int(word_count),
+                CsvField::Int(scene_count),
+            ]));
+        }
+
+        Ok(())
+    }
+}
+
+/// Intermediate struct for review grid rows, used to separate query logic from formatting.
+struct ReviewGridRow {
+    title: String,
+    chapter_title: String,
+    status: String,
+    word_count: i32,
+    pov: Option<String>,
+    tension: Option<String>,
+    has_conflict: Option<bool>,
+    has_change: Option<bool>,
+    setup_for: Option<String>,
+    payoff_of: Option<String>,
 }

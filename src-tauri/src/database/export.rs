@@ -15,14 +15,7 @@ impl Database {
         include_titles: bool,
     ) -> Result<String, String> {
         let project = self.get_project()?;
-        let all_chapters = self.get_chapters()?;
-        let chapters: Vec<_> = match chapter_ids {
-            Some(ids) => all_chapters
-                .into_iter()
-                .filter(|c| ids.contains(&c.id))
-                .collect(),
-            None => all_chapters,
-        };
+        let chapters = self.filter_chapters(chapter_ids)?;
         let separator = scene_separator.unwrap_or("###");
 
         let mut output = format!("# {}\n\n", project.title);
@@ -31,22 +24,47 @@ impl Database {
         output.push_str("---\n\n");
 
         for chapter in &chapters {
-            output.push_str(&format!("## {}\n\n", chapter.title));
-            Self::append_optional(&mut output, &chapter.summary, "*{}*\n\n");
-
-            let scenes = self.get_scenes(&chapter.id)?;
-            for (i, scene) in scenes.iter().enumerate() {
-                if include_titles {
-                    output.push_str(&format!("{} {}\n\n", separator, scene.title));
-                } else if i > 0 {
-                    output.push_str(&format!("{}\n\n", separator));
-                }
-                let plain_text = Self::html_to_markdown(&scene.text);
-                output.push_str(&format!("{}\n\n", plain_text.trim()));
-            }
+            self.format_chapter_markdown(&mut output, chapter, separator, include_titles)?;
         }
 
         Ok(output)
+    }
+
+    fn filter_chapters(
+        &self,
+        chapter_ids: Option<&[String]>,
+    ) -> Result<Vec<crate::models::Chapter>, String> {
+        let all_chapters = self.get_chapters()?;
+        Ok(match chapter_ids {
+            Some(ids) => all_chapters
+                .into_iter()
+                .filter(|c| ids.contains(&c.id))
+                .collect(),
+            None => all_chapters,
+        })
+    }
+
+    fn format_chapter_markdown(
+        &self,
+        output: &mut String,
+        chapter: &crate::models::Chapter,
+        separator: &str,
+        include_titles: bool,
+    ) -> Result<(), String> {
+        output.push_str(&format!("## {}\n\n", chapter.title));
+        Self::append_optional(output, &chapter.summary, "*{}*\n\n");
+
+        let scenes = self.get_scenes(&chapter.id)?;
+        for (i, scene) in scenes.iter().enumerate() {
+            if include_titles {
+                output.push_str(&format!("{} {}\n\n", separator, scene.title));
+            } else if i > 0 {
+                output.push_str(&format!("{}\n\n", separator));
+            }
+            let plain_text = Self::html_to_markdown(&scene.text);
+            output.push_str(&format!("{}\n\n", plain_text.trim()));
+        }
+        Ok(())
     }
 
     fn append_optional(output: &mut String, value: &Option<String>, format_str: &str) {
@@ -58,53 +76,8 @@ impl Database {
     fn html_to_markdown(html: &str) -> String {
         let mut text = html.to_string();
 
-        // Headings (must be processed before removing other tags)
-        text = text
-            .replace("<h1>", "\n# ")
-            .replace("</h1>", "\n")
-            .replace("<h2>", "\n## ")
-            .replace("</h2>", "\n")
-            .replace("<h3>", "\n### ")
-            .replace("</h3>", "\n");
-
-        // Blockquotes
-        text = text
-            .replace("<blockquote>", "\n> ")
-            .replace("</blockquote>", "\n");
-
-        // Basic formatting
-        text = text
-            .replace("<p>", "")
-            .replace("</p>", "\n\n")
-            .replace("<br>", "\n")
-            .replace("<br/>", "\n")
-            .replace("<br />", "\n")
-            .replace("<strong>", "**")
-            .replace("</strong>", "**")
-            .replace("<b>", "**")
-            .replace("</b>", "**")
-            .replace("<em>", "*")
-            .replace("</em>", "*")
-            .replace("<i>", "*")
-            .replace("</i>", "*");
-
-        // Code (inline)
-        text = text.replace("<code>", "`").replace("</code>", "`");
-
-        // Highlight (TipTap uses <mark>)
-        text = text.replace("<mark>", "==").replace("</mark>", "==");
-
-        // Lists
-        text = text
-            .replace("<ul>", "\n")
-            .replace("</ul>", "\n")
-            .replace("<ol>", "\n")
-            .replace("</ol>", "\n")
-            .replace("<li>", "- ")
-            .replace("</li>", "\n");
-
-        // Horizontal rule
-        text = text.replace("<hr>", "\n---\n").replace("<hr/>", "\n---\n");
+        text = Self::replace_html_block_elements(&text);
+        text = Self::replace_html_inline_elements(&text);
 
         // Process links: <a href="url">text</a> -> [text](url)
         text = Self::convert_links_to_markdown(&text);
@@ -112,7 +85,49 @@ impl Database {
         // Clean up remaining HTML tags
         let text = HTML_TAG_REGEX.replace_all(&text, "").to_string();
 
-        // Clean up excessive newlines
+        Self::collapse_blank_lines(&text)
+    }
+
+    fn replace_html_block_elements(text: &str) -> String {
+        text.replace("<h1>", "\n# ")
+            .replace("</h1>", "\n")
+            .replace("<h2>", "\n## ")
+            .replace("</h2>", "\n")
+            .replace("<h3>", "\n### ")
+            .replace("</h3>", "\n")
+            .replace("<blockquote>", "\n> ")
+            .replace("</blockquote>", "\n")
+            .replace("<p>", "")
+            .replace("</p>", "\n\n")
+            .replace("<br>", "\n")
+            .replace("<br/>", "\n")
+            .replace("<br />", "\n")
+            .replace("<ul>", "\n")
+            .replace("</ul>", "\n")
+            .replace("<ol>", "\n")
+            .replace("</ol>", "\n")
+            .replace("<li>", "- ")
+            .replace("</li>", "\n")
+            .replace("<hr>", "\n---\n")
+            .replace("<hr/>", "\n---\n")
+    }
+
+    fn replace_html_inline_elements(text: &str) -> String {
+        text.replace("<strong>", "**")
+            .replace("</strong>", "**")
+            .replace("<b>", "**")
+            .replace("</b>", "**")
+            .replace("<em>", "*")
+            .replace("</em>", "*")
+            .replace("<i>", "*")
+            .replace("</i>", "*")
+            .replace("<code>", "`")
+            .replace("</code>", "`")
+            .replace("<mark>", "==")
+            .replace("</mark>", "==")
+    }
+
+    fn collapse_blank_lines(text: &str) -> String {
         let lines: Vec<&str> = text.lines().collect();
         let mut result = String::new();
         let mut prev_empty = false;

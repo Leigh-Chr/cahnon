@@ -221,30 +221,10 @@ impl Database {
     ) -> Result<BibleEntry, String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Build dynamic update query
         let mut set_clauses = Vec::new();
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-        }
-
-        add_field!(req.name, "name");
-        add_field!(req.aliases, "aliases");
-        add_field!(req.short_description, "short_description");
-        add_field!(req.full_description, "full_description");
-        add_field!(req.status, "status");
-        add_field!(req.tags, "tags");
-        add_field!(req.image_path, "image_path");
-        add_field!(req.notes, "notes");
-        add_field!(req.todos, "todos");
-        add_field!(req.color, "color");
-        add_field!(req.custom_fields, "custom_fields");
+        Self::collect_bible_entry_fields(req, &mut set_clauses, &mut params_vec);
 
         if !set_clauses.is_empty() {
             set_clauses.push(format!("updated_at = ?{}", params_vec.len() + 1));
@@ -268,6 +248,33 @@ impl Database {
         }
 
         self.get_bible_entry(id)
+    }
+
+    fn collect_bible_entry_fields(
+        req: &UpdateBibleEntryRequest,
+        set_clauses: &mut Vec<String>,
+        params_vec: &mut Vec<Box<dyn rusqlite::ToSql>>,
+    ) {
+        macro_rules! add_field {
+            ($field:expr, $column:literal) => {
+                if let Some(val) = &$field {
+                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
+                    params_vec.push(Box::new(val.clone()));
+                }
+            };
+        }
+
+        add_field!(req.name, "name");
+        add_field!(req.aliases, "aliases");
+        add_field!(req.short_description, "short_description");
+        add_field!(req.full_description, "full_description");
+        add_field!(req.status, "status");
+        add_field!(req.tags, "tags");
+        add_field!(req.image_path, "image_path");
+        add_field!(req.notes, "notes");
+        add_field!(req.todos, "todos");
+        add_field!(req.color, "color");
+        add_field!(req.custom_fields, "custom_fields");
     }
 
     pub fn delete_bible_entry(&self, id: &str) -> Result<(), String> {
@@ -573,28 +580,37 @@ impl Database {
         id: &str,
         req: &UpdateBibleRelationshipRequest,
     ) -> Result<BibleRelationship, String> {
-        if let Some(relationship_type) = &req.relationship_type {
-            self.conn
-                .execute(
-                    "UPDATE bible_relationships SET relationship_type = ?1 WHERE id = ?2",
-                    params![relationship_type, id],
-                )
-                .map_err(|e| e.to_string())?;
+        let mut set_clauses = Vec::new();
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+        macro_rules! add_field {
+            ($field:expr, $column:literal) => {
+                if let Some(val) = &$field {
+                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
+                    params_vec.push(Box::new(val.clone()));
+                }
+            };
         }
-        if let Some(note) = &req.note {
+
+        add_field!(req.relationship_type, "relationship_type");
+        add_field!(req.note, "note");
+        add_field!(req.status, "status");
+
+        if !set_clauses.is_empty() {
+            let id_param_idx = params_vec.len() + 1;
+            let query = format!(
+                "UPDATE bible_relationships SET {} WHERE id = ?{}",
+                set_clauses.join(", "),
+                id_param_idx
+            );
+
+            let params_refs: Vec<&dyn rusqlite::ToSql> =
+                params_vec.iter().map(|p| p.as_ref()).collect();
+            let mut all_params = params_refs;
+            all_params.push(&id);
+
             self.conn
-                .execute(
-                    "UPDATE bible_relationships SET note = ?1 WHERE id = ?2",
-                    params![note, id],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        if let Some(status) = &req.status {
-            self.conn
-                .execute(
-                    "UPDATE bible_relationships SET status = ?1 WHERE id = ?2",
-                    params![status, id],
-                )
+                .execute(&query, all_params.as_slice())
                 .map_err(|e| e.to_string())?;
         }
 
