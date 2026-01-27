@@ -3,6 +3,12 @@
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { countWords, formatWordCount, sceneStatuses, statusColors } from '$lib/utils';
+	import { getRevisionPass } from '$lib/utils/revision-passes';
+
+	let highlightedColumns = $derived.by(() => {
+		if (appState.workMode !== 'revision' || !appState.revisionPass) return [];
+		return getRevisionPass(appState.revisionPass).reviewColumns;
+	});
 
 	interface Props {
 		isOpen?: boolean;
@@ -286,6 +292,7 @@
 							<th
 								class="sortable"
 								class:active={sortKey === 'status'}
+								class:highlighted={highlightedColumns.includes('status')}
 								onclick={() => toggleSort('status')}
 							>
 								Status
@@ -296,6 +303,7 @@
 							<th
 								class="sortable"
 								class:active={sortKey === 'words'}
+								class:highlighted={highlightedColumns.includes('words')}
 								onclick={() => toggleSort('words')}
 							>
 								Words
@@ -303,10 +311,11 @@
 									<span class="sort-arrow">{sortOrder === 'asc' ? '↑' : '↓'}</span>
 								{/if}
 							</th>
-							<th>POV Goal</th>
+							<th class:highlighted={highlightedColumns.includes('pov')}>POV Goal</th>
 							<th
 								class="sortable"
 								class:active={sortKey === 'conflict'}
+								class:highlighted={highlightedColumns.includes('conflict')}
 								onclick={() => toggleSort('conflict')}
 							>
 								Conflict?
@@ -317,6 +326,7 @@
 							<th
 								class="sortable"
 								class:active={sortKey === 'change'}
+								class:highlighted={highlightedColumns.includes('change')}
 								onclick={() => toggleSort('change')}
 							>
 								Change?
@@ -327,6 +337,7 @@
 							<th
 								class="sortable"
 								class:active={sortKey === 'tension'}
+								class:highlighted={highlightedColumns.includes('tension')}
 								onclick={() => toggleSort('tension')}
 							>
 								Tension
@@ -348,7 +359,7 @@
 								<td class="index-cell">{index + 1}</td>
 								<td class="chapter-cell">{scene.chapterTitle}</td>
 								<td class="title-cell">{scene.title}</td>
-								<td class="status-cell">
+								<td class="status-cell" class:highlighted={highlightedColumns.includes('status')}>
 									<select
 										value={scene.status}
 										onclick={(e) => e.stopPropagation()}
@@ -361,8 +372,10 @@
 										{/each}
 									</select>
 								</td>
-								<td class="words-cell">{formatWordCount(countWords(scene.text))}</td>
-								<td class="pov-goal-cell">
+								<td class="words-cell" class:highlighted={highlightedColumns.includes('words')}
+									>{formatWordCount(countWords(scene.text))}</td
+								>
+								<td class="pov-goal-cell" class:highlighted={highlightedColumns.includes('pov')}>
 									<input
 										type="text"
 										value={scene.pov_goal || ''}
@@ -372,7 +385,10 @@
 										class="inline-input"
 									/>
 								</td>
-								<td class="checkbox-cell">
+								<td
+									class="checkbox-cell"
+									class:highlighted={highlightedColumns.includes('conflict')}
+								>
 									<input
 										type="checkbox"
 										checked={scene.has_conflict === true}
@@ -382,7 +398,7 @@
 										class="checkbox-input"
 									/>
 								</td>
-								<td class="checkbox-cell">
+								<td class="checkbox-cell" class:highlighted={highlightedColumns.includes('change')}>
 									<input
 										type="checkbox"
 										checked={scene.has_change === true}
@@ -392,7 +408,7 @@
 										class="checkbox-input"
 									/>
 								</td>
-								<td class="tension-cell">
+								<td class="tension-cell" class:highlighted={highlightedColumns.includes('tension')}>
 									<select
 										value={scene.tension || ''}
 										onclick={(e) => e.stopPropagation()}
@@ -748,6 +764,10 @@
 	.link-select:focus {
 		border-color: var(--color-border);
 		background-color: var(--color-bg-primary);
+	}
+
+	.highlighted {
+		background-color: var(--color-accent-light);
 	}
 
 	.grid-footer {

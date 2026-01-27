@@ -18,7 +18,15 @@
 	import { showError } from '$lib/toast';
 	import { countWords, formatWordCount, statusColors } from '$lib/utils';
 
+	import ImpactDialog from './ImpactDialog.svelte';
 	import { Button, Icon } from './ui';
+
+	// Impact dialog state
+	let impactDialog = $state<{
+		entityType: 'scene' | 'chapter';
+		entityId: string;
+		entityName: string;
+	} | null>(null);
 
 	// Context menu state
 	let contextMenu = $state<{
@@ -225,10 +233,30 @@
 	}
 
 	async function handleDeleteScene(sceneId: string) {
-		if (confirm('Delete this scene?')) {
-			await appState.deleteScene(sceneId);
-		}
+		const scene = Array.from(scenes.values())
+			.flat()
+			.find((s) => s.id === sceneId);
+		impactDialog = {
+			entityType: 'scene',
+			entityId: sceneId,
+			entityName: scene?.title || 'Scene',
+		};
 		closeContextMenu();
+	}
+
+	async function confirmDelete() {
+		if (!impactDialog) return;
+		try {
+			if (impactDialog.entityType === 'scene') {
+				await appState.deleteScene(impactDialog.entityId);
+			} else if (impactDialog.entityType === 'chapter') {
+				await appState.deleteChapter(impactDialog.entityId);
+			}
+		} catch (e) {
+			console.error(`Failed to delete ${impactDialog.entityType}:`, e);
+			showError(`Failed to delete ${impactDialog.entityType}`);
+		}
+		impactDialog = null;
 	}
 
 	function handleChapterContextMenu(event: MouseEvent, chapterId: string) {
@@ -303,14 +331,12 @@
 	}
 
 	async function handleDeleteChapter(chapterId: string) {
-		if (confirm('Delete this chapter and all its scenes? This cannot be undone.')) {
-			try {
-				await appState.deleteChapter(chapterId);
-			} catch (e) {
-				console.error('Failed to delete chapter:', e);
-				showError('Failed to delete chapter');
-			}
-		}
+		const chapter = chapters.find((c) => c.id === chapterId);
+		impactDialog = {
+			entityType: 'chapter',
+			entityId: chapterId,
+			entityName: chapter?.title || 'Chapter',
+		};
 		closeContextMenu();
 	}
 
@@ -417,6 +443,7 @@
 					<div class="scenes-list">
 						{#each chapterScenes as scene (scene.id)}
 							{@const isSceneSelected = appState.selectedSceneId === scene.id}
+							{@const health = appState.sceneHealthMap.get(scene.id)}
 							<button
 								class="scene-item"
 								class:selected={isSceneSelected}
@@ -437,6 +464,15 @@
 										'var(--color-text-muted)'}"
 								></span>
 								<span class="scene-title truncate">{scene.title}</span>
+								{#if health}
+									<span
+										class="health-dot"
+										class:health-good={health.score >= 0.8}
+										class:health-warning={health.score >= 0.5 && health.score < 0.8}
+										class:health-bad={health.score < 0.5}
+										title="Health: {Math.round(health.score * 100)}%"
+									></span>
+								{/if}
 								<span class="word-count">{formatWordCount(countWords(scene.text))}</span>
 							</button>
 						{/each}
@@ -574,6 +610,16 @@
 			</div>
 		</div>
 	{/if}
+
+	{#if impactDialog}
+		<ImpactDialog
+			entityType={impactDialog.entityType}
+			entityId={impactDialog.entityId}
+			entityName={impactDialog.entityName}
+			onconfirm={confirmDelete}
+			oncancel={() => (impactDialog = null)}
+		/>
+	{/if}
 </div>
 
 <style>
@@ -659,6 +705,25 @@
 	.status-dot.small {
 		width: 6px;
 		height: 6px;
+	}
+
+	.health-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.health-dot.health-good {
+		background-color: var(--color-success, #22c55e);
+	}
+
+	.health-dot.health-warning {
+		background-color: var(--color-warning);
+	}
+
+	.health-dot.health-bad {
+		background-color: var(--color-error);
 	}
 
 	.chapter-title,

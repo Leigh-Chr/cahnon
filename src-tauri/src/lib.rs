@@ -252,6 +252,16 @@ pub fn run() {
             commands::writing_session::delete_writing_session,
             // Detection commands
             commands::detection::run_all_detections,
+            // Health commands
+            commands::health::get_scene_health_batch,
+            // World State commands
+            commands::world_state::get_world_state_at_scene,
+            // Scene Context commands
+            commands::scene_context::get_scene_context,
+            // Impact Awareness commands
+            commands::impact::preview_delete_scene_impact,
+            commands::impact::preview_delete_bible_entry_impact,
+            commands::impact::preview_delete_chapter_impact,
             // Fact commands
             commands::fact::create_fact,
             commands::fact::get_facts,

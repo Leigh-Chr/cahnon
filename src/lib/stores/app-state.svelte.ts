@@ -10,10 +10,11 @@
 import { untrack } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 
-import type { BibleEntry, Chapter, Project, Scene, WordCounts } from '$lib/api';
+import type { BibleEntry, Chapter, Project, Scene, SceneHealth, WordCounts } from '$lib/api';
 import {
 	bibleApi,
 	chapterApi,
+	healthApi,
 	projectApi,
 	sceneApi,
 	snapshotApi,
@@ -21,6 +22,7 @@ import {
 	trashApi,
 } from '$lib/api';
 import { showError } from '$lib/toast.svelte';
+import type { RevisionPassId } from '$lib/utils/revision-passes';
 
 import type {
 	EditorSettings,
@@ -102,6 +104,16 @@ class AppState {
 	// Stats
 	// -------------------------------------------------------------------------
 	wordCounts = $state<WordCounts | null>(null);
+
+	// -------------------------------------------------------------------------
+	// Scene Health
+	// -------------------------------------------------------------------------
+	sceneHealthMap = $state(new SvelteMap<string, SceneHealth>());
+
+	// -------------------------------------------------------------------------
+	// Revision Pass
+	// -------------------------------------------------------------------------
+	revisionPass = $state<RevisionPassId | null>(null);
 
 	// -------------------------------------------------------------------------
 	// Quick Open
@@ -503,6 +515,7 @@ class AppState {
 			await this.loadManuscript();
 			await this.loadBible();
 			await this.loadStats();
+			this.loadSceneHealth(); // Non-blocking
 			this.hasUnsavedChanges = false;
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
@@ -562,6 +575,8 @@ class AppState {
 		this.selectedChapterId = null;
 		this.selectedSceneId = null;
 		this.wordCounts = null;
+		this.sceneHealthMap = new SvelteMap();
+		this.revisionPass = null;
 		this.hasUnsavedChanges = false;
 		return true;
 	}
@@ -578,6 +593,7 @@ class AppState {
 			await this.loadManuscript();
 			await this.loadBible();
 			await this.loadStats();
+			this.loadSceneHealth(); // Non-blocking
 			this.hasUnsavedChanges = false;
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
@@ -623,6 +639,23 @@ class AppState {
 	async loadStats() {
 		const stats = await statsApi.getWordCounts();
 		this.wordCounts = stats;
+	}
+
+	async loadSceneHealth() {
+		try {
+			const healthData = await healthApi.getBatch();
+			const map = new SvelteMap<string, SceneHealth>();
+			for (const h of healthData) {
+				map.set(h.scene_id, h);
+			}
+			this.sceneHealthMap = map;
+		} catch (e) {
+			console.error('Failed to load scene health:', e);
+		}
+	}
+
+	setRevisionPass(pass: RevisionPassId | null) {
+		this.revisionPass = pass;
 	}
 
 	// -------------------------------------------------------------------------

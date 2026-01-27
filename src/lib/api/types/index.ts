@@ -421,3 +421,135 @@ export interface ScanResult {
 	new_mentions: number;
 	suggestions: AssociationSuggestion[];
 }
+
+// =============================================================================
+// Scene Health Types (Narrative GPS)
+// =============================================================================
+
+export interface SceneHealth {
+	scene_id: string;
+	score: number;
+	checks: HealthCheck[];
+}
+
+export interface HealthCheck {
+	name: string;
+	passed: boolean;
+	weight: number;
+	label: string;
+}
+
+// =============================================================================
+// World State Types (Narrative Context)
+// =============================================================================
+
+export interface WorldState {
+	scene_id: string;
+	character_presences: CharacterPresence[];
+	character_knowledge: CharacterKnowledgeState[];
+	open_setups: OpenSetup[];
+	active_arcs: ActiveArcState[];
+	dramatic_irony: DramaticIronyItem[];
+	location_history: LocationHistoryItem[];
+}
+
+export interface CharacterPresence {
+	bible_entry_id: string;
+	name: string;
+	appearance_count: number;
+	last_scene_id: string;
+	last_scene_title: string;
+	gap_scenes: number;
+	present_here: boolean;
+}
+
+export interface CharacterKnowledgeState {
+	bible_entry_id: string;
+	name: string;
+	known_facts: string[];
+}
+
+export interface OpenSetup {
+	scene_id: string;
+	scene_title: string;
+	setup_for_scene_id: string;
+}
+
+export interface ActiveArcState {
+	arc_id: string;
+	arc_name: string;
+	color: string | null;
+	scenes_before: number;
+	scenes_total: number;
+	last_scene_title: string;
+}
+
+export interface DramaticIronyItem {
+	fact_content: string;
+	character_name: string;
+	revealed_in_scene_title: string;
+}
+
+export interface LocationHistoryItem {
+	scene_id: string;
+	scene_title: string;
+	chapter_title: string;
+}
+
+// =============================================================================
+// Scene Context Types ("Previously On...")
+// =============================================================================
+
+export interface SceneContext {
+	scene_id: string;
+	previous_scenes: PreviousSceneSummary[];
+	present_characters: PresentCharacter[];
+	nearby_issues: NearbyIssue[];
+	todos: string[];
+	last_session: LastSessionInfo | null;
+}
+
+export interface PreviousSceneSummary {
+	scene_id: string;
+	title: string;
+	summary: string | null;
+	pov: string | null;
+	word_count: number;
+}
+
+export interface PresentCharacter {
+	bible_entry_id: string;
+	name: string;
+	short_description: string | null;
+	entry_type: string;
+}
+
+export interface NearbyIssue {
+	issue_id: string;
+	title: string;
+	severity: string;
+	status: string;
+	linked_scene_id: string;
+}
+
+export interface LastSessionInfo {
+	date: string;
+	words_written: number;
+	duration_minutes: number;
+}
+
+// =============================================================================
+// Impact Preview Types
+// =============================================================================
+
+export interface ImpactPreview {
+	items: ImpactItem[];
+	total_count: number;
+}
+
+export interface ImpactItem {
+	impact_type: string;
+	description: string;
+	entity_id: string | null;
+	entity_name: string | null;
+}

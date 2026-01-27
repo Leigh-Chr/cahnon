@@ -14,6 +14,7 @@
 -->
 <script lang="ts">
 	import type { Annotation, BibleEntry, Issue } from '$lib/api';
+	import type { SceneHealth } from '$lib/api';
 	import {
 		type Arc,
 		arcApi,
@@ -28,10 +29,13 @@
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { bibleEntryTypes, countWords, formatWordCount } from '$lib/utils';
+	import { getRevisionPass } from '$lib/utils/revision-passes';
 
 	import AnnotationsPanel from './AnnotationsPanel.svelte';
 	import FactsPanel from './FactsPanel.svelte';
+	import NarrativeContext from './NarrativeContext.svelte';
 	import RevisionChecklist from './RevisionChecklist.svelte';
+	import SceneContextPanel from './SceneContextPanel.svelte';
 	import StatusChart from './StatusChart.svelte';
 	import { Button, Icon } from './ui';
 
@@ -44,6 +48,19 @@
 	// Derived values for proper reactivity tracking in templates
 	let selectedScene = $derived(appState.selectedScene);
 	let selectedSceneId = $derived(appState.selectedSceneId);
+
+	// Scene health
+	let sceneHealth = $derived<SceneHealth | undefined>(
+		selectedSceneId ? appState.sceneHealthMap.get(selectedSceneId) : undefined
+	);
+
+	// Revision pass filtering
+	let activePass = $derived(appState.revisionPass);
+	function isSectionVisible(sectionName: string): boolean {
+		if (!activePass) return true;
+		const pass = getRevisionPass(activePass);
+		return pass.sections.includes(sectionName);
+	}
 
 	let annotationsPanel = $state<AnnotationsPanel | null>(null);
 
@@ -379,56 +396,114 @@
 <div class="context-panel">
 	{#if selectedScene}
 		{@const sceneWords = countWords(selectedScene.text)}
-		<!-- Word Count Section -->
+
+		<!-- Scene Context ("Previously On...") -->
 		<section class="panel-section">
-			<h3>Word Count</h3>
-			<div class="word-stats">
-				<div class="stat">
-					<span class="stat-value">{formatWordCount(sceneWords)}</span>
-					<span class="stat-label">Scene (~{Math.max(1, Math.ceil(sceneWords / 250))} min)</span>
+			<SceneContextPanel />
+		</section>
+
+		<!-- Health Score Section -->
+		{#if sceneHealth}
+			<section class="panel-section">
+				<div class="section-header">
+					<h3>Health</h3>
+					<span
+						class="health-score"
+						class:health-good={sceneHealth.score >= 0.8}
+						class:health-warning={sceneHealth.score >= 0.5 && sceneHealth.score < 0.8}
+						class:health-bad={sceneHealth.score < 0.5}
+					>
+						{Math.round(sceneHealth.score * 100)}%
+					</span>
 				</div>
-				{#if appState.wordCounts && appState.selectedChapterId}
-					{@const chapterStats = appState.wordCounts.by_chapter.find(
-						(c) => c.chapter_id === appState.selectedChapterId
-					)}
-					{#if chapterStats}
+				<div class="health-checks">
+					{#each sceneHealth.checks as check (check.name)}
+						<div
+							class="health-check"
+							class:check-passed={check.passed}
+							class:check-failed={!check.passed}
+						>
+							<span class="check-icon">{check.passed ? '✓' : '✗'}</span>
+							<span class="check-label">{check.label}</span>
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/if}
+
+		<!-- Word Count Section -->
+		{#if isSectionVisible('word-count')}
+			<section class="panel-section">
+				<h3>Word Count</h3>
+				<div class="word-stats">
+					<div class="stat">
+						<span class="stat-value">{formatWordCount(sceneWords)}</span>
+						<span class="stat-label">Scene (~{Math.max(1, Math.ceil(sceneWords / 250))} min)</span>
+					</div>
+					{#if appState.wordCounts && appState.selectedChapterId}
+						{@const chapterStats = appState.wordCounts.by_chapter.find(
+							(c) => c.chapter_id === appState.selectedChapterId
+						)}
+						{#if chapterStats}
+							<div class="stat">
+								<span class="stat-value">{formatWordCount(chapterStats.word_count)}</span>
+								<span class="stat-label">Chapter</span>
+							</div>
+						{/if}
+					{/if}
+					{#if appState.wordCounts}
 						<div class="stat">
-							<span class="stat-value">{formatWordCount(chapterStats.word_count)}</span>
-							<span class="stat-label">Chapter</span>
+							<span class="stat-value">{formatWordCount(appState.wordCounts.total)}</span>
+							<span class="stat-label">Total</span>
 						</div>
 					{/if}
-				{/if}
-				{#if appState.wordCounts}
-					<div class="stat">
-						<span class="stat-value">{formatWordCount(appState.wordCounts.total)}</span>
-						<span class="stat-label">Total</span>
-					</div>
-				{/if}
-			</div>
-			<div class="word-target-section">
-				{#if selectedScene.word_target}
-					{@const progress = Math.min(
-						100,
-						(countWords(selectedScene.text) / selectedScene.word_target) * 100
-					)}
-					<div class="word-progress">
-						<div class="progress-bar">
-							<div class="progress-fill" style="width: {progress}%"></div>
+				</div>
+				<div class="word-target-section">
+					{#if selectedScene.word_target}
+						{@const progress = Math.min(
+							100,
+							(countWords(selectedScene.text) / selectedScene.word_target) * 100
+						)}
+						<div class="word-progress">
+							<div class="progress-bar">
+								<div class="progress-fill" style="width: {progress}%"></div>
+							</div>
+							<span class="progress-text">
+								{countWords(selectedScene.text)} / {selectedScene.word_target}
+							</span>
+							<Button
+								variant="icon"
+								size="sm"
+								onclick={async () => {
+									const newTarget = prompt(
+										'Set word target for this scene:',
+										String(selectedScene?.word_target || '')
+									);
+									if (newTarget !== null && selectedScene) {
+										const target = newTarget.trim() === '' ? null : parseInt(newTarget);
+										if (target === null || !isNaN(target)) {
+											try {
+												await appState.updateScene(selectedScene.id, { word_target: target });
+											} catch (e) {
+												console.error('Failed to set word target:', e);
+												showError('Failed to set word target');
+											}
+										}
+									}
+								}}
+								title="Edit word target"
+							>
+								<Icon name="edit" size={12} />
+							</Button>
 						</div>
-						<span class="progress-text">
-							{countWords(selectedScene.text)} / {selectedScene.word_target}
-						</span>
-						<Button
-							variant="icon"
-							size="sm"
+					{:else}
+						<button
+							class="set-target-btn"
 							onclick={async () => {
-								const newTarget = prompt(
-									'Set word target for this scene:',
-									String(selectedScene?.word_target || '')
-								);
+								const newTarget = prompt('Set word target for this scene:');
 								if (newTarget !== null && selectedScene) {
-									const target = newTarget.trim() === '' ? null : parseInt(newTarget);
-									if (target === null || !isNaN(target)) {
+									const target = parseInt(newTarget);
+									if (!isNaN(target) && target > 0) {
 										try {
 											await appState.updateScene(selectedScene.id, { word_target: target });
 										} catch (e) {
@@ -438,39 +513,20 @@
 									}
 								}
 							}}
-							title="Edit word target"
 						>
-							<Icon name="edit" size={12} />
-						</Button>
-					</div>
-				{:else}
-					<button
-						class="set-target-btn"
-						onclick={async () => {
-							const newTarget = prompt('Set word target for this scene:');
-							if (newTarget !== null && selectedScene) {
-								const target = parseInt(newTarget);
-								if (!isNaN(target) && target > 0) {
-									try {
-										await appState.updateScene(selectedScene.id, { word_target: target });
-									} catch (e) {
-										console.error('Failed to set word target:', e);
-										showError('Failed to set word target');
-									}
-								}
-							}
-						}}
-					>
-						Set word target
-					</button>
-				{/if}
-			</div>
-		</section>
+							Set word target
+						</button>
+					{/if}
+				</div>
+			</section>
+		{/if}
 
 		<!-- Status Chart Section -->
-		<section class="panel-section">
-			<StatusChart />
-		</section>
+		{#if isSectionVisible('status')}
+			<section class="panel-section">
+				<StatusChart />
+			</section>
+		{/if}
 
 		<!-- POV Section -->
 		<section class="panel-section">
@@ -497,107 +553,111 @@
 		</section>
 
 		<!-- Associations Section -->
-		<section class="panel-section">
-			<div class="section-header">
-				<h3>Characters & Locations</h3>
-				<Button
-					variant="icon"
-					size="sm"
-					onclick={() => (isAddingAssociation = !isAddingAssociation)}
-				>
-					{#if isAddingAssociation}
-						<Icon name="close" size={16} />
-					{:else}
-						<Icon name="plus" size={16} />
-					{/if}
-				</Button>
-			</div>
-
-			{#if isAddingAssociation}
-				<div class="association-search">
-					<input type="text" placeholder="Search bible entries..." bind:value={searchQuery} />
-					{#if filteredEntries.length > 0}
-						<div class="search-results">
-							{#each filteredEntries.slice(0, 10) as entry (entry.id)}
-								<button class="search-result" onclick={() => addAssociation(entry)}>
-									<span class="entry-icon">{getTypeIcon(entry.entry_type)}</span>
-									<span class="entry-name">{entry.name}</span>
-									<span class="entry-type">{entry.entry_type}</span>
-								</button>
-							{/each}
-						</div>
-					{/if}
-				</div>
-			{/if}
-
-			<div class="associations-list">
-				{#each associations as entry (entry.id)}
-					<div
-						class="association-item"
-						style="--entry-color: {entry.color || 'var(--color-accent)'}"
+		{#if isSectionVisible('associations')}
+			<section class="panel-section">
+				<div class="section-header">
+					<h3>Characters & Locations</h3>
+					<Button
+						variant="icon"
+						size="sm"
+						onclick={() => (isAddingAssociation = !isAddingAssociation)}
 					>
-						<span class="entry-icon">{getTypeIcon(entry.entry_type)}</span>
-						<span class="entry-name">{entry.name}</span>
-						<button
-							class="remove-btn"
-							onclick={() => removeAssociation(entry.id)}
-							title="Remove association"
-						>
-							×
-						</button>
+						{#if isAddingAssociation}
+							<Icon name="close" size={16} />
+						{:else}
+							<Icon name="plus" size={16} />
+						{/if}
+					</Button>
+				</div>
+
+				{#if isAddingAssociation}
+					<div class="association-search">
+						<input type="text" placeholder="Search bible entries..." bind:value={searchQuery} />
+						{#if filteredEntries.length > 0}
+							<div class="search-results">
+								{#each filteredEntries.slice(0, 10) as entry (entry.id)}
+									<button class="search-result" onclick={() => addAssociation(entry)}>
+										<span class="entry-icon">{getTypeIcon(entry.entry_type)}</span>
+										<span class="entry-name">{entry.name}</span>
+										<span class="entry-type">{entry.entry_type}</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
 					</div>
-				{:else}
-					<p class="empty-message">No characters or locations linked to this scene.</p>
-				{/each}
-			</div>
-		</section>
+				{/if}
+
+				<div class="associations-list">
+					{#each associations as entry (entry.id)}
+						<div
+							class="association-item"
+							style="--entry-color: {entry.color || 'var(--color-accent)'}"
+						>
+							<span class="entry-icon">{getTypeIcon(entry.entry_type)}</span>
+							<span class="entry-name">{entry.name}</span>
+							<button
+								class="remove-btn"
+								onclick={() => removeAssociation(entry.id)}
+								title="Remove association"
+							>
+								×
+							</button>
+						</div>
+					{:else}
+						<p class="empty-message">No characters or locations linked to this scene.</p>
+					{/each}
+				</div>
+			</section>
+		{/if}
 
 		<!-- Linked Arcs Section -->
-		<section class="panel-section">
-			<div class="section-header">
-				<h3>Arcs</h3>
-				<Button variant="icon" size="sm" onclick={() => (isAddingArc = !isAddingArc)}>
-					{#if isAddingArc}
-						<Icon name="close" size={16} />
-					{:else}
-						<Icon name="plus" size={16} />
-					{/if}
-				</Button>
-			</div>
-
-			{#if isAddingArc}
-				<div class="arc-search">
-					<select bind:value={selectedArcToAdd} onchange={addArcToScene}>
-						<option value="">Select an arc...</option>
-						{#each availableArcs as arc (arc.id)}
-							<option value={arc.id}>{arc.name}</option>
-						{/each}
-					</select>
+		{#if isSectionVisible('arcs')}
+			<section class="panel-section">
+				<div class="section-header">
+					<h3>Arcs</h3>
+					<Button variant="icon" size="sm" onclick={() => (isAddingArc = !isAddingArc)}>
+						{#if isAddingArc}
+							<Icon name="close" size={16} />
+						{:else}
+							<Icon name="plus" size={16} />
+						{/if}
+					</Button>
 				</div>
-			{/if}
 
-			<div class="arcs-list">
-				{#each sceneArcs as arc (arc.id)}
-					<div class="arc-item" style="--arc-color: {arc.color || 'var(--color-accent)'}">
-						<span class="arc-color-dot"></span>
-						<span class="arc-name">{arc.name}</span>
-						<span class="arc-status">{arc.status}</span>
-						<button
-							class="remove-btn"
-							onclick={() => removeArcFromScene(arc.id)}
-							title="Remove from arc"
-						>
-							&times;
-						</button>
+				{#if isAddingArc}
+					<div class="arc-search">
+						<select bind:value={selectedArcToAdd} onchange={addArcToScene}>
+							<option value="">Select an arc...</option>
+							{#each availableArcs as arc (arc.id)}
+								<option value={arc.id}>{arc.name}</option>
+							{/each}
+						</select>
 					</div>
-				{:else}
-					<p class="empty-message">No arcs linked to this scene.</p>
-				{/each}
-			</div>
-		</section>
+				{/if}
+
+				<div class="arcs-list">
+					{#each sceneArcs as arc (arc.id)}
+						<div class="arc-item" style="--arc-color: {arc.color || 'var(--color-accent)'}">
+							<span class="arc-color-dot"></span>
+							<span class="arc-name">{arc.name}</span>
+							<span class="arc-status">{arc.status}</span>
+							<button
+								class="remove-btn"
+								onclick={() => removeArcFromScene(arc.id)}
+								title="Remove from arc"
+							>
+								&times;
+							</button>
+						</div>
+					{:else}
+						<p class="empty-message">No arcs linked to this scene.</p>
+					{/each}
+				</div>
+			</section>
+		{/if}
 
 		<!-- Template Step Section -->
-		{#if allTemplateSteps.length > 0 || templateStep}
+		{#if isSectionVisible('template') && (allTemplateSteps.length > 0 || templateStep)}
 			<section class="panel-section">
 				<div class="section-header">
 					<h3>Template Step</h3>
@@ -692,7 +752,7 @@
 		</section>
 
 		<!-- Linked Issues Section -->
-		{#if sceneIssues.length > 0}
+		{#if isSectionVisible('issues') && sceneIssues.length > 0}
 			<section class="panel-section">
 				<h3>Issues ({sceneIssues.length})</h3>
 				<div class="issues-list">
@@ -712,152 +772,166 @@
 		{/if}
 
 		<!-- Scene Timeline Info -->
-		<section class="panel-section">
-			<div class="section-header">
-				<h3>Timeline</h3>
-				{#if !isEditingTimeline}
-					<Button variant="icon" size="sm" onclick={startEditingTimeline} title="Edit timeline">
-						<Icon name="edit" size={14} />
-					</Button>
-				{/if}
-			</div>
-			{#if isEditingTimeline}
-				<div class="timeline-edit-form">
-					<label class="checkbox-label">
-						<input type="checkbox" bind:checked={editedOnTimeline} />
-						Show on timeline
-					</label>
-					<input
-						type="text"
-						class="inline-input"
-						placeholder="Time point (e.g., Day 3)"
-						bind:value={editedTimePoint}
-					/>
-					<input
-						type="text"
-						class="inline-input"
-						placeholder="Time start"
-						bind:value={editedTimeStart}
-					/>
-					<input
-						type="text"
-						class="inline-input"
-						placeholder="Time end"
-						bind:value={editedTimeEnd}
-					/>
-					<div class="edit-actions">
-						<Button variant="ghost" size="sm" onclick={cancelEditingTimeline}>Cancel</Button>
-						<Button variant="primary" size="sm" onclick={saveTimeline}>Save</Button>
+		{#if isSectionVisible('timeline')}
+			<section class="panel-section">
+				<div class="section-header">
+					<h3>Timeline</h3>
+					{#if !isEditingTimeline}
+						<Button variant="icon" size="sm" onclick={startEditingTimeline} title="Edit timeline">
+							<Icon name="edit" size={14} />
+						</Button>
+					{/if}
+				</div>
+				{#if isEditingTimeline}
+					<div class="timeline-edit-form">
+						<label class="checkbox-label">
+							<input type="checkbox" bind:checked={editedOnTimeline} />
+							Show on timeline
+						</label>
+						<input
+							type="text"
+							class="inline-input"
+							placeholder="Time point (e.g., Day 3)"
+							bind:value={editedTimePoint}
+						/>
+						<input
+							type="text"
+							class="inline-input"
+							placeholder="Time start"
+							bind:value={editedTimeStart}
+						/>
+						<input
+							type="text"
+							class="inline-input"
+							placeholder="Time end"
+							bind:value={editedTimeEnd}
+						/>
+						<div class="edit-actions">
+							<Button variant="ghost" size="sm" onclick={cancelEditingTimeline}>Cancel</Button>
+							<Button variant="primary" size="sm" onclick={saveTimeline}>Save</Button>
+						</div>
 					</div>
-				</div>
-			{:else}
-				<div class="timeline-info">
-					{#if selectedScene.on_timeline}
-						<div class="timeline-badge">On Timeline</div>
-					{/if}
-					{#if selectedScene.time_point}
-						<div class="timeline-time">
-							<span class="time-label">Time:</span>
-							<span class="time-value">{selectedScene.time_point}</span>
-						</div>
-					{:else if selectedScene.time_start}
-						<div class="timeline-time">
-							<span class="time-label">From:</span>
-							<span class="time-value">{selectedScene.time_start}</span>
-							{#if selectedScene.time_end}
-								<span class="time-label">To:</span>
-								<span class="time-value">{selectedScene.time_end}</span>
-							{/if}
-						</div>
-					{:else if !selectedScene.on_timeline}
-						<p class="empty-message">Not on timeline.</p>
-					{/if}
-				</div>
-			{/if}
-		</section>
+				{:else}
+					<div class="timeline-info">
+						{#if selectedScene.on_timeline}
+							<div class="timeline-badge">On Timeline</div>
+						{/if}
+						{#if selectedScene.time_point}
+							<div class="timeline-time">
+								<span class="time-label">Time:</span>
+								<span class="time-value">{selectedScene.time_point}</span>
+							</div>
+						{:else if selectedScene.time_start}
+							<div class="timeline-time">
+								<span class="time-label">From:</span>
+								<span class="time-value">{selectedScene.time_start}</span>
+								{#if selectedScene.time_end}
+									<span class="time-label">To:</span>
+									<span class="time-value">{selectedScene.time_end}</span>
+								{/if}
+							</div>
+						{:else if !selectedScene.on_timeline}
+							<p class="empty-message">Not on timeline.</p>
+						{/if}
+					</div>
+				{/if}
+			</section>
+		{/if}
 
 		<!-- Notes Section -->
-		<section class="panel-section">
-			<div class="section-header">
-				<h3>Notes</h3>
-				{#if !isEditingNotes}
-					<Button variant="icon" size="sm" onclick={startEditingNotes} title="Edit notes">
-						<Icon name="edit" size={14} />
-					</Button>
-				{/if}
-			</div>
-			<div class="notes-content">
-				{#if isEditingNotes}
-					<textarea
-						bind:value={editedNotes}
-						placeholder="Add private notes..."
-						rows="4"
-						class="edit-textarea"
-					></textarea>
-					<div class="edit-actions">
-						<Button variant="ghost" size="sm" onclick={cancelEditingNotes}>Cancel</Button>
-						<Button variant="primary" size="sm" onclick={saveNotes}>Save</Button>
-					</div>
-				{:else if selectedScene.notes}
-					<p>{selectedScene.notes}</p>
-				{:else}
-					<p class="empty-message">
-						No notes for this scene. <button class="add-link" onclick={startEditingNotes}
-							>Add notes</button
-						>
-					</p>
-				{/if}
-			</div>
-		</section>
+		{#if isSectionVisible('notes')}
+			<section class="panel-section">
+				<div class="section-header">
+					<h3>Notes</h3>
+					{#if !isEditingNotes}
+						<Button variant="icon" size="sm" onclick={startEditingNotes} title="Edit notes">
+							<Icon name="edit" size={14} />
+						</Button>
+					{/if}
+				</div>
+				<div class="notes-content">
+					{#if isEditingNotes}
+						<textarea
+							bind:value={editedNotes}
+							placeholder="Add private notes..."
+							rows="4"
+							class="edit-textarea"
+						></textarea>
+						<div class="edit-actions">
+							<Button variant="ghost" size="sm" onclick={cancelEditingNotes}>Cancel</Button>
+							<Button variant="primary" size="sm" onclick={saveNotes}>Save</Button>
+						</div>
+					{:else if selectedScene.notes}
+						<p>{selectedScene.notes}</p>
+					{:else}
+						<p class="empty-message">
+							No notes for this scene. <button class="add-link" onclick={startEditingNotes}
+								>Add notes</button
+							>
+						</p>
+					{/if}
+				</div>
+			</section>
+		{/if}
 
 		<!-- TODOs Section -->
-		<section class="panel-section">
-			<div class="section-header">
-				<h3>TODOs</h3>
-				{#if !isEditingTodos}
-					<Button variant="icon" size="sm" onclick={startEditingTodos} title="Edit TODOs">
-						<Icon name="edit" size={14} />
-					</Button>
-				{/if}
-			</div>
-			<div class="todos-content">
-				{#if isEditingTodos}
-					<textarea
-						bind:value={editedTodos}
-						placeholder="Add TODOs (one per line)..."
-						rows="4"
-						class="edit-textarea"
-					></textarea>
-					<div class="edit-actions">
-						<Button variant="ghost" size="sm" onclick={cancelEditingTodos}>Cancel</Button>
-						<Button variant="primary" size="sm" onclick={saveTodos}>Save</Button>
-					</div>
-				{:else if selectedScene.todos}
-					<ul class="todos-list">
-						{#each selectedScene.todos.split('\n').filter((t) => t.trim()) as todo, index (index)}
-							<li>{todo}</li>
-						{/each}
-					</ul>
-				{:else}
-					<p class="empty-message">
-						No TODOs for this scene. <button class="add-link" onclick={startEditingTodos}
-							>Add TODOs</button
-						>
-					</p>
-				{/if}
-			</div>
-		</section>
+		{#if isSectionVisible('todos')}
+			<section class="panel-section">
+				<div class="section-header">
+					<h3>TODOs</h3>
+					{#if !isEditingTodos}
+						<Button variant="icon" size="sm" onclick={startEditingTodos} title="Edit TODOs">
+							<Icon name="edit" size={14} />
+						</Button>
+					{/if}
+				</div>
+				<div class="todos-content">
+					{#if isEditingTodos}
+						<textarea
+							bind:value={editedTodos}
+							placeholder="Add TODOs (one per line)..."
+							rows="4"
+							class="edit-textarea"
+						></textarea>
+						<div class="edit-actions">
+							<Button variant="ghost" size="sm" onclick={cancelEditingTodos}>Cancel</Button>
+							<Button variant="primary" size="sm" onclick={saveTodos}>Save</Button>
+						</div>
+					{:else if selectedScene.todos}
+						<ul class="todos-list">
+							{#each selectedScene.todos.split('\n').filter((t) => t.trim()) as todo, index (index)}
+								<li>{todo}</li>
+							{/each}
+						</ul>
+					{:else}
+						<p class="empty-message">
+							No TODOs for this scene. <button class="add-link" onclick={startEditingTodos}
+								>Add TODOs</button
+							>
+						</p>
+					{/if}
+				</div>
+			</section>
+		{/if}
 
 		<!-- Facts & Revelations Section (Revision Mode) -->
-		{#if appState.workMode === 'revision' && selectedSceneId}
+		{#if isSectionVisible('facts') && appState.workMode === 'revision' && selectedSceneId}
 			<section class="panel-section">
 				<h3>Facts & Revelations</h3>
 				<FactsPanel sceneId={selectedSceneId} />
 			</section>
 		{/if}
 
-		<!-- Annotations Section (Revision Mode) -->
+		<!-- Narrative Context (World State) -->
 		{#if appState.workMode === 'revision'}
+			<section class="panel-section">
+				<h3>World State</h3>
+				<NarrativeContext />
+			</section>
+		{/if}
+
+		<!-- Annotations Section (Revision Mode) -->
+		{#if isSectionVisible('annotations') && appState.workMode === 'revision'}
 			<section class="panel-section annotations-section">
 				<AnnotationsPanel
 					bind:this={annotationsPanel}
@@ -1493,5 +1567,66 @@
 	.issue-meta {
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
+	}
+
+	/* Health score styles */
+	.health-score {
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		padding: 2px 8px;
+		border-radius: var(--border-radius-sm);
+	}
+
+	.health-good {
+		color: var(--color-success, #22c55e);
+		background-color: color-mix(in srgb, var(--color-success, #22c55e) 15%, transparent);
+	}
+
+	.health-warning {
+		color: var(--color-warning);
+		background-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
+	}
+
+	.health-bad {
+		color: var(--color-error);
+		background-color: color-mix(in srgb, var(--color-error) 15%, transparent);
+	}
+
+	.health-checks {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.health-check {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		padding: 2px var(--spacing-xs);
+		font-size: var(--font-size-sm);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.check-icon {
+		font-weight: 700;
+		width: 16px;
+		text-align: center;
+		flex-shrink: 0;
+	}
+
+	.check-passed .check-icon {
+		color: var(--color-success, #22c55e);
+	}
+
+	.check-failed .check-icon {
+		color: var(--color-error);
+	}
+
+	.check-label {
+		color: var(--color-text-secondary);
+	}
+
+	.check-failed .check-label {
+		color: var(--color-text-primary);
 	}
 </style>

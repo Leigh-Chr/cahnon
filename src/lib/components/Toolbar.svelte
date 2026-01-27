@@ -15,6 +15,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores';
 	import { formatShortcut } from '$lib/utils';
+	import { revisionPasses, type RevisionPassId } from '$lib/utils/revision-passes';
 
 	const viewModes = [
 		{ id: 'editor', label: 'Editor', shortcut: '1' },
@@ -138,6 +139,25 @@
 		>
 			{appState.workMode === 'writing' ? 'Writing' : 'Revision'}
 		</button>
+
+		{#if appState.workMode === 'revision'}
+			<div class="revision-passes">
+				<button
+					class="pass-btn"
+					class:active={appState.revisionPass === null}
+					onclick={() => appState.setRevisionPass(null)}
+					title="Show all sections">All</button
+				>
+				{#each revisionPasses as pass (pass.id)}
+					<button
+						class="pass-btn"
+						class:active={appState.revisionPass === pass.id}
+						onclick={() => appState.setRevisionPass(pass.id as RevisionPassId)}
+						title={pass.description}>{pass.label}</button
+					>
+				{/each}
+			</div>
+		{/if}
 
 		<button
 			class="toolbar-btn icon-btn"
@@ -398,6 +418,34 @@
 	}
 
 	.mode-toggle.revision {
+		background-color: var(--color-accent-light);
+		color: var(--color-accent);
+	}
+
+	.revision-passes {
+		display: flex;
+		gap: 1px;
+		background-color: var(--color-border-light);
+		border-radius: var(--border-radius-sm);
+		overflow: hidden;
+		margin-left: var(--spacing-xs);
+	}
+
+	.pass-btn {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		background-color: var(--color-bg-secondary);
+		color: var(--color-text-muted);
+		transition: all var(--transition-fast);
+	}
+
+	.pass-btn:hover {
+		background-color: var(--color-bg-hover);
+		color: var(--color-text-primary);
+	}
+
+	.pass-btn.active {
 		background-color: var(--color-accent-light);
 		color: var(--color-accent);
 	}

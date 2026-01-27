@@ -673,6 +673,7 @@
 				<h3 class="group-title">{group.title}</h3>
 				<div class="cards-grid">
 					{#each group.scenes as { scene, chapterId } (scene.id)}
+						{@const health = appState.sceneHealthMap.get(scene.id)}
 						<button
 							class="scene-card"
 							class:selected={appState.selectedSceneId === scene.id}
@@ -707,6 +708,16 @@
 
 							<div class="card-header">
 								<span class="card-title truncate">{scene.title}</span>
+								{#if health}
+									<span
+										class="health-badge"
+										class:health-good={health.score >= 0.8}
+										class:health-warning={health.score >= 0.5 && health.score < 0.8}
+										class:health-bad={health.score < 0.5}
+										title="Health: {Math.round(health.score * 100)}%"
+										>{Math.round(health.score * 100)}%</span
+									>
+								{/if}
 								<span class="status-badge">{scene.status}</span>
 							</div>
 
@@ -1114,6 +1125,29 @@
 		color: var(--text-on-accent);
 		border-radius: var(--border-radius-sm);
 		white-space: nowrap;
+	}
+
+	.health-badge {
+		font-size: 10px;
+		font-weight: 700;
+		padding: 1px 4px;
+		border-radius: var(--border-radius-sm);
+		white-space: nowrap;
+	}
+
+	.health-badge.health-good {
+		color: var(--color-success, #22c55e);
+		background-color: color-mix(in srgb, var(--color-success, #22c55e) 15%, transparent);
+	}
+
+	.health-badge.health-warning {
+		color: var(--color-warning);
+		background-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
+	}
+
+	.health-badge.health-bad {
+		color: var(--color-error);
+		background-color: color-mix(in srgb, var(--color-error) 15%, transparent);
 	}
 
 	.card-summary {

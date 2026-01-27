@@ -12,6 +12,7 @@
 	import { type BibleEntry, type Issue, issueApi, type Scene, timelineApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { getRevisionPass } from '$lib/utils/revision-passes';
 
 	import { Button, EmptyState, FormActions, FormGroup } from './ui';
 
@@ -105,6 +106,11 @@
 		// In writing mode, only show critical (error) issues per spec 14.4
 		if (appState.workMode === 'writing') {
 			result = result.filter((i) => i.severity === 'error');
+		}
+		// In revision mode with a specific pass, filter by pass issue types
+		if (appState.workMode === 'revision' && appState.revisionPass) {
+			const pass = getRevisionPass(appState.revisionPass);
+			result = result.filter((i) => pass.issueTypes.includes(i.issue_type));
 		}
 		if (filterType) result = result.filter((i) => i.issue_type === filterType);
 		if (filterStatus) result = result.filter((i) => i.status === filterStatus);

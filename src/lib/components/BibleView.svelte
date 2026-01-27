@@ -25,6 +25,14 @@
 		type TimelineEvent,
 	} from '$lib/api';
 	import { BIBLE_FIELD_TEMPLATES } from '$lib/bible-templates';
+
+	import ImpactDialog from './ImpactDialog.svelte';
+
+	// Impact dialog state
+	let impactDialog = $state<{
+		entityId: string;
+		entityName: string;
+	} | null>(null);
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { bibleEntryTypes, bibleStatuses } from '$lib/utils';
@@ -274,16 +282,25 @@
 		}
 	}
 
-	async function deleteEntry() {
-		if (selectedEntry && confirm(`Delete "${selectedEntry.name}"? This cannot be undone.`)) {
-			try {
-				await appState.deleteBibleEntry(selectedEntry.id);
-				appState.selectedBibleEntryId = null;
-			} catch (e) {
-				console.error('Failed to delete bible entry:', e);
-				showError('Failed to delete entry');
-			}
+	function deleteEntry() {
+		if (selectedEntry) {
+			impactDialog = {
+				entityId: selectedEntry.id,
+				entityName: selectedEntry.name,
+			};
 		}
+	}
+
+	async function confirmDeleteEntry() {
+		if (!impactDialog) return;
+		try {
+			await appState.deleteBibleEntry(impactDialog.entityId);
+			appState.selectedBibleEntryId = null;
+		} catch (e) {
+			console.error('Failed to delete bible entry:', e);
+			showError('Failed to delete entry');
+		}
+		impactDialog = null;
 	}
 
 	function getTypeInfo(type: string) {
@@ -915,6 +932,16 @@
 		{/if}
 	</div>
 </div>
+
+{#if impactDialog}
+	<ImpactDialog
+		entityType="bible_entry"
+		entityId={impactDialog.entityId}
+		entityName={impactDialog.entityName}
+		onconfirm={confirmDeleteEntry}
+		oncancel={() => (impactDialog = null)}
+	/>
+{/if}
 
 <style>
 	.bible-view {

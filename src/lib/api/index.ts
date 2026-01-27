@@ -26,6 +26,8 @@
 // =============================================================================
 
 export type {
+	// World State / Narrative Context
+	ActiveArcState,
 	Annotation,
 	// Arc & Timeline
 	Arc,
@@ -35,14 +37,29 @@ export type {
 	BibleEntry,
 	BibleRelationshipWithEntry,
 	Chapter,
+	CharacterKnowledgeState,
+	CharacterPresence,
 	Cut,
+	DramaticIronyItem,
 	// Facts
 	Fact,
 	FactCharacter,
+	// Health
+	HealthCheck,
+	// Impact
+	ImpactItem,
+	ImpactPreview,
 	Issue,
+	// Scene Context
+	LastSessionInfo,
+	LocationHistoryItem,
 	NameMention,
 	// Name Registry
 	NameRegistryEntry,
+	NearbyIssue,
+	OpenSetup,
+	PresentCharacter,
+	PreviousSceneSummary,
 	// Project & Manuscript
 	Project,
 	RecentProject,
@@ -50,6 +67,8 @@ export type {
 	SavedFilter,
 	ScanResult,
 	Scene,
+	SceneContext,
+	SceneHealth,
 	SceneHistoryEntry,
 	// Search & Stats
 	SearchResult,
@@ -60,6 +79,7 @@ export type {
 	TimelineConflict,
 	TimelineEvent,
 	WordCounts,
+	WorldState,
 	// Writing Session
 	WritingSession,
 } from './types';
@@ -72,11 +92,15 @@ export { associationApi, bibleApi, relationshipApi } from './bible';
 export { annotationApi, cutApi, snapshotApi, templateApi, trashApi } from './content';
 export { exportApi, importApi } from './export';
 export { factApi } from './fact';
+export { healthApi } from './health';
+export { impactApi } from './impact';
 export { issueApi } from './issue';
 export { chapterApi, historyApi, sceneApi } from './manuscript';
 export { nameMentionApi, nameRegistryApi } from './name-registry';
 export { projectApi } from './project';
 export { savedFilterApi } from './saved-filter';
+export { sceneContextApi } from './scene-context';
 export { searchApi, statsApi } from './search';
 export { arcApi, eventApi, timelineApi } from './timeline';
+export { worldStateApi } from './world-state';
 export { writingSessionApi } from './writing-session';
