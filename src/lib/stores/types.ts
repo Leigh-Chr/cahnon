@@ -101,6 +101,7 @@ export interface KeyboardShortcuts {
 	templatesManager: ShortcutBinding;
 	fullscreen: ShortcutBinding;
 	focusMode: ShortcutBinding;
+	addAnnotation: ShortcutBinding;
 }
 
 export const defaultKeyboardShortcuts: KeyboardShortcuts = {
@@ -127,6 +128,7 @@ export const defaultKeyboardShortcuts: KeyboardShortcuts = {
 	templatesManager: { key: 't', mod: true, shift: false },
 	fullscreen: { key: 'F11', mod: false, shift: false },
 	focusMode: { key: 'f', mod: true, shift: true },
+	addAnnotation: { key: 'a', mod: true, shift: true },
 };
 
 /** Friendly labels for shortcut actions. */
@@ -154,4 +156,5 @@ export const shortcutLabels: Record<keyof KeyboardShortcuts, string> = {
 	templatesManager: 'Templates Manager',
 	fullscreen: 'Fullscreen',
 	focusMode: 'Focus Mode',
+	addAnnotation: 'Add Annotation',
 };

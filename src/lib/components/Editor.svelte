@@ -29,6 +29,12 @@
 	import { showError, showSuccess } from '$lib/toast';
 	import { countWords, debounce, sceneStatuses, statusColors } from '$lib/utils';
 	import { isModKey } from '$lib/utils';
+	import { truncate } from '$lib/utils';
+	import {
+		annotationTypes,
+		getAnnotationStatusColor,
+		getAnnotationType,
+	} from '$lib/utils/annotations';
 	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import CutLibrary from './CutLibrary.svelte';
@@ -127,6 +133,17 @@
 	let currentSearchIndex = $state(0);
 
 	function handleKeydown(event: KeyboardEvent) {
+		// Close context menu or annotation popover on Escape
+		if (event.key === 'Escape' && contextMenu) {
+			event.preventDefault();
+			contextMenu = null;
+			return;
+		}
+		if (event.key === 'Escape' && annotationPopover) {
+			event.preventDefault();
+			closeAnnotationPopover();
+			return;
+		}
 		// Find: Cmd/Ctrl + F
 		if (isModKey(event) && event.key === 'f') {
 			event.preventDefault();
@@ -145,6 +162,12 @@
 		if (isModKey(event) && event.shiftKey && event.key === 'B') {
 			event.preventDefault();
 			openQuickAddBible();
+			return;
+		}
+		// Add annotation: Cmd/Ctrl + Shift + A
+		if (appState.matchesShortcut(event, 'addAnnotation')) {
+			event.preventDefault();
+			triggerAnnotationCreation();
 			return;
 		}
 		// Undo: Cmd/Ctrl + Z (handled by TipTap, but ensure focus)
@@ -499,11 +522,18 @@
 		} catch {
 			return;
 		}
+
+		// Update the local cache for tooltip lookups
+		cachedAnnotations = annotations;
+
 		if (!editor || annotations.length === 0) return;
 
+		// First, remove existing annotation marks
 		const { tr } = editor.state;
 		const markType = editor.schema.marks.annotationMark;
 		if (!markType) return;
+
+		tr.removeMark(0, editor.state.doc.content.size, markType);
 
 		for (const ann of annotations) {
 			if (ann.status === 'resolved') continue;
@@ -595,6 +625,179 @@
 		}
 	}
 
+	// -------------------------------------------------------------------------
+	// Annotation tooltip, click-to-focus, and context menu
+	// -------------------------------------------------------------------------
+
+	let cachedAnnotations = $state<Annotation[]>([]);
+	let tooltipAnnotation = $state<{ annotation: Annotation; x: number; y: number } | null>(null);
+	let tooltipTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+
+	// Context menu state
+	let contextMenu = $state<{ x: number; y: number } | null>(null);
+
+	// Annotation creation popover
+	let annotationPopover = $state<{
+		x: number;
+		y: number;
+		startOffset: number;
+		endOffset: number;
+	} | null>(null);
+	let popoverType = $state('comment');
+	let popoverContent = $state('');
+
+	function getAnnotationById(id: string): Annotation | undefined {
+		return cachedAnnotations.find((a) => a.id === id);
+	}
+
+	function handleEditorMouseOver(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		const mark = target.closest('mark.annotation-highlight') as HTMLElement | null;
+		if (!mark) {
+			clearTooltipTimer();
+			return;
+		}
+		const annotationId = mark.getAttribute('data-annotation-id');
+		if (!annotationId) return;
+
+		// Don't restart timer if we're already showing this tooltip
+		if (tooltipAnnotation && tooltipAnnotation.annotation.id === annotationId) return;
+
+		clearTooltipTimer();
+		tooltipTimer = setTimeout(() => {
+			const annotation = getAnnotationById(annotationId);
+			if (annotation) {
+				const rect = mark.getBoundingClientRect();
+				tooltipAnnotation = {
+					annotation,
+					x: rect.left + rect.width / 2,
+					y: rect.top - 4,
+				};
+			}
+		}, 300);
+	}
+
+	function handleEditorMouseOut(e: MouseEvent) {
+		const target = e.relatedTarget as HTMLElement | null;
+		if (target?.closest('.annotation-tooltip')) return;
+		if (target?.closest('mark.annotation-highlight')) return;
+		clearTooltipTimer();
+		tooltipAnnotation = null;
+	}
+
+	function clearTooltipTimer() {
+		if (tooltipTimer) {
+			clearTimeout(tooltipTimer);
+			tooltipTimer = null;
+		}
+	}
+
+	function handleEditorClick(e: MouseEvent) {
+		// Close context menu and tooltip on any click
+		contextMenu = null;
+		tooltipAnnotation = null;
+		clearTooltipTimer();
+
+		const target = e.target as HTMLElement;
+		const mark = target.closest('mark.annotation-highlight') as HTMLElement | null;
+		if (!mark) return;
+
+		const annotationId = mark.getAttribute('data-annotation-id');
+		if (!annotationId) return;
+
+		// Set focused annotation in store for panel to scroll to
+		appState.focusedAnnotationId = annotationId;
+
+		// Open context panel if closed
+		if (!appState.showContextPanel) {
+			appState.showContextPanel = true;
+		}
+	}
+
+	function handleEditorContextMenu(e: MouseEvent) {
+		if (!editor) return;
+		const { empty } = editor.state.selection;
+		if (empty) return;
+
+		e.preventDefault();
+		contextMenu = { x: e.clientX, y: e.clientY };
+	}
+
+	function triggerAnnotationCreation() {
+		if (!editor) return;
+		const { from, to, empty } = editor.state.selection;
+		if (empty) return;
+
+		const startOffset = editor.state.doc.textBetween(0, from).length;
+		const endOffset = startOffset + editor.state.doc.textBetween(from, to).length;
+
+		// Apply a temporary "pending" highlight so the user sees the selected range
+		const markType = editor.schema.marks.annotationMark;
+		if (markType) {
+			const { tr } = editor.state;
+			tr.addMark(
+				from,
+				to,
+				markType.create({ annotationId: '__pending__', annotationType: 'pending' })
+			);
+			isUpdating = true;
+			editor.view.dispatch(tr);
+			isUpdating = false;
+		}
+
+		// Position the popover below the end of the selection
+		const coords = editor.view.coordsAtPos(to);
+		annotationPopover = {
+			x: coords.left,
+			y: coords.bottom + 8,
+			startOffset,
+			endOffset,
+		};
+		popoverType = 'comment';
+		popoverContent = '';
+	}
+
+	async function submitAnnotationPopover() {
+		if (!annotationPopover || !popoverContent.trim() || !currentSceneId) return;
+		try {
+			await annotationApi.create({
+				scene_id: currentSceneId,
+				start_offset: annotationPopover.startOffset,
+				end_offset: annotationPopover.endOffset,
+				annotation_type: popoverType,
+				content: popoverContent.trim(),
+			});
+			appState.annotationVersion++;
+			closeAnnotationPopover();
+		} catch (e) {
+			console.error('Failed to create annotation:', e);
+			showError('Failed to create annotation');
+		}
+	}
+
+	function closeAnnotationPopover() {
+		annotationPopover = null;
+		popoverContent = '';
+		popoverType = 'comment';
+		// Clear pending mark
+		appState.annotationVersion++;
+	}
+
+	function contextMenuAddAnnotation() {
+		triggerAnnotationCreation();
+		contextMenu = null;
+	}
+
+	function contextMenuCutToLibrary() {
+		cutSelectedText();
+		contextMenu = null;
+	}
+
+	function contextMenuLinkBible() {
+		openQuickAddBible();
+		contextMenu = null;
+	}
+
 	// Focus mode settings - use from store
 	let typewriterMode = $derived(appState.focusSettings.typewriterMode);
 	let dimSurroundings = $derived(appState.focusSettings.dimSurroundings);
@@ -625,8 +828,19 @@
 		}
 	}
 
+	// Re-apply annotation marks when annotationVersion changes
+	$effect(() => {
+		// Track dependency on annotationVersion
+		void appState.annotationVersion;
+		// Only re-apply if we have an editor and scene loaded
+		if (editor && currentSceneId) {
+			applyAnnotationMarks();
+		}
+	});
+
 	// Cleanup on destroy
 	onDestroy(() => {
+		clearTooltipTimer();
 		if (editor) {
 			editor.destroy();
 		}
@@ -906,19 +1120,139 @@
 			<EditorToolbar {editor} />
 		{/if}
 
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_no_static_element_interactions a11y_mouse_events_have_key_events -->
 		<div
 			class="editor-content"
 			class:focus-mode={dimSurroundings}
 			class:typewriter-mode={typewriterMode}
 			bind:this={editorElement}
 			onkeyup={handleEditorScroll}
-			onclick={handleEditorScroll}
+			onclick={(e) => {
+				handleEditorScroll();
+				handleEditorClick(e);
+			}}
+			onmouseover={handleEditorMouseOver}
+			onmouseout={handleEditorMouseOut}
+			oncontextmenu={handleEditorContextMenu}
 			style="--editor-font-family: {appState.editorSettings
 				.fontFamily}; --editor-font-size: {appState.editorSettings
 				.fontSize}px; --editor-line-height: {appState.editorSettings
 				.lineHeight}; --editor-text-width: {appState.editorSettings.textWidth}px;"
 		></div>
+
+		{#if tooltipAnnotation}
+			{@const typeInfo = getAnnotationType(tooltipAnnotation.annotation.annotation_type)}
+			<!-- svelte-ignore a11y_no_static_element_interactions a11y_mouse_events_have_key_events -->
+			<div
+				class="annotation-tooltip"
+				style="left: {tooltipAnnotation.x}px; top: {tooltipAnnotation.y}px; border-top: 3px solid {typeInfo.color};"
+				onmouseout={(e) => {
+					const related = e.relatedTarget as HTMLElement | null;
+					if (
+						!related?.closest('mark.annotation-highlight') &&
+						!related?.closest('.annotation-tooltip')
+					) {
+						tooltipAnnotation = null;
+					}
+				}}
+			>
+				<div class="tooltip-header">
+					<span class="tooltip-type-icon">{typeInfo.icon}</span>
+					<span class="tooltip-type-label" style="color: {typeInfo.color}">{typeInfo.label}</span>
+					<span
+						class="tooltip-status-badge"
+						style="color: {getAnnotationStatusColor(tooltipAnnotation.annotation.status)}"
+					>
+						{tooltipAnnotation.annotation.status.replace('_', ' ')}
+					</span>
+				</div>
+				<p class="tooltip-content">{truncate(tooltipAnnotation.annotation.content, 80)}</p>
+			</div>
+		{/if}
+
+		{#if contextMenu}
+			<div
+				class="context-menu-overlay"
+				onclick={() => (contextMenu = null)}
+				onkeydown={(e) => {
+					if (e.key === 'Escape') contextMenu = null;
+				}}
+				role="presentation"
+				tabindex="-1"
+			>
+				<div
+					class="context-menu"
+					style="left: {contextMenu.x}px; top: {contextMenu.y}px;"
+					onclick={(e) => e.stopPropagation()}
+					onkeydown={(e) => e.stopPropagation()}
+					role="menu"
+					tabindex="-1"
+				>
+					<button class="context-menu-item" onclick={contextMenuAddAnnotation} role="menuitem">
+						Add Annotation
+					</button>
+					<button class="context-menu-item" onclick={contextMenuCutToLibrary} role="menuitem">
+						Cut to Library
+					</button>
+					<button class="context-menu-item" onclick={contextMenuLinkBible} role="menuitem">
+						Link Bible Entry
+					</button>
+				</div>
+			</div>
+		{/if}
+
+		{#if annotationPopover}
+			<div
+				class="annotation-popover-overlay"
+				onclick={closeAnnotationPopover}
+				onkeydown={(e) => {
+					if (e.key === 'Escape') closeAnnotationPopover();
+				}}
+				role="presentation"
+				tabindex="-1"
+			>
+				<div
+					class="annotation-popover"
+					style="left: {annotationPopover.x}px; top: {annotationPopover.y}px;"
+					onclick={(e) => e.stopPropagation()}
+					onkeydown={(e) => {
+						e.stopPropagation();
+						if (e.key === 'Escape') closeAnnotationPopover();
+						if (e.key === 'Enter' && isModKey(e)) {
+							e.preventDefault();
+							submitAnnotationPopover();
+						}
+					}}
+					role="dialog"
+					tabindex="-1"
+				>
+					<div class="popover-header">Add Annotation</div>
+					<select bind:value={popoverType} class="popover-type-select">
+						{#each annotationTypes as type (type.value)}
+							<option value={type.value}>{type.icon} {type.label}</option>
+						{/each}
+					</select>
+					<!-- svelte-ignore a11y_autofocus -->
+					<textarea
+						bind:value={popoverContent}
+						placeholder="Add your note..."
+						rows="3"
+						class="popover-textarea"
+						autofocus
+					></textarea>
+					<div class="popover-actions">
+						<button class="popover-btn" onclick={closeAnnotationPopover}>Cancel</button>
+						<button
+							class="popover-btn popover-btn-primary"
+							onclick={submitAnnotationPopover}
+							disabled={!popoverContent.trim()}
+						>
+							Add
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		<FindReplace
 			bind:handle={findReplaceHandle}
@@ -1329,26 +1663,54 @@
 	.editor-content :global(.annotation-highlight) {
 		padding: 0.1em 0;
 		border-radius: 2px;
+		cursor: pointer;
+		border-bottom: 2px solid transparent;
+		transition: filter var(--transition-fast);
+	}
+
+	.editor-content :global(.annotation-highlight:hover) {
+		filter: brightness(1.15);
 	}
 
 	.editor-content :global(.annotation-comment) {
-		background-color: rgba(255, 220, 100, 0.35);
+		background-color: rgba(230, 180, 34, 0.22);
+		border-bottom-color: #e6b422;
 	}
 
 	.editor-content :global(.annotation-question) {
-		background-color: rgba(100, 160, 255, 0.3);
+		background-color: rgba(74, 144, 217, 0.22);
+		border-bottom-color: #4a90d9;
 	}
 
 	.editor-content :global(.annotation-todo) {
-		background-color: rgba(255, 165, 0, 0.3);
+		background-color: rgba(224, 138, 43, 0.22);
+		border-bottom-color: #e08a2b;
 	}
 
 	.editor-content :global(.annotation-research) {
-		background-color: rgba(180, 130, 255, 0.3);
+		background-color: rgba(155, 110, 208, 0.22);
+		border-bottom-color: #9b6ed0;
 	}
 
 	.editor-content :global(.annotation-revision) {
-		background-color: rgba(100, 200, 130, 0.3);
+		background-color: rgba(76, 175, 124, 0.22);
+		border-bottom-color: #4caf7c;
+	}
+
+	.editor-content :global(.annotation-pending) {
+		background-color: rgba(59, 130, 246, 0.18);
+		border-bottom: 2px dashed rgba(59, 130, 246, 0.7);
+		animation: pending-pulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pending-pulse {
+		0%,
+		100% {
+			background-color: rgba(59, 130, 246, 0.18);
+		}
+		50% {
+			background-color: rgba(59, 130, 246, 0.32);
+		}
 	}
 
 	/* Quick-add Bible popup */
@@ -1478,5 +1840,170 @@
 		color: var(--color-text-muted);
 		padding: var(--spacing-sm);
 		text-align: center;
+	}
+
+	/* Annotation tooltip */
+	.annotation-tooltip {
+		position: fixed;
+		transform: translate(-50%, -100%);
+		max-width: 280px;
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--spacing-sm);
+		z-index: 600;
+		pointer-events: auto;
+	}
+
+	.tooltip-header {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.tooltip-type-icon {
+		font-size: var(--font-size-sm);
+	}
+
+	.tooltip-type-label {
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--color-text-secondary);
+	}
+
+	.tooltip-status-badge {
+		margin-left: auto;
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		text-transform: capitalize;
+	}
+
+	.tooltip-content {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+		line-height: var(--line-height-normal);
+		margin: 0;
+	}
+
+	/* Context menu */
+	.context-menu-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 500;
+	}
+
+	.context-menu {
+		position: fixed;
+		min-width: 180px;
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--spacing-xs);
+		z-index: 501;
+	}
+
+	.context-menu-item {
+		display: block;
+		width: 100%;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		text-align: left;
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-primary);
+		transition: background-color var(--transition-fast);
+	}
+
+	.context-menu-item:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	/* Annotation creation popover */
+	.annotation-popover-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 500;
+	}
+
+	.annotation-popover {
+		position: fixed;
+		width: 300px;
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--spacing-md);
+		z-index: 501;
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+	}
+
+	.popover-header {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text-secondary);
+	}
+
+	.popover-type-select {
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		background-color: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.popover-textarea {
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		resize: none;
+		font-family: inherit;
+	}
+
+	.popover-textarea:focus {
+		border-color: var(--color-accent);
+		outline: none;
+	}
+
+	.popover-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--spacing-xs);
+	}
+
+	.popover-btn {
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.popover-btn:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.popover-btn-primary {
+		background-color: var(--color-accent);
+		color: white;
+		font-weight: 500;
+	}
+
+	.popover-btn-primary:hover {
+		filter: brightness(1.1);
+	}
+
+	.popover-btn-primary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 </style>

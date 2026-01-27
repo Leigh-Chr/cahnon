@@ -1,3 +1,6 @@
+export type { AnnotationTypeInfo } from './annotations';
+export { annotationTypes, getAnnotationStatusColor, getAnnotationType } from './annotations';
+
 // Word count utility
 export function countWords(text: string): number {
 	if (!text || text.trim().length === 0) return 0;

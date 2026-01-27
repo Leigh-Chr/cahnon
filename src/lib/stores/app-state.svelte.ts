@@ -134,6 +134,12 @@ class AppState {
 	searchQuery = $state('');
 
 	// -------------------------------------------------------------------------
+	// Annotations (cross-component communication)
+	// -------------------------------------------------------------------------
+	focusedAnnotationId = $state<string | null>(null);
+	annotationVersion = $state(0);
+
+	// -------------------------------------------------------------------------
 	// Character Thread
 	// -------------------------------------------------------------------------
 	characterThreadId = $state<string | null>(null);

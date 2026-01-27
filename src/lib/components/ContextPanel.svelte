@@ -60,8 +60,6 @@
 		return pass.sections.includes(sectionName);
 	}
 
-	let annotationsPanel = $state<AnnotationsPanel | null>(null);
-
 	// World State collapsible toggle (defaults closed, auto-opens in revision mode)
 	let worldStateExpanded = $state(false);
 
@@ -117,11 +115,6 @@
 
 	function cancelEditingTodos() {
 		isEditingTodos = false;
-	}
-
-	// Export function for editor to call when text is selected
-	export function addAnnotationForSelection(startOffset: number, endOffset: number) {
-		annotationsPanel?.addAnnotationForSelection(startOffset, endOffset);
 	}
 
 	let associations = $state<BibleEntry[]>([]);
@@ -943,17 +936,15 @@
 			{/if}
 		</section>
 
-		<!-- Annotations Section (Revision Mode) -->
-		{#if isSectionVisible('annotations') && appState.workMode === 'revision'}
+		<!-- Annotations Section (all modes) -->
+		{#if isSectionVisible('annotations')}
 			<section class="panel-section annotations-section">
-				<AnnotationsPanel
-					bind:this={annotationsPanel}
-					sceneId={selectedSceneId || ''}
-					{onSelectAnnotation}
-				/>
+				<AnnotationsPanel sceneId={selectedSceneId || ''} {onSelectAnnotation} />
 			</section>
+		{/if}
 
-			<!-- Revision Checklist Section -->
+		<!-- Revision Checklist Section (revision mode only) -->
+		{#if isSectionVisible('annotations') && appState.workMode === 'revision'}
 			<section class="panel-section">
 				<RevisionChecklist
 					checklist={(() => {

@@ -7,9 +7,11 @@
 	 */
 
 	import { type Annotation, annotationApi } from '$lib/api';
+	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { getAnnotationStatusColor, getAnnotationType } from '$lib/utils/annotations';
 
-	import { Button, FormActions, Icon } from './ui';
+	import { Button, Icon } from './ui';
 
 	interface Props {
 		sceneId: string;
@@ -21,23 +23,10 @@
 	let annotations = $state<Annotation[]>([]);
 	let isLoading = $state(true);
 	let filterStatus = $state('all');
-	let showNewForm = $state(false);
-
-	let newContent = $state('');
-	let newType = $state('comment');
-	let pendingOffsets = $state<{ start: number; end: number } | null>(null);
 
 	// Inline edit state
 	let editingAnnotationId = $state<string | null>(null);
 	let editedContent = $state('');
-
-	const annotationTypes = [
-		{ value: 'comment', label: 'Comment', icon: '💬' },
-		{ value: 'question', label: 'Question', icon: '❓' },
-		{ value: 'todo', label: 'TODO', icon: '✅' },
-		{ value: 'research', label: 'Research', icon: '🔍' },
-		{ value: 'revision', label: 'Revision', icon: '✏️' },
-	];
 
 	const annotationStatuses = ['open', 'in_progress', 'resolved'];
 
@@ -63,49 +52,11 @@
 		isLoading = false;
 	}
 
-	async function createAnnotation(startOffset: number, endOffset: number) {
-		if (!newContent.trim()) return;
-		try {
-			const annotation = await annotationApi.create({
-				scene_id: sceneId,
-				start_offset: startOffset,
-				end_offset: endOffset,
-				annotation_type: newType,
-				content: newContent.trim(),
-			});
-			annotations = [...annotations, annotation];
-			resetNewForm();
-		} catch (e) {
-			console.error('Failed to create annotation:', e);
-			showError('Failed to create annotation');
-		}
-	}
-
-	// Expose this for the editor to call via handle prop
-	export async function addAnnotationForSelection(startOffset: number, endOffset: number) {
-		showNewForm = true;
-		// Store offsets for when form is submitted
-		pendingOffsets = { start: startOffset, end: endOffset };
-	}
-
-	async function handleSubmitNew() {
-		if (pendingOffsets) {
-			await createAnnotation(pendingOffsets.start, pendingOffsets.end);
-			pendingOffsets = null;
-		}
-	}
-
-	function resetNewForm() {
-		showNewForm = false;
-		newContent = '';
-		newType = 'comment';
-		pendingOffsets = null;
-	}
-
 	async function updateAnnotationStatus(annotation: Annotation, status: string) {
 		try {
 			const updated = await annotationApi.update(annotation.id, { status });
 			annotations = annotations.map((a) => (a.id === updated.id ? updated : a));
+			appState.annotationVersion++;
 		} catch (e) {
 			console.error('Failed to update annotation:', e);
 			showError('Failed to update annotation');
@@ -116,6 +67,7 @@
 		try {
 			await annotationApi.delete(annotationId);
 			annotations = annotations.filter((a) => a.id !== annotationId);
+			appState.annotationVersion++;
 		} catch (e) {
 			console.error('Failed to delete annotation:', e);
 			showError('Failed to delete annotation');
@@ -139,30 +91,41 @@
 			annotations = annotations.map((a) => (a.id === updated.id ? updated : a));
 			editingAnnotationId = null;
 			editedContent = '';
+			appState.annotationVersion++;
 		} catch (e) {
 			console.error('Failed to update annotation:', e);
 			showError('Failed to update annotation');
 		}
 	}
 
-	function getTypeInfo(type: string) {
-		return (
-			annotationTypes.find((t) => t.value === type) || { value: type, label: type, icon: '📝' }
-		);
-	}
-
-	function getStatusColor(status: string): string {
-		const colors: Record<string, string> = {
-			open: 'var(--color-warning)',
-			in_progress: 'var(--color-info)',
-			resolved: 'var(--color-success)',
-		};
-		return colors[status] || 'var(--color-text-muted)';
-	}
-
 	function formatDate(dateStr: string): string {
 		return new Date(dateStr).toLocaleDateString();
 	}
+
+	// Watch for focusedAnnotationId from store (set by Editor on highlight click)
+	$effect(() => {
+		const focusedId = appState.focusedAnnotationId;
+		if (!focusedId) return;
+
+		const selector = `.annotation-item[data-annotation-id="${CSS.escape(focusedId)}"]`;
+
+		// Retry up to a few times — the panel may still be loading annotations
+		function tryScrollToAnnotation(retriesLeft: number) {
+			const el = document.querySelector(selector) as HTMLElement | null;
+			if (el) {
+				el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				el.classList.add('annotation-item-focused');
+				setTimeout(() => el.classList.remove('annotation-item-focused'), 1500);
+				appState.focusedAnnotationId = null;
+			} else if (retriesLeft > 0) {
+				setTimeout(() => tryScrollToAnnotation(retriesLeft - 1), 150);
+			} else {
+				appState.focusedAnnotationId = null;
+			}
+		}
+
+		setTimeout(() => tryScrollToAnnotation(5), 50);
+	});
 </script>
 
 <div class="annotations-panel">
@@ -178,106 +141,84 @@
 
 	{#if isLoading}
 		<div class="loading">Loading...</div>
+	{:else if filteredAnnotations.length === 0}
+		<div class="empty-state">
+			<p>No annotations yet</p>
+			<p class="hint">Select text in the editor and add annotations.</p>
+		</div>
 	{:else}
-		{#if showNewForm}
-			<div class="new-annotation-form">
-				<select bind:value={newType} class="type-select">
-					{#each annotationTypes as type (type.value)}
-						<option value={type.value}>{type.icon} {type.label}</option>
-					{/each}
-				</select>
-				<textarea bind:value={newContent} placeholder="Add your note..." rows="3"></textarea>
-				<FormActions>
-					<Button variant="ghost" size="sm" onclick={resetNewForm}>Cancel</Button>
-					<Button
-						variant="primary"
-						size="sm"
-						onclick={handleSubmitNew}
-						disabled={!newContent.trim()}
-					>
-						Add
-					</Button>
-				</FormActions>
-			</div>
-		{/if}
-
-		{#if filteredAnnotations.length === 0}
-			<div class="empty-state">
-				<p>No annotations yet</p>
-				<p class="hint">Select text in the editor and add annotations.</p>
-			</div>
-		{:else}
-			<div class="annotations-list">
-				{#each filteredAnnotations as annotation (annotation.id)}
-					{@const typeInfo = getTypeInfo(annotation.annotation_type)}
-					<div
-						class="annotation-item"
-						class:resolved={annotation.status === 'resolved'}
-						onclick={() => onSelectAnnotation?.(annotation)}
-						onkeydown={(e) => e.key === 'Enter' && onSelectAnnotation?.(annotation)}
-						role="button"
-						tabindex="0"
-					>
-						<div class="annotation-header">
-							<span class="annotation-type">{typeInfo.icon}</span>
-							<span class="annotation-date">{formatDate(annotation.created_at)}</span>
-							<select
-								value={annotation.status}
-								onclick={(e) => e.stopPropagation()}
-								onchange={(e) => updateAnnotationStatus(annotation, e.currentTarget.value)}
-								class="status-select"
-								style="color: {getStatusColor(annotation.status)}"
-							>
-								{#each annotationStatuses as status (status)}
-									<option value={status}>{status.replace('_', ' ')}</option>
-								{/each}
-							</select>
-							<Button
-								variant="icon"
-								size="sm"
-								onclick={(e) => {
-									e.stopPropagation();
-									startEditingAnnotation(annotation);
-								}}
-								title="Edit"
-							>
-								<Icon name="edit" size={12} />
-							</Button>
-							<Button
-								variant="icon"
-								size="sm"
-								onclick={(e) => {
-									e.stopPropagation();
-									deleteAnnotation(annotation.id);
-								}}
-								title="Delete"
-							>
-								<Icon name="close" size={12} />
-							</Button>
-						</div>
-						{#if editingAnnotationId === annotation.id}
-							<div class="annotation-edit" onclick={(e) => e.stopPropagation()} role="presentation">
-								<textarea bind:value={editedContent} rows="3" class="annotation-edit-textarea"
-								></textarea>
-								<div class="annotation-edit-actions">
-									<button class="annotation-edit-btn" onclick={cancelEditingAnnotation}>
-										Cancel
-									</button>
-									<button
-										class="annotation-edit-btn save"
-										onclick={() => saveAnnotationContent(annotation.id)}
-									>
-										Save
-									</button>
-								</div>
-							</div>
-						{:else}
-							<p class="annotation-content">{annotation.content}</p>
-						{/if}
+		<div class="annotations-list">
+			{#each filteredAnnotations as annotation (annotation.id)}
+				{@const typeInfo = getAnnotationType(annotation.annotation_type)}
+				<div
+					class="annotation-item"
+					class:resolved={annotation.status === 'resolved'}
+					data-annotation-id={annotation.id}
+					style="--annotation-color: {typeInfo.color}"
+					onclick={() => onSelectAnnotation?.(annotation)}
+					onkeydown={(e) => e.key === 'Enter' && onSelectAnnotation?.(annotation)}
+					role="button"
+					tabindex="0"
+				>
+					<div class="annotation-header">
+						<span class="annotation-type">{typeInfo.icon}</span>
+						<span class="annotation-date">{formatDate(annotation.created_at)}</span>
+						<select
+							value={annotation.status}
+							onclick={(e) => e.stopPropagation()}
+							onchange={(e) => updateAnnotationStatus(annotation, e.currentTarget.value)}
+							class="status-select"
+							style="color: {getAnnotationStatusColor(annotation.status)}"
+						>
+							{#each annotationStatuses as status (status)}
+								<option value={status}>{status.replace('_', ' ')}</option>
+							{/each}
+						</select>
+						<Button
+							variant="icon"
+							size="sm"
+							onclick={(e) => {
+								e.stopPropagation();
+								startEditingAnnotation(annotation);
+							}}
+							title="Edit"
+						>
+							<Icon name="edit" size={12} />
+						</Button>
+						<Button
+							variant="icon"
+							size="sm"
+							onclick={(e) => {
+								e.stopPropagation();
+								deleteAnnotation(annotation.id);
+							}}
+							title="Delete"
+						>
+							<Icon name="close" size={12} />
+						</Button>
 					</div>
-				{/each}
-			</div>
-		{/if}
+					{#if editingAnnotationId === annotation.id}
+						<div class="annotation-edit" onclick={(e) => e.stopPropagation()} role="presentation">
+							<textarea bind:value={editedContent} rows="3" class="annotation-edit-textarea"
+							></textarea>
+							<div class="annotation-edit-actions">
+								<button class="annotation-edit-btn" onclick={cancelEditingAnnotation}>
+									Cancel
+								</button>
+								<button
+									class="annotation-edit-btn save"
+									onclick={() => saveAnnotationContent(annotation.id)}
+								>
+									Save
+								</button>
+							</div>
+						</div>
+					{:else}
+						<p class="annotation-content">{annotation.content}</p>
+					{/if}
+				</div>
+			{/each}
+		</div>
 	{/if}
 </div>
 
@@ -323,30 +264,6 @@
 		margin-top: var(--spacing-sm);
 	}
 
-	.new-annotation-form {
-		padding: var(--spacing-md);
-		border-bottom: 1px solid var(--color-border-light);
-		display: flex;
-		flex-direction: column;
-		gap: var(--spacing-sm);
-	}
-
-	.type-select {
-		font-size: var(--font-size-sm);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		background-color: var(--color-bg-secondary);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.new-annotation-form textarea {
-		font-size: var(--font-size-sm);
-		padding: var(--spacing-sm);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-sm);
-		resize: none;
-	}
-
 	.annotations-list {
 		flex: 1;
 		overflow-y: auto;
@@ -355,15 +272,18 @@
 
 	.annotation-item {
 		padding: var(--spacing-sm);
+		padding-left: calc(var(--spacing-sm) + 2px);
 		margin-bottom: var(--spacing-sm);
 		background-color: var(--color-bg-secondary);
 		border: 1px solid var(--color-border-light);
+		border-left: 3px solid var(--annotation-color, var(--color-border-light));
 		border-radius: var(--border-radius-sm);
 		transition: all var(--transition-fast);
 	}
 
 	.annotation-item:hover {
-		border-color: var(--color-accent);
+		border-color: var(--color-border);
+		border-left-color: var(--annotation-color, var(--color-accent));
 	}
 
 	.annotation-item.resolved {
@@ -438,5 +358,22 @@
 	.annotation-edit-btn.save {
 		color: var(--color-accent);
 		font-weight: 500;
+	}
+
+	/* Focus animation triggered by Editor highlight click */
+	:global(.annotation-item-focused) {
+		animation: annotation-flash 1.5s ease-out;
+		box-shadow: 0 0 0 2px var(--annotation-color, var(--color-accent));
+	}
+
+	@keyframes annotation-flash {
+		0% {
+			background-color: rgba(59, 130, 246, 0.15);
+			box-shadow: 0 0 0 2px var(--annotation-color, var(--color-accent));
+		}
+		100% {
+			background-color: var(--color-bg-secondary);
+			box-shadow: none;
+		}
 	}
 </style>
