@@ -87,5 +87,3 @@ export const AnnotationMark = Mark.create<AnnotationMarkOptions>({
 		};
 	},
 });
-
-export default AnnotationMark;
