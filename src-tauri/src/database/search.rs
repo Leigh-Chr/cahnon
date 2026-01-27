@@ -362,142 +362,72 @@ impl Database {
     }
 
     fn get_total_word_count(&self) -> Result<i32, String> {
-        // Count words by counting spaces in stripped text + 1
-        // First strip HTML tags, then count spaces
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, text FROM scenes WHERE deleted_at IS NULL AND text != ''")
-            .map_err(|e| e.to_string())?;
-
-        let total: i32 = stmt
-            .query_map([], |row| {
-                let text: String = row.get(1)?;
-                Ok(text)
-            })
-            .map_err(|e| e.to_string())?
-            .filter_map(|r| r.ok())
-            .map(|text| {
-                let plain = crate::database::HTML_TAG_REGEX.replace_all(&text, " ");
-                plain.split_whitespace().count() as i32
-            })
-            .sum();
-
-        Ok(total)
+        self.conn
+            .query_row(
+                "SELECT COALESCE(SUM(word_count), 0) FROM scenes WHERE deleted_at IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())
     }
 
     fn get_word_counts_by_chapter(&self) -> Result<Vec<ChapterWordCount>, String> {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT c.id, c.title, c.position
-             FROM chapters c
-             WHERE c.deleted_at IS NULL
-             ORDER BY c.position",
+                "SELECT c.id, c.title,
+                    COALESCE(SUM(s.word_count), 0) as wc,
+                    COUNT(s.id) as sc
+                 FROM chapters c
+                 LEFT JOIN scenes s ON s.chapter_id = c.id AND s.deleted_at IS NULL
+                 WHERE c.deleted_at IS NULL
+                 GROUP BY c.id, c.title
+                 ORDER BY c.position",
             )
             .map_err(|e| e.to_string())?;
 
-        let chapters: Vec<(String, String)> = stmt
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        let results = stmt
+            .query_map([], |row| {
+                Ok(ChapterWordCount {
+                    chapter_id: row.get(0)?,
+                    chapter_title: row.get(1)?,
+                    word_count: row.get(2)?,
+                    scene_count: row.get(3)?,
+                })
+            })
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        let mut by_chapter = Vec::new();
-        for (chapter_id, chapter_title) in chapters {
-            let mut scene_stmt = self
-                .conn
-                .prepare(
-                    "SELECT text FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL AND text != ''",
-                )
-                .map_err(|e| e.to_string())?;
-
-            let texts: Vec<String> = scene_stmt
-                .query_map(params![chapter_id], |row| row.get(0))
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-
-            let scene_count = self
-                .conn
-                .query_row(
-                    "SELECT COUNT(*) FROM scenes WHERE chapter_id = ?1 AND deleted_at IS NULL",
-                    params![chapter_id],
-                    |row| row.get::<_, i32>(0),
-                )
-                .unwrap_or(0);
-
-            let word_count: i32 = texts
-                .iter()
-                .map(|text| {
-                    let plain = crate::database::HTML_TAG_REGEX.replace_all(text, " ");
-                    plain.split_whitespace().count() as i32
-                })
-                .sum();
-
-            by_chapter.push(ChapterWordCount {
-                chapter_id,
-                chapter_title,
-                word_count,
-                scene_count,
-            });
-        }
-
-        Ok(by_chapter)
+        Ok(results)
     }
 
     fn get_word_counts_by_status(&self) -> Result<Vec<StatusWordCount>, String> {
-        // Get distinct statuses
-        let mut status_stmt = self
+        let mut stmt = self
             .conn
-            .prepare("SELECT DISTINCT status FROM scenes WHERE deleted_at IS NULL")
+            .prepare(
+                "SELECT status,
+                    COALESCE(SUM(word_count), 0) as wc,
+                    COUNT(*) as sc
+                 FROM scenes
+                 WHERE deleted_at IS NULL
+                 GROUP BY status",
+            )
             .map_err(|e| e.to_string())?;
 
-        let statuses: Vec<String> = status_stmt
-            .query_map([], |row| row.get(0))
+        let results = stmt
+            .query_map([], |row| {
+                Ok(StatusWordCount {
+                    status: row.get(0)?,
+                    word_count: row.get(1)?,
+                    scene_count: row.get(2)?,
+                })
+            })
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        let mut by_status = Vec::new();
-        for status in statuses {
-            let mut scene_stmt = self
-                .conn
-                .prepare(
-                    "SELECT text FROM scenes WHERE status = ?1 AND deleted_at IS NULL AND text != ''",
-                )
-                .map_err(|e| e.to_string())?;
-
-            let texts: Vec<String> = scene_stmt
-                .query_map(params![status], |row| row.get(0))
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-
-            let scene_count = self
-                .conn
-                .query_row(
-                    "SELECT COUNT(*) FROM scenes WHERE status = ?1 AND deleted_at IS NULL",
-                    params![status],
-                    |row| row.get::<_, i32>(0),
-                )
-                .unwrap_or(0);
-
-            let word_count: i32 = texts
-                .iter()
-                .map(|text| {
-                    let plain = crate::database::HTML_TAG_REGEX.replace_all(text, " ");
-                    plain.split_whitespace().count() as i32
-                })
-                .sum();
-
-            by_status.push(StatusWordCount {
-                status,
-                word_count,
-                scene_count,
-            });
-        }
-
-        Ok(by_status)
+        Ok(results)
     }
 }
 

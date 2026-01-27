@@ -11,7 +11,15 @@ import { untrack } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 
 import type { BibleEntry, Chapter, Project, Scene, WordCounts } from '$lib/api';
-import { bibleApi, chapterApi, projectApi, sceneApi, snapshotApi, statsApi } from '$lib/api';
+import {
+	bibleApi,
+	chapterApi,
+	projectApi,
+	sceneApi,
+	snapshotApi,
+	statsApi,
+	trashApi,
+} from '$lib/api';
 import { showError } from '$lib/toast.svelte';
 
 import type {
@@ -76,6 +84,19 @@ class AppState {
 	bibleEntries = $state<BibleEntry[]>([]);
 	selectedBibleEntryId = $state<string | null>(null);
 	bibleFilter = $state<string | null>(null);
+
+	// -------------------------------------------------------------------------
+	// Entity Selection (for cross-view navigation)
+	// -------------------------------------------------------------------------
+	selectedArcId = $state<string | null>(null);
+	selectedEventId = $state<string | null>(null);
+	selectedIssueId = $state<string | null>(null);
+
+	// -------------------------------------------------------------------------
+	// Navigation History
+	// -------------------------------------------------------------------------
+	private _navHistory: Array<{ type: string; id: string; meta?: Record<string, string> }> = [];
+	private _navIndex = -1;
 
 	// -------------------------------------------------------------------------
 	// Stats
@@ -472,6 +493,13 @@ class AppState {
 				// Non-critical, ignore
 			}
 
+			// Purge trash items older than 30 days
+			try {
+				await trashApi.purgeExpired();
+			} catch {
+				// Non-critical, ignore
+			}
+
 			await this.loadManuscript();
 			await this.loadBible();
 			await this.loadStats();
@@ -734,6 +762,117 @@ class AppState {
 
 	setViewMode(mode: ViewMode) {
 		this.viewMode = mode;
+	}
+
+	/** Navigate to a specific entity, switching view and pushing to history. */
+	navigateTo(
+		type: 'scene' | 'bible' | 'arc' | 'event' | 'issue' | 'dashboard',
+		id?: string,
+		meta?: Record<string, string>
+	) {
+		// Push to history (truncate forward entries)
+		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
+		this._navHistory.push({ type, id: id || '', meta });
+		this._navIndex = this._navHistory.length - 1;
+
+		switch (type) {
+			case 'scene':
+				if (id) {
+					for (const [chapterId, scenes] of this.scenes) {
+						const scene = scenes.find((s) => s.id === id);
+						if (scene) {
+							this.selectedChapterId = chapterId;
+							this.selectedSceneId = id;
+							break;
+						}
+					}
+				}
+				this.viewMode = 'editor';
+				break;
+			case 'bible':
+				if (id) this.selectedBibleEntryId = id;
+				this.viewMode = 'bible';
+				break;
+			case 'arc':
+				if (id) this.selectedArcId = id;
+				this.viewMode = 'timeline';
+				break;
+			case 'event':
+				if (id) this.selectedEventId = id;
+				this.viewMode = 'timeline';
+				break;
+			case 'issue':
+				if (id) this.selectedIssueId = id;
+				this.viewMode = 'issues';
+				break;
+			case 'dashboard':
+				this.viewMode = 'dashboard';
+				break;
+		}
+	}
+
+	/** Navigate back in history. */
+	navigateBack() {
+		if (this._navIndex <= 0) return;
+		this._navIndex--;
+		const entry = this._navHistory[this._navIndex];
+		if (entry) {
+			this._applyNavEntry(entry);
+		}
+	}
+
+	/** Navigate forward in history. */
+	navigateForward() {
+		if (this._navIndex >= this._navHistory.length - 1) return;
+		this._navIndex++;
+		const entry = this._navHistory[this._navIndex];
+		if (entry) {
+			this._applyNavEntry(entry);
+		}
+	}
+
+	get canNavigateBack(): boolean {
+		return this._navIndex > 0;
+	}
+
+	get canNavigateForward(): boolean {
+		return this._navIndex < this._navHistory.length - 1;
+	}
+
+	private _applyNavEntry(entry: { type: string; id: string; meta?: Record<string, string> }) {
+		switch (entry.type) {
+			case 'scene':
+				if (entry.id) {
+					for (const [chapterId, scenes] of this.scenes) {
+						if (scenes.find((s) => s.id === entry.id)) {
+							this.selectedChapterId = chapterId;
+							this.selectedSceneId = entry.id;
+							break;
+						}
+					}
+				}
+				this.viewMode = 'editor';
+				break;
+			case 'bible':
+				if (entry.id) this.selectedBibleEntryId = entry.id;
+				this.viewMode = 'bible';
+				break;
+			case 'arc':
+				if (entry.id) this.selectedArcId = entry.id;
+				this.viewMode = 'timeline';
+				break;
+			case 'event':
+				if (entry.id) this.selectedEventId = entry.id;
+				this.viewMode = 'timeline';
+				break;
+			case 'issue':
+				if (entry.id) this.selectedIssueId = entry.id;
+				this.viewMode = 'issues';
+				break;
+			case 'dashboard':
+				this.viewMode = 'dashboard';
+				break;
+		}
 	}
 
 	toggleWorkMode() {

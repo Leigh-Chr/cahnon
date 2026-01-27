@@ -12,12 +12,19 @@
 -->
 <script lang="ts">
 	import {
+		type Arc,
+		arcApi,
+		associationApi,
 		type BibleEntry,
 		type BibleRelationshipWithEntry,
 		eventApi,
+		type Issue,
+		issueApi,
 		relationshipApi,
+		type Scene,
 		type TimelineEvent,
 	} from '$lib/api';
+	import { BIBLE_FIELD_TEMPLATES } from '$lib/bible-templates';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { bibleEntryTypes, bibleStatuses } from '$lib/utils';
@@ -31,6 +38,9 @@
 	// Relationships
 	let relationships = $state<BibleRelationshipWithEntry[]>([]);
 	let linkedEvents = $state<TimelineEvent[]>([]);
+	let linkedScenes = $state<Scene[]>([]);
+	let linkedArcs = $state<Arc[]>([]);
+	let linkedIssues = $state<Issue[]>([]);
 	let showRelationshipForm = $state(false);
 	let newRelationshipTarget = $state('');
 	let newRelationshipType = $state('related_to');
@@ -93,11 +103,14 @@
 			: null
 	);
 
-	// Side effect: load relationships and events when selection changes
+	// Side effect: load relationships and linked items when selection changes
 	$effect(() => {
 		if (appState.selectedBibleEntryId) {
 			loadRelationships(appState.selectedBibleEntryId);
 			loadLinkedEvents(appState.selectedBibleEntryId);
+			loadLinkedScenes(appState.selectedBibleEntryId);
+			loadLinkedArcs(appState.selectedBibleEntryId);
+			loadLinkedIssues(appState.selectedBibleEntryId);
 		}
 	});
 
@@ -116,6 +129,45 @@
 		} catch (e) {
 			console.error('Failed to load linked events:', e);
 			linkedEvents = [];
+		}
+	}
+
+	async function loadLinkedScenes(entryId: string) {
+		try {
+			linkedScenes = await associationApi.getByEntry(entryId);
+		} catch (e) {
+			console.error('Failed to load linked scenes:', e);
+			linkedScenes = [];
+		}
+	}
+
+	async function loadLinkedArcs(entryId: string) {
+		try {
+			linkedArcs = await arcApi.getCharacterArcs(entryId);
+		} catch (e) {
+			console.error('Failed to load linked arcs:', e);
+			linkedArcs = [];
+		}
+	}
+
+	async function loadLinkedIssues(entryId: string) {
+		try {
+			linkedIssues = await issueApi.getBibleEntryIssues(entryId);
+		} catch (e) {
+			console.error('Failed to load linked issues:', e);
+			linkedIssues = [];
+		}
+	}
+
+	function navigateToScene(sceneId: string) {
+		for (const [chapterId, scenes] of appState.scenes) {
+			const scene = scenes.find((s) => s.id === sceneId);
+			if (scene) {
+				appState.selectedChapterId = chapterId;
+				appState.selectedSceneId = sceneId;
+				appState.setViewMode('editor');
+				return;
+			}
 		}
 	}
 
@@ -186,10 +238,23 @@
 		if (!newEntryName.trim()) return;
 
 		try {
-			await appState.createBibleEntry({
+			const entry = await appState.createBibleEntry({
 				entry_type: newEntryType,
 				name: newEntryName.trim(),
 			});
+
+			// Pre-fill custom fields from template if available (Phase 6D)
+			const template = BIBLE_FIELD_TEMPLATES[newEntryType];
+			if (template && template.length > 0) {
+				const templateFields: Record<string, string> = {};
+				for (const field of template) {
+					templateFields[field.key] = '';
+				}
+				await appState.updateBibleEntry(entry.id, {
+					custom_fields: JSON.stringify(templateFields),
+				});
+			}
+
 			newEntryName = '';
 			isCreating = false;
 		} catch (e) {
@@ -269,7 +334,35 @@
 	};
 
 	function getFieldLabel(name: string): string {
+		// Check template labels for current entry type first
+		if (selectedEntry) {
+			const template = BIBLE_FIELD_TEMPLATES[selectedEntry.entry_type];
+			if (template) {
+				const templateField = template.find((f) => f.key === name);
+				if (templateField) return templateField.label;
+			}
+		}
 		return fieldLabels[name] || name;
+	}
+
+	function isTemplateField(name: string): boolean {
+		if (!selectedEntry) return false;
+		const template = BIBLE_FIELD_TEMPLATES[selectedEntry.entry_type];
+		if (!template) return false;
+		return template.some((f) => f.key === name);
+	}
+
+	function getFieldType(name: string): 'text' | 'textarea' {
+		if (!selectedEntry) return 'text';
+		const template = BIBLE_FIELD_TEMPLATES[selectedEntry.entry_type];
+		if (!template) return 'text';
+		const field = template.find((f) => f.key === name);
+		return field?.type || 'text';
+	}
+
+	function isKnownField(name: string): boolean {
+		if (fieldLabels[name]) return true;
+		return isTemplateField(name);
 	}
 
 	function addCustomField() {
@@ -289,6 +382,67 @@
 	function updateCustomFieldValue(index: number, value: string) {
 		customFields[index].value = value;
 		saveCustomFields();
+	}
+
+	// Completion indicator (Phase 6E)
+	function computeCompletion(entry: BibleEntry): number {
+		let filled = 0;
+		let total = 0;
+
+		// Base fields: name is always filled (10%), plus 5 optional base fields at ~10% each
+		// name always counts
+		filled += 10;
+		total += 10;
+
+		// short_description
+		total += 10;
+		if (entry.short_description) filled += 10;
+
+		// full_description
+		total += 10;
+		if (entry.full_description) filled += 10;
+
+		// aliases
+		total += 10;
+		if (entry.aliases) filled += 10;
+
+		// tags
+		total += 10;
+		if (entry.tags) filled += 10;
+
+		// notes
+		total += 10;
+		if (entry.notes) filled += 10;
+
+		// Custom fields: each filled custom field adds proportional %
+		let customFieldCount = 0;
+		let customFieldFilled = 0;
+		if (entry.custom_fields) {
+			try {
+				const parsed = JSON.parse(entry.custom_fields);
+				const entries = Object.entries(parsed);
+				customFieldCount = entries.length;
+				customFieldFilled = entries.filter(
+					([, v]) => typeof v === 'string' && v.trim().length > 0
+				).length;
+			} catch {
+				// ignore parse errors
+			}
+		}
+		if (customFieldCount > 0) {
+			// Custom fields share 20% of total
+			total += 20;
+			filled += Math.round((customFieldFilled / customFieldCount) * 20);
+		}
+
+		// Associations (relationships + linked scenes/arcs/etc are not accessible per-entry
+		// without async loading, so we check relationships and associations via the loaded data
+		// for the selected entry only. For the list view, we approximate from custom_fields.)
+		// For list items, we only have the entry data - so associations/relationships
+		// add to the potential total but we can't check them synchronously.
+		// We'll keep the formula simple: out of 100 max.
+
+		return Math.min(100, Math.round((filled / total) * 100));
 	}
 
 	function saveCustomFields() {
@@ -356,6 +510,7 @@
 		<div class="entries-list">
 			{#each appState.filteredBibleEntries as entry (entry.id)}
 				{@const typeInfo = getTypeInfo(entry.entry_type)}
+				{@const completion = computeCompletion(entry)}
 				<button
 					class="entry-item"
 					class:selected={selectedEntry?.id === entry.id}
@@ -363,7 +518,12 @@
 					style="--entry-color: {entry.color || 'var(--color-accent)'}"
 				>
 					<span class="entry-icon">{typeInfo.icon}</span>
-					<span class="entry-name truncate">{entry.name}</span>
+					<div class="entry-info">
+						<span class="entry-name truncate">{entry.name}</span>
+						<div class="entry-completion-bar" title="{completion}% complete">
+							<div class="entry-completion-fill" style="width: {completion}%"></div>
+						</div>
+					</div>
 					<span class="entry-status">{entry.status}</span>
 				</button>
 			{:else}
@@ -577,6 +737,60 @@
 					</div>
 				{/if}
 
+				<!-- Appears in Scenes -->
+				{#if linkedScenes.length > 0}
+					<div class="scenes-section">
+						<div class="section-header">
+							<h4>Appears in Scenes ({linkedScenes.length})</h4>
+						</div>
+						<div class="linked-scenes-list">
+							{#each linkedScenes as scene (scene.id)}
+								<button class="linked-scene-item" onclick={() => navigateToScene(scene.id)}>
+									<span class="linked-scene-title">{scene.title}</span>
+									<span class="linked-scene-status">{scene.status}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Story Arcs (for characters) -->
+				{#if linkedArcs.length > 0}
+					<div class="arcs-section">
+						<div class="section-header">
+							<h4>Story Arcs ({linkedArcs.length})</h4>
+						</div>
+						<div class="linked-arcs-list">
+							{#each linkedArcs as arc (arc.id)}
+								<div class="linked-arc-item">
+									<span class="arc-color-dot" style="background-color: {arc.color || '#6366f1'}"
+									></span>
+									<span class="linked-arc-name">{arc.name}</span>
+									<span class="linked-arc-status">{arc.status}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Related Issues -->
+				{#if linkedIssues.length > 0}
+					<div class="issues-section">
+						<div class="section-header">
+							<h4>Related Issues ({linkedIssues.length})</h4>
+						</div>
+						<div class="linked-issues-list">
+							{#each linkedIssues as issue (issue.id)}
+								<div class="linked-issue-item" data-severity={issue.severity}>
+									<span class="linked-issue-severity">{issue.severity}</span>
+									<span class="linked-issue-title">{issue.title}</span>
+									<span class="linked-issue-status">{issue.status}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
 				<!-- Image Section -->
 				<div class="image-section">
 					<div class="section-header">
@@ -644,8 +858,11 @@
 					{#if customFields.length > 0}
 						<div class="custom-fields-list">
 							{#each customFields as field, index (index)}
-								<div class="custom-field">
-									{#if fieldLabels[field.name]}
+								<div
+									class="custom-field"
+									class:textarea-field={getFieldType(field.name) === 'textarea'}
+								>
+									{#if isKnownField(field.name)}
 										<span class="field-label">{getFieldLabel(field.name)}</span>
 									{:else}
 										<input
@@ -656,13 +873,23 @@
 											onblur={(e) => updateCustomFieldName(index, e.currentTarget.value)}
 										/>
 									{/if}
-									<input
-										type="text"
-										class="field-value"
-										placeholder="Value"
-										value={field.value}
-										onblur={(e) => updateCustomFieldValue(index, e.currentTarget.value)}
-									/>
+									{#if getFieldType(field.name) === 'textarea'}
+										<textarea
+											class="field-value"
+											rows="3"
+											placeholder="Value"
+											value={field.value}
+											onblur={(e) => updateCustomFieldValue(index, e.currentTarget.value)}
+										></textarea>
+									{:else}
+										<input
+											type="text"
+											class="field-value"
+											placeholder="Value"
+											value={field.value}
+											onblur={(e) => updateCustomFieldValue(index, e.currentTarget.value)}
+										/>
+									{/if}
 									<Button
 										variant="icon"
 										size="sm"
@@ -788,9 +1015,32 @@
 		flex-shrink: 0;
 	}
 
+	.entry-info {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
 	.entry-name {
 		flex: 1;
 		min-width: 0;
+	}
+
+	.entry-completion-bar {
+		width: 100%;
+		height: 3px;
+		background-color: var(--color-bg-tertiary);
+		border-radius: 2px;
+		overflow: hidden;
+	}
+
+	.entry-completion-fill {
+		height: 100%;
+		background-color: var(--color-accent);
+		border-radius: 2px;
+		transition: width var(--transition-fast);
 	}
 
 	.entry-status {
@@ -1179,9 +1429,144 @@
 		color: var(--color-text-primary);
 	}
 
+	.custom-field.textarea-field {
+		align-items: flex-start;
+	}
+
+	.custom-field textarea.field-value {
+		resize: vertical;
+		min-height: 60px;
+		font-family: inherit;
+	}
+
 	.no-custom-fields {
 		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
 		margin-top: var(--spacing-sm);
+	}
+
+	/* Appears in Scenes */
+	.scenes-section,
+	.arcs-section,
+	.issues-section {
+		margin-top: var(--spacing-lg);
+		padding-top: var(--spacing-lg);
+		border-top: 1px solid var(--color-border-light);
+	}
+
+	.linked-scenes-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.linked-scene-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-sm);
+		text-align: left;
+		transition: background-color var(--transition-fast);
+	}
+
+	.linked-scene-item:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.linked-scene-title {
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		color: var(--color-accent);
+	}
+
+	.linked-scene-status {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		text-transform: capitalize;
+	}
+
+	/* Story Arcs */
+	.linked-arcs-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.linked-arc-item {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.arc-color-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.linked-arc-name {
+		flex: 1;
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		color: var(--color-text-primary);
+	}
+
+	.linked-arc-status {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		text-transform: capitalize;
+	}
+
+	/* Related Issues */
+	.linked-issues-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.linked-issue-item {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.linked-issue-severity {
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		text-transform: capitalize;
+		flex-shrink: 0;
+	}
+
+	.linked-issue-item[data-severity='error'] .linked-issue-severity {
+		color: var(--color-error);
+	}
+
+	.linked-issue-item[data-severity='warning'] .linked-issue-severity {
+		color: var(--color-warning);
+	}
+
+	.linked-issue-item[data-severity='info'] .linked-issue-severity {
+		color: var(--color-info);
+	}
+
+	.linked-issue-title {
+		flex: 1;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+	}
+
+	.linked-issue-status {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		text-transform: capitalize;
 	}
 </style>

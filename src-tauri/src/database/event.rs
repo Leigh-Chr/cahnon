@@ -1,6 +1,6 @@
 //! Event operations (Timeline)
 
-use crate::models::{CreateEventRequest, Event, UpdateEventRequest};
+use crate::models::{BibleEntry, CreateEventRequest, Event, Scene, UpdateEventRequest};
 use rusqlite::params;
 
 use super::Database;
@@ -210,19 +210,29 @@ impl Database {
         Ok(events)
     }
 
-    pub fn get_event_scenes(&self, event_id: &str) -> Result<Vec<String>, String> {
+    pub fn get_event_scenes(&self, event_id: &str) -> Result<Vec<Scene>, String> {
         let mut stmt = self
             .conn
-            .prepare("SELECT scene_id FROM event_scenes WHERE event_id = ?1")
+            .prepare(
+                "SELECT s.id, s.chapter_id, s.title, s.summary, s.text, s.status, s.pov, s.tags,
+                    s.notes, s.todos, s.word_target, s.time_point, s.time_start, s.time_end,
+                    s.on_timeline, s.position, s.pov_goal, s.has_conflict, s.has_change, s.tension,
+                    s.setup_for_scene_id, s.payoff_of_scene_id, s.revision_notes, s.revision_checklist,
+                    s.word_count, s.created_at, s.updated_at
+             FROM scenes s
+             JOIN event_scenes es ON s.id = es.scene_id
+             WHERE es.event_id = ?1 AND s.deleted_at IS NULL
+             ORDER BY s.position",
+            )
             .map_err(|e| e.to_string())?;
 
-        let scene_ids = stmt
-            .query_map(params![event_id], |row| row.get(0))
-            .map_err(|e| e.to_string())?;
-
-        scene_ids
+        let scenes = stmt
+            .query_map(params![event_id], Self::map_scene)
+            .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+
+        Ok(scenes)
     }
 
     // Event-Bible linking (per spec Section 9.1 - Links to Bible entries)
@@ -256,19 +266,27 @@ impl Database {
         Ok(())
     }
 
-    pub fn get_event_bible_entries(&self, event_id: &str) -> Result<Vec<String>, String> {
+    pub fn get_event_bible_entries(&self, event_id: &str) -> Result<Vec<BibleEntry>, String> {
         let mut stmt = self
             .conn
-            .prepare("SELECT bible_entry_id FROM event_bible WHERE event_id = ?1")
+            .prepare(
+                "SELECT b.id, b.entry_type, b.name, b.aliases, b.short_description, b.full_description,
+                    b.status, b.tags, b.image_path, b.notes, b.todos, b.color, b.custom_fields,
+                    b.created_at, b.updated_at, b.deleted_at
+             FROM bible_entries b
+             JOIN event_bible eb ON b.id = eb.bible_entry_id
+             WHERE eb.event_id = ?1 AND b.deleted_at IS NULL
+             ORDER BY b.entry_type, b.name",
+            )
             .map_err(|e| e.to_string())?;
 
-        let entry_ids = stmt
-            .query_map(params![event_id], |row| row.get(0))
-            .map_err(|e| e.to_string())?;
-
-        entry_ids
+        let entries = stmt
+            .query_map(params![event_id], Self::map_bible_entry)
+            .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+
+        Ok(entries)
     }
 
     pub fn get_bible_entry_events(&self, bible_entry_id: &str) -> Result<Vec<Event>, String> {

@@ -84,6 +84,8 @@ export interface Scene {
 	payoff_of_scene_id: string | null;
 	revision_notes: string | null;
 	revision_checklist: string | null;
+	/** Cached word count, updated on each text save */
+	word_count: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -365,4 +367,57 @@ export interface SavedFilter {
 	filter_data: string;
 	created_at: string;
 	updated_at: string;
+}
+
+// =============================================================================
+// Writing Session Types
+// =============================================================================
+
+export interface WritingSession {
+	id: string;
+	date: string;
+	words_start: number;
+	words_end: number;
+	duration_minutes: number;
+	scenes_edited: string;
+	created_at: string;
+}
+
+// =============================================================================
+// Fact / Revelation Types
+// =============================================================================
+
+export interface Fact {
+	id: string;
+	content: string;
+	category: string;
+	revealed_in_scene_id: string | null;
+	status: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface FactCharacter {
+	id: string;
+	fact_id: string;
+	bible_entry_id: string;
+	learned_in_scene_id: string | null;
+	created_at: string;
+}
+
+// =============================================================================
+// Name Registry Scan Types
+// =============================================================================
+
+export interface AssociationSuggestion {
+	scene_id: string;
+	bible_entry_id: string;
+	bible_entry_name: string;
+	scene_title: string;
+}
+
+export interface ScanResult {
+	new_entries: number;
+	new_mentions: number;
+	suggestions: AssociationSuggestion[];
 }

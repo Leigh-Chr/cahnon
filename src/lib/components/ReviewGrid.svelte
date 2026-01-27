@@ -106,6 +106,7 @@
 		for (const [chapterId, chapterScenes] of appState.scenes.entries()) {
 			if (chapterScenes.some((s) => s.id === sceneId)) {
 				appState.selectScene(sceneId, chapterId);
+				appState.setViewMode('editor');
 				isOpen = false;
 				break;
 			}

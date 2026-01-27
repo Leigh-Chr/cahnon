@@ -124,4 +124,6 @@ export const trashApi = {
 
 	duplicateScene: (id: string, structureOnly?: boolean) =>
 		invoke<Scene>('duplicate_scene', { id, structureOnly }),
+
+	purgeExpired: () => invoke<[number, number]>('purge_expired_trash'),
 };

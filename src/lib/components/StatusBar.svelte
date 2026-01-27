@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { writingSessionApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { countWords, formatWordCount } from '$lib/utils';
 
@@ -6,48 +7,51 @@
 	let sessionStartWordCount = $state(0);
 	let sessionInitialized = $state(false);
 
-	// Today's tracking
-	const TODAY_KEY = 'cahnon_today_progress';
-
-	interface TodayProgress {
-		date: string;
-		startWordCount: number;
-	}
+	// Today's writing session (persisted via backend)
+	let todayStartWordCount = $state(0);
+	let todaySessionId = $state<string | null>(null);
 
 	function getTodayKey(): string {
 		return new Date().toISOString().split('T')[0];
 	}
 
-	function initTodayProgress(currentTotal: number) {
+	async function initTodaySession(currentTotal: number): Promise<number> {
 		try {
-			const saved = localStorage.getItem(TODAY_KEY);
-			if (saved) {
-				const progress: TodayProgress = JSON.parse(saved);
-				if (progress.date === getTodayKey()) {
-					return progress.startWordCount;
-				}
+			const today = getTodayKey();
+			const existing = await writingSessionApi.getByDate(today);
+			if (existing) {
+				todaySessionId = existing.id;
+				return existing.words_start;
 			}
-			// New day or no data
-			const newProgress: TodayProgress = {
-				date: getTodayKey(),
-				startWordCount: currentTotal,
-			};
-			localStorage.setItem(TODAY_KEY, JSON.stringify(newProgress));
+			// Create new session for today
+			const session = await writingSessionApi.create(today, currentTotal);
+			todaySessionId = session.id;
 			return currentTotal;
 		} catch {
+			// Fallback: use current total as start
 			return currentTotal;
 		}
 	}
-
-	let todayStartWordCount = $state(0);
 
 	// Initialize session and today counts when wordCounts becomes available
 	$effect(() => {
 		if (appState.wordCounts && !sessionInitialized) {
 			sessionStartWordCount = appState.wordCounts.total;
-			todayStartWordCount = initTodayProgress(appState.wordCounts.total);
+			const total = appState.wordCounts.total;
 			sessionInitialized = true;
+			initTodaySession(total).then((start) => {
+				todayStartWordCount = start;
+			});
 		}
+	});
+
+	// Periodically update the writing session with current word count
+	$effect(() => {
+		if (!todaySessionId || !appState.wordCounts) return;
+		const id = todaySessionId;
+		const wordsEnd = appState.wordCounts.total;
+		// Fire-and-forget update
+		writingSessionApi.update(id, { words_end: wordsEnd }).catch(() => {});
 	});
 
 	let sessionWordCount = $derived(
@@ -85,8 +89,9 @@
 
 	<div class="status-center">
 		{#if appState.selectedScene}
+			{@const sceneWords = countWords(appState.selectedScene.text)}
 			<span class="scene-info">
-				{countWords(appState.selectedScene.text)} words in scene
+				{sceneWords} words in scene (~{Math.max(1, Math.ceil(sceneWords / 250))} min)
 			</span>
 		{/if}
 	</div>

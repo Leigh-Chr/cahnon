@@ -10,7 +10,7 @@
   - View scenes associated with each arc
 -->
 <script lang="ts">
-	import { type Arc, arcApi } from '$lib/api';
+	import { type Arc, arcApi, type Scene } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 
@@ -36,6 +36,9 @@
 	let formStatus = $state('setup');
 	let formColor = $state('#6366f1');
 	let formCharacterIds = $state<string[]>([]);
+
+	// Linked scenes
+	let arcScenes = $state<Scene[]>([]);
 
 	// Character selector
 	let characterSearch = $state('');
@@ -80,6 +83,14 @@
 		}
 	});
 
+	$effect(() => {
+		if (selectedArcId && !isCreating && !isEditing) {
+			loadArcScenes(selectedArcId);
+		} else {
+			arcScenes = [];
+		}
+	});
+
 	async function loadArcs() {
 		isLoading = true;
 		try {
@@ -89,6 +100,28 @@
 			showError('Failed to load arcs');
 		} finally {
 			isLoading = false;
+		}
+	}
+
+	async function loadArcScenes(arcId: string) {
+		try {
+			arcScenes = await arcApi.getArcScenes(arcId);
+		} catch (e) {
+			console.error('Failed to load arc scenes:', e);
+			arcScenes = [];
+		}
+	}
+
+	function navigateToScene(sceneId: string) {
+		for (const [chapterId, scenes] of appState.scenes) {
+			const scene = scenes.find((s) => s.id === sceneId);
+			if (scene) {
+				appState.selectedChapterId = chapterId;
+				appState.selectedSceneId = sceneId;
+				appState.setViewMode('editor');
+				onclose();
+				return;
+			}
 		}
 	}
 
@@ -421,6 +454,19 @@
 								</div>
 							{/if}
 
+							{#if arcScenes.length > 0}
+								<div class="detail-section">
+									<h4>Scenes ({arcScenes.length})</h4>
+									<div class="scenes-list">
+										{#each arcScenes as scene (scene.id)}
+											<button class="scene-link" onclick={() => navigateToScene(scene.id)}>
+												{scene.title}
+											</button>
+										{/each}
+									</div>
+								</div>
+							{/if}
+
 							<div class="detail-section">
 								<h4>Metadata</h4>
 								<div class="meta-info">
@@ -714,6 +760,28 @@
 		gap: var(--spacing-xs);
 		font-size: var(--font-size-sm);
 		color: var(--color-text-secondary);
+	}
+
+	.scenes-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.scene-link {
+		display: block;
+		text-align: left;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-size-sm);
+		color: var(--color-accent);
+		transition: background-color var(--transition-fast);
+	}
+
+	.scene-link:hover {
+		background-color: var(--color-bg-hover);
+		text-decoration: underline;
 	}
 
 	/* Character Selector */

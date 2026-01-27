@@ -1,6 +1,6 @@
 //! Arc operations
 
-use crate::models::{Arc, CreateArcRequest, UpdateArcRequest};
+use crate::models::{Arc, CreateArcRequest, Scene, UpdateArcRequest};
 use rusqlite::params;
 
 use super::Database;
@@ -250,5 +250,55 @@ impl Database {
         }
 
         self.get_arc_characters(arc_id)
+    }
+
+    pub fn get_arc_scenes(&self, arc_id: &str) -> Result<Vec<Scene>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT s.id, s.chapter_id, s.title, s.summary, s.text, s.status, s.pov, s.tags,
+                    s.notes, s.todos, s.word_target, s.time_point, s.time_start, s.time_end,
+                    s.on_timeline, s.position, s.pov_goal, s.has_conflict, s.has_change, s.tension,
+                    s.setup_for_scene_id, s.payoff_of_scene_id, s.revision_notes, s.revision_checklist,
+                    s.word_count, s.created_at, s.updated_at
+             FROM scenes s
+             JOIN scene_arcs sa ON s.id = sa.scene_id
+             WHERE sa.arc_id = ?1 AND s.deleted_at IS NULL
+             ORDER BY s.position",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let scenes = stmt
+            .query_map(params![arc_id], Self::map_scene)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(scenes)
+    }
+
+    pub fn get_character_arcs(&self, bible_entry_id: &str) -> Result<Vec<Arc>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT a.id, a.name, a.description, a.stakes, a.status, a.color, a.position, a.created_at, a.updated_at
+             FROM arcs a
+             JOIN arc_characters ac ON a.id = ac.arc_id
+             WHERE ac.bible_entry_id = ?1 AND a.deleted_at IS NULL
+             ORDER BY a.position",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let mut arcs: Vec<Arc> = stmt
+            .query_map(params![bible_entry_id], Self::map_arc_row)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        for arc in &mut arcs {
+            arc.characters = self.get_arc_characters(&arc.id)?;
+        }
+
+        Ok(arcs)
     }
 }

@@ -13,7 +13,7 @@ impl Database {
                 "SELECT id, chapter_id, title, summary, text, status, pov, tags, notes, todos,
                     word_target, time_point, time_start, time_end, on_timeline, position,
                     pov_goal, has_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id, revision_notes, revision_checklist,
-                    created_at, updated_at
+                    word_count, created_at, updated_at
              FROM scenes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
             )
             .map_err(|e| e.to_string())?;
@@ -53,6 +53,73 @@ impl Database {
             .map_err(|e| e.to_string())?;
 
         Ok(chapters)
+    }
+
+    /// Purges items that have been in trash for more than 30 days.
+    /// Returns (scenes_purged, chapters_purged).
+    pub fn purge_expired_trash(&self) -> Result<(usize, usize), String> {
+        let threshold = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
+
+        // Get expired scene IDs for junction cleanup
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM scenes WHERE deleted_at IS NOT NULL AND deleted_at < ?1")
+            .map_err(|e| e.to_string())?;
+        let expired_scene_ids: Vec<String> = stmt
+            .query_map(params![threshold], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+
+        // Clean junction tables for expired scenes
+        for sid in &expired_scene_ids {
+            let _ = self.conn.execute(
+                "DELETE FROM canonical_associations WHERE scene_id = ?1",
+                params![sid],
+            );
+            let _ = self
+                .conn
+                .execute("DELETE FROM scene_arcs WHERE scene_id = ?1", params![sid]);
+            let _ = self
+                .conn
+                .execute("DELETE FROM event_scenes WHERE scene_id = ?1", params![sid]);
+            let _ = self
+                .conn
+                .execute("DELETE FROM issue_scenes WHERE scene_id = ?1", params![sid]);
+            let _ = self
+                .conn
+                .execute("DELETE FROM scene_steps WHERE scene_id = ?1", params![sid]);
+            let _ = self
+                .conn
+                .execute("DELETE FROM annotations WHERE scene_id = ?1", params![sid]);
+            let _ = self.conn.execute(
+                "DELETE FROM name_mentions WHERE scene_id = ?1",
+                params![sid],
+            );
+            let _ = self.conn.execute(
+                "DELETE FROM scene_history WHERE scene_id = ?1",
+                params![sid],
+            );
+        }
+
+        let scenes_purged = self
+            .conn
+            .execute(
+                "DELETE FROM scenes WHERE deleted_at IS NOT NULL AND deleted_at < ?1",
+                params![threshold],
+            )
+            .map_err(|e| e.to_string())?;
+
+        let chapters_purged = self
+            .conn
+            .execute(
+                "DELETE FROM chapters WHERE deleted_at IS NOT NULL AND deleted_at < ?1",
+                params![threshold],
+            )
+            .map_err(|e| e.to_string())?;
+
+        Ok((scenes_purged, chapters_purged))
     }
 
     pub fn restore_chapter(&self, id: &str) -> Result<Chapter, String> {

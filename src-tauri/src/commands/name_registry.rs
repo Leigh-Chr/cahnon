@@ -124,6 +124,16 @@ pub fn scan_names(state: State<AppState>) -> Result<(i32, i32), String> {
 }
 
 #[tauri::command]
+pub fn scan_names_for_scene(
+    scene_id: String,
+    state: State<AppState>,
+) -> Result<ScanResult, String> {
+    let db = state.get_db()?;
+    let db = db.as_ref().ok_or("No project open")?;
+    db.scan_names_for_scene(&scene_id)
+}
+
+#[tauri::command]
 pub fn merge_name_entries(
     keep_id: String,
     merge_id: String,

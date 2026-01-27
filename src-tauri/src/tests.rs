@@ -1394,7 +1394,7 @@ mod tests {
 
         let event_scenes = db.get_event_scenes(&event.id).expect("Failed");
         assert_eq!(event_scenes.len(), 1);
-        assert_eq!(event_scenes[0], scene.id);
+        assert_eq!(event_scenes[0].id, scene.id);
     }
 
     #[test]
@@ -1459,7 +1459,7 @@ mod tests {
 
         let event_entries = db.get_event_bible_entries(&event.id).expect("Failed");
         assert_eq!(event_entries.len(), 1);
-        assert_eq!(event_entries[0], entry.id);
+        assert_eq!(event_entries[0].id, entry.id);
 
         let entry_events = db.get_bible_entry_events(&entry.id).expect("Failed");
         assert_eq!(entry_events.len(), 1);
@@ -1793,7 +1793,7 @@ mod tests {
 
         let issue_scenes = db.get_issue_scenes(&issue.id).expect("Failed");
         assert_eq!(issue_scenes.len(), 1);
-        assert_eq!(issue_scenes[0], scene.id);
+        assert_eq!(issue_scenes[0].id, scene.id);
 
         let scene_issues = db.get_scene_issues(&scene.id).expect("Failed");
         assert_eq!(scene_issues.len(), 1);
@@ -1856,7 +1856,7 @@ mod tests {
 
         let issue_entries = db.get_issue_bible_entries(&issue.id).expect("Failed");
         assert_eq!(issue_entries.len(), 1);
-        assert_eq!(issue_entries[0], entry.id);
+        assert_eq!(issue_entries[0].id, entry.id);
     }
 
     #[test]
@@ -9544,11 +9544,11 @@ mod tests {
 
         let event_scenes = db.get_event_scenes(&event.id).unwrap();
         assert_eq!(event_scenes.len(), 1);
-        assert_eq!(event_scenes[0], scene.id);
+        assert_eq!(event_scenes[0].id, scene.id);
 
         let event_entries = db.get_event_bible_entries(&event.id).unwrap();
         assert_eq!(event_entries.len(), 1);
-        assert_eq!(event_entries[0], entry.id);
+        assert_eq!(event_entries[0].id, entry.id);
 
         let scene_events = db.get_scene_events(&scene.id).unwrap();
         assert_eq!(scene_events.len(), 1);
@@ -9586,7 +9586,7 @@ mod tests {
 
         let issue_entries = db.get_issue_bible_entries(&issue.id).unwrap();
         assert_eq!(issue_entries.len(), 1);
-        assert_eq!(issue_entries[0], entry.id);
+        assert_eq!(issue_entries[0].id, entry.id);
     }
 
     #[test]
@@ -9612,7 +9612,7 @@ mod tests {
 
         let issue_scenes = db.get_issue_scenes(&issue.id).unwrap();
         assert_eq!(issue_scenes.len(), 1);
-        assert_eq!(issue_scenes[0], scene.id);
+        assert_eq!(issue_scenes[0].id, scene.id);
     }
 
     #[test]
@@ -11441,7 +11441,7 @@ mod tests {
 
         let scene_ids = db.get_event_scenes(&event.id).unwrap();
         assert_eq!(scene_ids.len(), 1);
-        assert_eq!(scene_ids[0], scene.id);
+        assert_eq!(scene_ids[0].id, scene.id);
     }
 
     #[test]
@@ -11478,7 +11478,7 @@ mod tests {
 
         let entry_ids = db.get_event_bible_entries(&event.id).unwrap();
         assert_eq!(entry_ids.len(), 1);
-        assert_eq!(entry_ids[0], entry.id);
+        assert_eq!(entry_ids[0].id, entry.id);
     }
 
     #[test]
@@ -11523,7 +11523,7 @@ mod tests {
 
         let scene_ids = db.get_issue_scenes(&issue.id).unwrap();
         assert_eq!(scene_ids.len(), 1);
-        assert_eq!(scene_ids[0], scene.id);
+        assert_eq!(scene_ids[0].id, scene.id);
     }
 
     #[test]
@@ -11557,7 +11557,7 @@ mod tests {
 
         let entry_ids = db.get_issue_bible_entries(&issue.id).unwrap();
         assert_eq!(entry_ids.len(), 1);
-        assert_eq!(entry_ids[0], entry.id);
+        assert_eq!(entry_ids[0].id, entry.id);
     }
 
     // --- unlink operations verified via getters ---
@@ -15081,7 +15081,6 @@ mod tests {
         // Simulates migration idempotency: opening the same DB file twice
         // should not corrupt data (since migrations use IF NOT EXISTS and
         // column-existence checks).
-
 
         let temp_dir = tempfile::TempDir::new().unwrap();
         let path = temp_dir.path().join("test.cahnon");

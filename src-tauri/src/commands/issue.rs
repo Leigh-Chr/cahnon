@@ -95,7 +95,7 @@ pub fn unlink_scene_from_issue(
 }
 
 #[tauri::command]
-pub fn get_issue_scenes(issue_id: String, state: State<AppState>) -> Result<Vec<String>, String> {
+pub fn get_issue_scenes(issue_id: String, state: State<AppState>) -> Result<Vec<Scene>, String> {
     let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.get_issue_scenes(&issue_id)
@@ -135,8 +135,18 @@ pub fn unlink_bible_entry_from_issue(
 pub fn get_issue_bible_entries(
     issue_id: String,
     state: State<AppState>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<BibleEntry>, String> {
     let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.get_issue_bible_entries(&issue_id)
+}
+
+#[tauri::command]
+pub fn get_bible_entry_issues(
+    bible_entry_id: String,
+    state: State<AppState>,
+) -> Result<Vec<Issue>, String> {
+    let db = state.get_db()?;
+    let db = db.as_ref().ok_or("No project open")?;
+    db.get_bible_entry_issues(&bible_entry_id)
 }

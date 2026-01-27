@@ -22,13 +22,16 @@
 	import StarterKit from '@tiptap/starter-kit';
 	import { onDestroy, untrack } from 'svelte';
 
-	import { cutApi, sceneApi, searchApi } from '$lib/api';
+	import type { Annotation, BibleEntry } from '$lib/api';
+	import { annotationApi, associationApi, cutApi, sceneApi, searchApi } from '$lib/api';
 	import { appState, clearRecoveryDraft, getRecoveryDraft, saveRecoveryDraft } from '$lib/stores';
+	import { AnnotationMark } from '$lib/tiptap/annotation-mark';
 	import { showError, showSuccess } from '$lib/toast';
 	import { countWords, debounce, sceneStatuses, statusColors } from '$lib/utils';
 	import { isModKey } from '$lib/utils';
 
 	import CutLibrary from './CutLibrary.svelte';
+	import EditorToolbar from './EditorToolbar.svelte';
 	import type { FindReplaceScope } from './FindReplace.svelte';
 	import FindReplace from './FindReplace.svelte';
 	import SceneHistoryModal from './SceneHistoryModal.svelte';
@@ -137,6 +140,12 @@
 			showReplace = true;
 			return;
 		}
+		// Quick-add Bible entry: Cmd/Ctrl + Shift + B
+		if (isModKey(event) && event.shiftKey && event.key === 'B') {
+			event.preventDefault();
+			openQuickAddBible();
+			return;
+		}
 		// Undo: Cmd/Ctrl + Z (handled by TipTap, but ensure focus)
 		// Redo: Cmd/Ctrl + Shift + Z or Cmd/Ctrl + Y (handled by TipTap)
 	}
@@ -218,6 +227,7 @@
 				CharacterCount,
 				Typography,
 				Highlight,
+				AnnotationMark,
 			],
 			content: appState.selectedScene?.text || '',
 			editorProps: {
@@ -457,6 +467,132 @@
 		}
 	}
 
+	// -------------------------------------------------------------------------
+	// Annotation rendering in editor
+	// -------------------------------------------------------------------------
+
+	/** Convert a plain-text offset to a ProseMirror document position. */
+	function textOffsetToDocPos(doc: import('@tiptap/pm/model').Node, offset: number): number {
+		let textSeen = 0;
+		let result = 0;
+		doc.descendants((node, pos) => {
+			if (result > 0) return false;
+			if (node.isText && node.text) {
+				if (textSeen + node.text.length >= offset) {
+					result = pos + (offset - textSeen);
+					return false;
+				}
+				textSeen += node.text.length;
+			}
+			return true;
+		});
+		return result || 1;
+	}
+
+	async function applyAnnotationMarks() {
+		if (!editor || !currentSceneId) return;
+		let annotations: Annotation[];
+		try {
+			annotations = await annotationApi.getByScene(currentSceneId);
+		} catch {
+			return;
+		}
+		if (!editor || annotations.length === 0) return;
+
+		const { tr } = editor.state;
+		const markType = editor.schema.marks.annotationMark;
+		if (!markType) return;
+
+		for (const ann of annotations) {
+			if (ann.status === 'resolved') continue;
+			const from = textOffsetToDocPos(editor.state.doc, ann.start_offset);
+			const to = textOffsetToDocPos(editor.state.doc, ann.end_offset);
+			if (from > 0 && to > from) {
+				tr.addMark(
+					from,
+					to,
+					markType.create({
+						annotationId: ann.id,
+						annotationType: ann.annotation_type,
+					})
+				);
+			}
+		}
+		if (tr.steps.length > 0) {
+			// Apply without triggering onUpdate (to avoid marking as unsaved)
+			isUpdating = true;
+			editor.view.dispatch(tr);
+			isUpdating = false;
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// Quick-add Bible entry (Ctrl+Shift+B)
+	// -------------------------------------------------------------------------
+
+	let showQuickAddBible = $state(false);
+	let quickAddPosition = $state({ x: 0, y: 0 });
+	let quickAddSelectedText = $state('');
+	let quickAddSearchQuery = $state('');
+	let quickAddMode = $state<'choose' | 'create' | 'link'>('choose');
+	let quickAddEntryType = $state('character');
+	let quickAddFilteredEntries = $derived(
+		quickAddSearchQuery
+			? appState.bibleEntries.filter(
+					(e) =>
+						e.name.toLowerCase().includes(quickAddSearchQuery.toLowerCase()) ||
+						(e.aliases && e.aliases.toLowerCase().includes(quickAddSearchQuery.toLowerCase()))
+				)
+			: appState.bibleEntries.slice(0, 10)
+	);
+
+	function openQuickAddBible() {
+		if (!editor || !appState.selectedScene) return;
+		const { from, to, empty } = editor.state.selection;
+		if (empty) {
+			showError('Select text first to create or link a bible entry');
+			return;
+		}
+		const text = editor.state.doc.textBetween(from, to);
+		if (!text.trim()) return;
+
+		// Position popup near selection
+		const coords = editor.view.coordsAtPos(from);
+		quickAddSelectedText = text.trim();
+		quickAddSearchQuery = text.trim();
+		quickAddPosition = { x: coords.left, y: coords.bottom + 8 };
+		quickAddMode = 'choose';
+		showQuickAddBible = true;
+	}
+
+	async function quickAddCreateEntry() {
+		if (!appState.selectedSceneId || !quickAddSelectedText) return;
+		try {
+			const entry = await appState.createBibleEntry({
+				entry_type: quickAddEntryType,
+				name: quickAddSelectedText,
+			});
+			await associationApi.create(appState.selectedSceneId, entry.id);
+			showSuccess(`Created "${entry.name}" and linked to scene`);
+			showQuickAddBible = false;
+		} catch (e) {
+			console.error('Failed to create bible entry:', e);
+			showError('Failed to create bible entry');
+		}
+	}
+
+	async function quickAddLinkEntry(entry: BibleEntry) {
+		if (!appState.selectedSceneId) return;
+		try {
+			await associationApi.create(appState.selectedSceneId, entry.id);
+			showSuccess(`Linked "${entry.name}" to scene`);
+			showQuickAddBible = false;
+		} catch (e) {
+			console.error('Failed to link bible entry:', e);
+			showError('Failed to link bible entry');
+		}
+	}
+
 	// Focus mode settings - use from store
 	let typewriterMode = $derived(appState.focusSettings.typewriterMode);
 	let dimSurroundings = $derived(appState.focusSettings.dimSurroundings);
@@ -522,6 +658,9 @@
 
 			// Check for crash recovery draft
 			checkRecoveryDraft(sceneId, currentEditor);
+
+			// Apply annotation marks (fire-and-forget)
+			applyAnnotationMarks();
 		} else {
 			// No editor yet - initialize it
 			currentSceneId = sceneId;
@@ -531,6 +670,9 @@
 			if (editor) {
 				checkRecoveryDraft(sceneId, editor);
 			}
+
+			// Apply annotation marks after init (fire-and-forget)
+			applyAnnotationMarks();
 		}
 	});
 </script>
@@ -758,6 +900,10 @@
 			</div>
 		{/if}
 
+		{#if !appState.isFocusMode}
+			<EditorToolbar {editor} />
+		{/if}
+
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="editor-content"
@@ -784,6 +930,78 @@
 			onreplaceAll={handleReplaceAll}
 			onclose={handleFindClose}
 		/>
+		{#if showQuickAddBible}
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<div
+				class="quick-add-overlay"
+				onclick={() => (showQuickAddBible = false)}
+				role="presentation"
+			>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<div
+					class="quick-add-popup"
+					style="left: {quickAddPosition.x}px; top: {quickAddPosition.y}px;"
+					onclick={(e) => e.stopPropagation()}
+					role="dialog"
+					tabindex="-1"
+				>
+					{#if quickAddMode === 'choose'}
+						<div class="quick-add-header">
+							<strong>"{quickAddSelectedText}"</strong>
+						</div>
+						<div class="quick-add-actions">
+							<button class="quick-add-btn" onclick={() => (quickAddMode = 'create')}>
+								Create Bible entry
+							</button>
+							<button class="quick-add-btn" onclick={() => (quickAddMode = 'link')}>
+								Link to existing
+							</button>
+						</div>
+					{:else if quickAddMode === 'create'}
+						<div class="quick-add-header">
+							<span>Create: "{quickAddSelectedText}"</span>
+						</div>
+						<select class="quick-add-select" bind:value={quickAddEntryType}>
+							<option value="character">Character</option>
+							<option value="location">Location</option>
+							<option value="object">Object</option>
+							<option value="faction">Faction</option>
+							<option value="concept">Concept</option>
+							<option value="glossary">Glossary</option>
+						</select>
+						<div class="quick-add-actions">
+							<button class="quick-add-btn secondary" onclick={() => (quickAddMode = 'choose')}>
+								Back
+							</button>
+							<button class="quick-add-btn primary" onclick={quickAddCreateEntry}> Create </button>
+						</div>
+					{:else if quickAddMode === 'link'}
+						<div class="quick-add-header">
+							<span>Link to existing entry</span>
+						</div>
+						<input
+							type="text"
+							class="quick-add-search"
+							placeholder="Search entries..."
+							bind:value={quickAddSearchQuery}
+						/>
+						<div class="quick-add-results">
+							{#each quickAddFilteredEntries.slice(0, 8) as entry (entry.id)}
+								<button class="quick-add-result" onclick={() => quickAddLinkEntry(entry)}>
+									<span class="entry-type-badge">{entry.entry_type.charAt(0).toUpperCase()}</span>
+									{entry.name}
+								</button>
+							{:else}
+								<span class="quick-add-empty">No entries found</span>
+							{/each}
+						</div>
+						<button class="quick-add-btn secondary" onclick={() => (quickAddMode = 'choose')}>
+							Back
+						</button>
+					{/if}
+				</div>
+			</div>
+		{/if}
 	{:else}
 		<div class="no-scene">
 			<div class="no-scene-content">
@@ -1101,5 +1319,162 @@
 	.editor-content.typewriter-mode {
 		padding-top: 40vh;
 		padding-bottom: 40vh;
+	}
+
+	/* Annotation highlight styles */
+	.editor-content :global(.annotation-highlight) {
+		padding: 0.1em 0;
+		border-radius: 2px;
+		cursor: pointer;
+	}
+
+	.editor-content :global(.annotation-comment) {
+		background-color: rgba(255, 220, 100, 0.35);
+	}
+
+	.editor-content :global(.annotation-question) {
+		background-color: rgba(100, 160, 255, 0.3);
+	}
+
+	.editor-content :global(.annotation-todo) {
+		background-color: rgba(255, 165, 0, 0.3);
+	}
+
+	.editor-content :global(.annotation-research) {
+		background-color: rgba(180, 130, 255, 0.3);
+	}
+
+	.editor-content :global(.annotation-revision) {
+		background-color: rgba(100, 200, 130, 0.3);
+	}
+
+	/* Quick-add Bible popup */
+	.quick-add-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 500;
+	}
+
+	.quick-add-popup {
+		position: fixed;
+		min-width: 220px;
+		max-width: 300px;
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--spacing-sm);
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+		z-index: 501;
+	}
+
+	.quick-add-header {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		padding-bottom: var(--spacing-xs);
+		border-bottom: 1px solid var(--color-border-light);
+	}
+
+	.quick-add-header strong {
+		color: var(--color-text-primary);
+	}
+
+	.quick-add-actions {
+		display: flex;
+		gap: var(--spacing-xs);
+	}
+
+	.quick-add-btn {
+		flex: 1;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border-radius: var(--border-radius-sm);
+		border: 1px solid var(--color-border);
+		background-color: var(--color-bg-secondary);
+		color: var(--color-text-primary);
+		transition: all var(--transition-fast);
+		cursor: pointer;
+	}
+
+	.quick-add-btn:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.quick-add-btn.primary {
+		background-color: var(--color-accent);
+		color: var(--text-on-accent, #fff);
+		border-color: var(--color-accent);
+	}
+
+	.quick-add-btn.primary:hover {
+		opacity: 0.9;
+	}
+
+	.quick-add-btn.secondary {
+		background-color: transparent;
+	}
+
+	.quick-add-select {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-primary);
+	}
+
+	.quick-add-search {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.quick-add-results {
+		max-height: 200px;
+		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.quick-add-result {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border-radius: var(--border-radius-sm);
+		text-align: left;
+		transition: background-color var(--transition-fast);
+	}
+
+	.quick-add-result:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.entry-type-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-tertiary);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+	}
+
+	.quick-add-empty {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
+		padding: var(--spacing-sm);
+		text-align: center;
 	}
 </style>

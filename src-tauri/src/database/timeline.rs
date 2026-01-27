@@ -195,6 +195,7 @@ mod tests {
             payoff_of_scene_id: None,
             revision_notes: None,
             revision_checklist: None,
+            word_count: 0,
             created_at: String::new(),
             updated_at: String::new(),
         }

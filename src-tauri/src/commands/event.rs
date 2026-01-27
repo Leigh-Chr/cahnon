@@ -142,7 +142,7 @@ pub fn get_scene_events(scene_id: String, state: State<AppState>) -> Result<Vec<
 }
 
 #[tauri::command]
-pub fn get_event_scenes(event_id: String, state: State<AppState>) -> Result<Vec<String>, String> {
+pub fn get_event_scenes(event_id: String, state: State<AppState>) -> Result<Vec<Scene>, String> {
     let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.get_event_scenes(&event_id)
@@ -175,7 +175,7 @@ pub fn unlink_bible_entry_from_event(
 pub fn get_event_bible_entries(
     event_id: String,
     state: State<AppState>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<BibleEntry>, String> {
     let db = state.get_db()?;
     let db = db.as_ref().ok_or("No project open")?;
     db.get_event_bible_entries(&event_id)

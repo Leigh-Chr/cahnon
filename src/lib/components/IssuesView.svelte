@@ -9,7 +9,7 @@
   - Auto-detect timeline conflicts
 -->
 <script lang="ts">
-	import { type Issue, issueApi, timelineApi } from '$lib/api';
+	import { type BibleEntry, type Issue, issueApi, type Scene, timelineApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 
@@ -32,8 +32,8 @@
 
 	// Selected issue
 	let selectedIssueId = $state<string | null>(null);
-	let linkedSceneIds = $state<string[]>([]);
-	let linkedBibleIds = $state<string[]>([]);
+	let linkedScenes = $state<Scene[]>([]);
+	let linkedBibleEntries = $state<BibleEntry[]>([]);
 
 	// Edit mode
 	let isEditing = $state(false);
@@ -57,6 +57,9 @@
 		}
 		return result;
 	});
+
+	let linkedSceneIds = $derived(linkedScenes.map((s) => s.id));
+	let linkedBibleIds = $derived(linkedBibleEntries.map((e) => e.id));
 
 	let availableScenesToLink = $derived(allScenes.filter((s) => !linkedSceneIds.includes(s.id)));
 
@@ -134,10 +137,26 @@
 
 	async function loadLinkedItems(issueId: string) {
 		try {
-			linkedSceneIds = await issueApi.getIssueScenes(issueId);
-			linkedBibleIds = await issueApi.getIssueBibleEntries(issueId);
+			linkedScenes = await issueApi.getIssueScenes(issueId);
+			linkedBibleEntries = await issueApi.getIssueBibleEntries(issueId);
 		} catch (e) {
 			console.error('Failed to load linked items:', e);
+		}
+	}
+
+	async function runProjectAnalysis() {
+		isLoading = true;
+		try {
+			const detected = await issueApi.runDetections();
+			issues = await issueApi.getAll();
+			if (detected.length > 0) {
+				selectedIssueId = detected[0].id;
+			}
+		} catch (e) {
+			console.error('Failed to run detections:', e);
+			showError('Failed to analyze project');
+		} finally {
+			isLoading = false;
 		}
 	}
 
@@ -330,19 +349,6 @@
 		appState.selectedBibleEntryId = entryId;
 		appState.setViewMode('bible');
 	}
-
-	function getSceneTitle(sceneId: string): string {
-		for (const [, scenes] of appState.scenes) {
-			const scene = scenes.find((s) => s.id === sceneId);
-			if (scene) return scene.title;
-		}
-		return 'Unknown scene';
-	}
-
-	function getBibleEntryName(entryId: string): string {
-		const entry = appState.bibleEntries.find((e) => e.id === entryId);
-		return entry?.name || 'Unknown entry';
-	}
 </script>
 
 <div class="issues-view">
@@ -353,6 +359,7 @@
 				<span class="mode-badge">Critical only</span>
 			{/if}
 			<div class="header-actions">
+				<Button size="sm" onclick={runProjectAnalysis} disabled={isLoading}>Analyze Project</Button>
 				<Button size="sm" onclick={() => detectTimelineConflicts()} disabled={isLoading}>
 					Detect Conflicts
 				</Button>
@@ -543,14 +550,14 @@
 							</select>
 						{/if}
 						<ul>
-							{#each linkedSceneIds as sceneId (sceneId)}
+							{#each linkedScenes as scene (scene.id)}
 								<li>
-									<button class="link-btn" onclick={() => navigateToScene(sceneId)}>
-										{getSceneTitle(sceneId)}
+									<button class="link-btn" onclick={() => navigateToScene(scene.id)}>
+										{scene.title}
 									</button>
 									<button
 										class="unlink-btn"
-										onclick={() => unlinkSceneFromIssue(sceneId)}
+										onclick={() => unlinkSceneFromIssue(scene.id)}
 										title="Unlink">&times;</button
 									>
 								</li>
@@ -591,14 +598,14 @@
 							{/if}
 						{/if}
 						<ul>
-							{#each linkedBibleIds as entryId (entryId)}
+							{#each linkedBibleEntries as entry (entry.id)}
 								<li>
-									<button class="link-btn" onclick={() => navigateToBibleEntry(entryId)}>
-										{getBibleEntryName(entryId)}
+									<button class="link-btn" onclick={() => navigateToBibleEntry(entry.id)}>
+										{entry.name}
 									</button>
 									<button
 										class="unlink-btn"
-										onclick={() => unlinkBibleEntryFromIssue(entryId)}
+										onclick={() => unlinkBibleEntryFromIssue(entry.id)}
 										title="Unlink">&times;</button
 									>
 								</li>

@@ -31,3 +31,13 @@ pub fn delete_association(
     let db = db.as_ref().ok_or("No project open")?;
     db.delete_association(&scene_id, &bible_entry_id)
 }
+
+#[tauri::command]
+pub fn get_bible_entry_scenes(
+    bible_entry_id: String,
+    state: State<AppState>,
+) -> Result<Vec<Scene>, String> {
+    let db = state.get_db()?;
+    let db = db.as_ref().ok_or("No project open")?;
+    db.get_bible_entry_scenes(&bible_entry_id)
+}

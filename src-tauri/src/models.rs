@@ -117,6 +117,7 @@ pub struct Scene {
     pub payoff_of_scene_id: Option<String>,
     pub revision_notes: Option<String>,
     pub revision_checklist: Option<String>,
+    pub word_count: i32,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -769,4 +770,136 @@ pub struct CreateSavedFilterRequest {
 pub struct UpdateSavedFilterRequest {
     pub name: Option<String>,
     pub filter_data: Option<String>,
+}
+
+// ============================================================================
+// Junction Row (generic row for snapshot serialization)
+// ============================================================================
+
+/// Generic representation of a junction/link table row for snapshot serialization.
+/// Each junction table has an id, two foreign key fields, and a created_at timestamp.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JunctionRow {
+    pub id: String,
+    pub field_a: String,
+    pub field_b: String,
+    pub created_at: Option<String>,
+}
+
+/// Issue junction rows (no created_at column).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueJunctionRow {
+    pub id: String,
+    pub field_a: String,
+    pub field_b: String,
+}
+
+// ============================================================================
+// Writing Session
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WritingSession {
+    pub id: String,
+    pub date: String,
+    pub words_start: i32,
+    pub words_end: i32,
+    pub duration_minutes: i32,
+    pub scenes_edited: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateWritingSessionRequest {
+    pub date: String,
+    pub words_start: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateWritingSessionRequest {
+    pub words_end: Option<i32>,
+    pub duration_minutes: Option<i32>,
+    pub scenes_edited: Option<String>,
+}
+
+// ============================================================================
+// Fact (narrative revelations)
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Fact {
+    pub id: String,
+    pub content: String,
+    pub category: String,
+    pub revealed_in_scene_id: Option<String>,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FactCharacter {
+    pub id: String,
+    pub fact_id: String,
+    pub bible_entry_id: String,
+    pub learned_in_scene_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFactRequest {
+    pub content: String,
+    pub category: Option<String>,
+    pub revealed_in_scene_id: Option<String>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateFactRequest {
+    pub content: Option<String>,
+    pub category: Option<String>,
+    pub revealed_in_scene_id: Option<String>,
+    pub status: Option<String>,
+}
+
+// ============================================================================
+// Detection
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DetectedIssue {
+    pub issue_type: String,
+    pub title: String,
+    pub description: String,
+    pub severity: String,
+    pub scene_ids: Vec<String>,
+    pub bible_entry_ids: Vec<String>,
+}
+
+// ============================================================================
+// Association Suggestion (Name Registry)
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssociationSuggestion {
+    pub scene_id: String,
+    pub bible_entry_id: String,
+    pub bible_entry_name: String,
+    pub scene_title: String,
+}
+
+// ============================================================================
+// Scan Result (Name Registry)
+// ============================================================================
+
+/// Result of a name scan operation.
+///
+/// Contains counts of new entries and mentions created, plus any
+/// association suggestions where a confirmed name was found in a scene
+/// that has no canonical association for the corresponding bible entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanResult {
+    pub new_entries: i32,
+    pub new_mentions: i32,
+    pub suggestions: Vec<AssociationSuggestion>,
 }

@@ -9,7 +9,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-import type { BibleEntry, BibleRelationship, BibleRelationshipWithEntry } from './types';
+import type { BibleEntry, BibleRelationship, BibleRelationshipWithEntry, Scene } from './types';
 
 /**
  * API for bible (knowledge base) entries.
@@ -75,6 +75,8 @@ export const associationApi = {
 
 	delete: (sceneId: string, bibleEntryId: string) =>
 		invoke<void>('delete_association', { sceneId, bibleEntryId }),
+
+	getByEntry: (bibleEntryId: string) => invoke<Scene[]>('get_bible_entry_scenes', { bibleEntryId }),
 };
 
 /**

@@ -32,7 +32,19 @@
 	let { isOpen = false, onclose }: Props = $props();
 
 	let exportFormat = $state<
-		'markdown' | 'plaintext' | 'json' | 'docx' | 'html' | 'pdf' | 'outline' | 'bible' | 'timeline'
+		| 'markdown'
+		| 'plaintext'
+		| 'json'
+		| 'docx'
+		| 'html'
+		| 'pdf'
+		| 'outline'
+		| 'bible'
+		| 'timeline'
+		| 'csv_bible'
+		| 'csv_timeline'
+		| 'csv_review'
+		| 'csv_stats'
 	>('markdown');
 	let isExporting = $state(false);
 	let exportResult = $state<string | null>(null);
@@ -117,6 +129,18 @@
 				case 'timeline':
 					exportResult = await exportApi.timeline();
 					break;
+				case 'csv_bible':
+					exportResult = await exportApi.exportBibleCsv();
+					break;
+				case 'csv_timeline':
+					exportResult = await exportApi.exportTimelineCsv();
+					break;
+				case 'csv_review':
+					exportResult = await exportApi.exportReviewGridCsv();
+					break;
+				case 'csv_stats':
+					exportResult = await exportApi.exportStatsCsv();
+					break;
 				case 'docx':
 				case 'html':
 				case 'pdf':
@@ -186,6 +210,10 @@
 			outline: 'md',
 			bible: 'md',
 			timeline: 'md',
+			csv_bible: 'csv',
+			csv_timeline: 'csv',
+			csv_review: 'csv',
+			csv_stats: 'csv',
 		};
 
 		const mimeTypes: Record<string, string> = {
@@ -195,6 +223,10 @@
 			outline: 'text/markdown',
 			bible: 'text/markdown',
 			timeline: 'text/markdown',
+			csv_bible: 'text/csv',
+			csv_timeline: 'text/csv',
+			csv_review: 'text/csv',
+			csv_stats: 'text/csv',
 		};
 
 		const blob = new Blob([exportResult], { type: mimeTypes[exportFormat] });
@@ -204,7 +236,14 @@
 		// Use project title for filename, sanitized for filesystem
 		const projectName = appState.project?.title || 'export';
 		const safeFilename = projectName.replace(/[<>:"/\\|?*]/g, '_').trim();
-		a.download = `${safeFilename}.${extensions[exportFormat]}`;
+		const suffixes: Record<string, string> = {
+			csv_bible: '-bible',
+			csv_timeline: '-timeline',
+			csv_review: '-review-grid',
+			csv_stats: '-stats',
+		};
+		const suffix = suffixes[exportFormat] || '';
+		a.download = `${safeFilename}${suffix}.${extensions[exportFormat]}`;
 		document.body.appendChild(a);
 		a.click();
 		document.body.removeChild(a);
@@ -464,6 +503,108 @@
 							<div class="format-info">
 								<span class="format-name">Timeline Only</span>
 								<span class="format-desc">Events and chronological data</span>
+							</div>
+						</label>
+					</div>
+
+					<div class="section-divider">
+						<span>CSV Exports</span>
+					</div>
+
+					<div class="format-options">
+						<label class="format-option" class:selected={exportFormat === 'csv_bible'}>
+							<input type="radio" bind:group={exportFormat} value="csv_bible" />
+							<div class="format-icon">
+								<svg
+									width="24"
+									height="24"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="3" y="3" width="18" height="18" rx="2" />
+									<line x1="3" y1="9" x2="21" y2="9" />
+									<line x1="3" y1="15" x2="21" y2="15" />
+									<line x1="9" y1="3" x2="9" y2="21" />
+									<line x1="15" y1="3" x2="15" y2="21" />
+								</svg>
+							</div>
+							<div class="format-info">
+								<span class="format-name">Bible CSV</span>
+								<span class="format-desc">All bible entries as spreadsheet</span>
+							</div>
+						</label>
+
+						<label class="format-option" class:selected={exportFormat === 'csv_timeline'}>
+							<input type="radio" bind:group={exportFormat} value="csv_timeline" />
+							<div class="format-icon">
+								<svg
+									width="24"
+									height="24"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="3" y="3" width="18" height="18" rx="2" />
+									<line x1="3" y1="9" x2="21" y2="9" />
+									<line x1="3" y1="15" x2="21" y2="15" />
+									<line x1="9" y1="3" x2="9" y2="21" />
+									<line x1="15" y1="3" x2="15" y2="21" />
+								</svg>
+							</div>
+							<div class="format-info">
+								<span class="format-name">Timeline CSV</span>
+								<span class="format-desc">Events and scene timeline data</span>
+							</div>
+						</label>
+
+						<label class="format-option" class:selected={exportFormat === 'csv_review'}>
+							<input type="radio" bind:group={exportFormat} value="csv_review" />
+							<div class="format-icon">
+								<svg
+									width="24"
+									height="24"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="3" y="3" width="18" height="18" rx="2" />
+									<line x1="3" y1="9" x2="21" y2="9" />
+									<line x1="3" y1="15" x2="21" y2="15" />
+									<line x1="9" y1="3" x2="9" y2="21" />
+									<line x1="15" y1="3" x2="15" y2="21" />
+								</svg>
+							</div>
+							<div class="format-info">
+								<span class="format-name">Review Grid CSV</span>
+								<span class="format-desc">Scene status, POV, tension data</span>
+							</div>
+						</label>
+
+						<label class="format-option" class:selected={exportFormat === 'csv_stats'}>
+							<input type="radio" bind:group={exportFormat} value="csv_stats" />
+							<div class="format-icon">
+								<svg
+									width="24"
+									height="24"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<rect x="3" y="3" width="18" height="18" rx="2" />
+									<line x1="3" y1="9" x2="21" y2="9" />
+									<line x1="3" y1="15" x2="21" y2="15" />
+									<line x1="9" y1="3" x2="9" y2="21" />
+									<line x1="15" y1="3" x2="15" y2="21" />
+								</svg>
+							</div>
+							<div class="format-info">
+								<span class="format-name">Statistics CSV</span>
+								<span class="format-desc">Word counts by chapter and status</span>
 							</div>
 						</label>
 					</div>

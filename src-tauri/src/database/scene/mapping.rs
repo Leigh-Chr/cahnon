@@ -35,8 +35,9 @@ impl Database {
             payoff_of_scene_id: revision.5,
             revision_notes: revision.6,
             revision_checklist: revision.7,
-            created_at: revision.8,
-            updated_at: revision.9,
+            word_count: revision.8,
+            created_at: revision.9,
+            updated_at: revision.10,
         })
     }
 
@@ -123,13 +124,14 @@ impl Database {
         Option<String>,
         Option<String>,
         Option<String>,
+        i32,
         String,
         String,
     )> {
         let rev1 = Self::map_scene_revision_part1(row)?;
         let rev2 = Self::map_scene_revision_part2(row)?;
         Ok((
-            rev1.0, rev1.1, rev1.2, rev1.3, rev1.4, rev2.0, rev2.1, rev2.2, rev2.3, rev2.4,
+            rev1.0, rev1.1, rev1.2, rev1.3, rev1.4, rev2.0, rev2.1, rev2.2, rev2.3, rev2.4, rev2.5,
         ))
     }
 
@@ -159,6 +161,7 @@ impl Database {
         Option<String>,
         Option<String>,
         Option<String>,
+        i32,
         String,
         String,
     )> {
@@ -168,6 +171,7 @@ impl Database {
             row.get(23)?,
             row.get(24)?,
             row.get(25)?,
+            row.get(26)?,
         ))
     }
 }

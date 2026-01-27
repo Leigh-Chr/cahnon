@@ -12,7 +12,14 @@
  * - `bible`: Knowledge base browser
  * - `issues`: Consistency problems and issues view
  */
-export type ViewMode = 'editor' | 'corkboard' | 'timeline' | 'bible' | 'issues' | 'names';
+export type ViewMode =
+	| 'editor'
+	| 'corkboard'
+	| 'timeline'
+	| 'bible'
+	| 'issues'
+	| 'names'
+	| 'dashboard';
 
 /**
  * Current work mode affecting UI presentation.
@@ -87,6 +94,7 @@ export interface KeyboardShortcuts {
 	viewBible: ShortcutBinding;
 	viewIssues: ShortcutBinding;
 	viewNames: ShortcutBinding;
+	viewDashboard: ShortcutBinding;
 	toggleWorkMode: ShortcutBinding;
 	nextScene: ShortcutBinding;
 	prevScene: ShortcutBinding;
@@ -113,6 +121,7 @@ export const defaultKeyboardShortcuts: KeyboardShortcuts = {
 	viewBible: { key: '4', mod: true, shift: false },
 	viewIssues: { key: '5', mod: true, shift: false },
 	viewNames: { key: '6', mod: true, shift: false },
+	viewDashboard: { key: '7', mod: true, shift: false },
 	toggleWorkMode: { key: 'd', mod: true, shift: false },
 	nextScene: { key: 'ArrowDown', mod: true, shift: false },
 	prevScene: { key: 'ArrowUp', mod: true, shift: false },
@@ -140,6 +149,7 @@ export const shortcutLabels: Record<keyof KeyboardShortcuts, string> = {
 	viewBible: 'Bible View',
 	viewIssues: 'Issues View',
 	viewNames: 'Names View',
+	viewDashboard: 'Dashboard View',
 	toggleWorkMode: 'Toggle Work Mode',
 	nextScene: 'Next Scene',
 	prevScene: 'Previous Scene',

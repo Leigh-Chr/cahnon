@@ -10,7 +10,7 @@ pub(crate) const SCENE_SELECT: &str =
     "SELECT id, chapter_id, title, summary, text, status, pov, tags, notes, todos,
         word_target, time_point, time_start, time_end, on_timeline, position,
         pov_goal, has_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id, revision_notes, revision_checklist,
-        created_at, updated_at";
+        word_count, created_at, updated_at";
 
 impl Database {
     pub fn create_scene(&self, req: &CreateSceneRequest) -> Result<Scene, String> {
@@ -102,6 +102,13 @@ impl Database {
         add_field!(req.title, "title");
         add_field!(req.summary, "summary");
         add_field!(req.text, "text");
+        // Cache word count when text changes
+        if let Some(text) = &req.text {
+            let plain = crate::database::HTML_TAG_REGEX.replace_all(text, " ");
+            let wc = plain.split_whitespace().count() as i32;
+            set_clauses.push(format!("word_count = ?{}", params.len() + 1));
+            params.push(Box::new(wc));
+        }
         add_field!(req.status, "status");
         add_field!(req.pov, "pov");
         add_field!(req.tags, "tags");

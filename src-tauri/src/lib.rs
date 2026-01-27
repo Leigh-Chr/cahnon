@@ -114,6 +114,7 @@ pub fn run() {
             commands::association::create_association,
             commands::association::get_scene_associations,
             commands::association::delete_association,
+            commands::association::get_bible_entry_scenes,
             // Search commands
             commands::search::global_search,
             commands::search::find_replace_in_scenes,
@@ -129,6 +130,8 @@ pub fn run() {
             commands::arc::unlink_scene_from_arc,
             commands::arc::get_scene_arcs,
             commands::arc::set_arc_characters,
+            commands::arc::get_arc_scenes,
+            commands::arc::get_character_arcs,
             // Event commands
             commands::event::create_event,
             commands::event::get_events,
@@ -185,6 +188,7 @@ pub fn run() {
             commands::issue::link_bible_entry_to_issue,
             commands::issue::unlink_bible_entry_from_issue,
             commands::issue::get_issue_bible_entries,
+            commands::issue::get_bible_entry_issues,
             // Snapshot commands
             commands::snapshot::create_snapshot,
             commands::snapshot::get_snapshots,
@@ -201,6 +205,11 @@ pub fn run() {
             commands::export::export_outline,
             commands::export::export_bible,
             commands::export::export_timeline,
+            // CSV Export commands
+            commands::export_csv::export_bible_csv,
+            commands::export_csv::export_timeline_csv,
+            commands::export_csv::export_review_grid_csv,
+            commands::export_csv::export_stats_csv,
             // Import commands
             commands::import::import_markdown_as_scene,
             commands::import::import_markdown_structured,
@@ -212,6 +221,7 @@ pub fn run() {
             commands::trash::get_deleted_chapters,
             commands::trash::restore_chapter,
             commands::trash::duplicate_scene,
+            commands::trash::purge_expired_trash,
             // Cut commands
             commands::cut::create_cut,
             commands::cut::get_cuts,
@@ -227,12 +237,32 @@ pub fn run() {
             commands::name_registry::update_name_mention,
             commands::name_registry::delete_name_mention,
             commands::name_registry::scan_names,
+            commands::name_registry::scan_names_for_scene,
             commands::name_registry::merge_name_entries,
             // Saved Filter commands
             commands::saved_filter::create_saved_filter,
             commands::saved_filter::get_saved_filters,
             commands::saved_filter::update_saved_filter,
             commands::saved_filter::delete_saved_filter,
+            // Writing Session commands
+            commands::writing_session::create_writing_session,
+            commands::writing_session::get_writing_sessions,
+            commands::writing_session::get_writing_session_by_date,
+            commands::writing_session::update_writing_session,
+            commands::writing_session::delete_writing_session,
+            // Detection commands
+            commands::detection::run_all_detections,
+            // Fact commands
+            commands::fact::create_fact,
+            commands::fact::get_facts,
+            commands::fact::get_fact,
+            commands::fact::update_fact,
+            commands::fact::delete_fact,
+            commands::fact::get_facts_for_scene,
+            commands::fact::link_character_to_fact,
+            commands::fact::unlink_character_from_fact,
+            commands::fact::get_fact_characters,
+            commands::fact::get_character_knowledge_at_scene,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

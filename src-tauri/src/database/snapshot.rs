@@ -1,20 +1,59 @@
 //! Snapshot operations
 
-use crate::models::{Arc, BibleEntry, Chapter, Event, Project, Scene, Snapshot};
+use crate::models::{
+    Annotation, Arc, BibleEntry, BibleRelationship, Chapter, Event, Fact, FactCharacter, Issue,
+    IssueJunctionRow, JunctionRow, NameMention, NameRegistryEntry, Project, Scene, Snapshot,
+    WritingSession,
+};
 use rusqlite::params;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::Database;
 
-/// Structure for deserializing snapshot/backup data
-#[derive(Deserialize)]
+/// Structure for serializing/deserializing snapshot/backup data.
+/// All junction table fields use `#[serde(default)]` for backward compatibility
+/// with older snapshots that only contain the 6 core entities.
+#[derive(Serialize, Deserialize)]
 pub struct SnapshotData {
-    project: Project,
-    chapters: Vec<Chapter>,
-    scenes: Vec<Scene>,
-    bible_entries: Vec<BibleEntry>,
-    arcs: Vec<Arc>,
-    events: Vec<Event>,
+    pub project: Project,
+    pub chapters: Vec<Chapter>,
+    pub scenes: Vec<Scene>,
+    pub bible_entries: Vec<BibleEntry>,
+    pub arcs: Vec<Arc>,
+    pub events: Vec<Event>,
+    // Junction tables (all default to empty Vec for backward compat)
+    #[serde(default)]
+    pub canonical_associations: Vec<JunctionRow>,
+    #[serde(default)]
+    pub scene_arcs: Vec<JunctionRow>,
+    #[serde(default)]
+    pub arc_characters: Vec<JunctionRow>,
+    #[serde(default)]
+    pub event_scenes: Vec<JunctionRow>,
+    #[serde(default)]
+    pub event_bible: Vec<JunctionRow>,
+    #[serde(default)]
+    pub bible_relationships: Vec<BibleRelationship>,
+    #[serde(default)]
+    pub issues: Vec<Issue>,
+    #[serde(default)]
+    pub issue_scenes: Vec<IssueJunctionRow>,
+    #[serde(default)]
+    pub issue_bible: Vec<IssueJunctionRow>,
+    #[serde(default)]
+    pub scene_steps: Vec<JunctionRow>,
+    #[serde(default)]
+    pub annotations: Vec<Annotation>,
+    #[serde(default)]
+    pub name_registry: Vec<NameRegistryEntry>,
+    #[serde(default)]
+    pub name_mentions: Vec<NameMention>,
+    #[serde(default)]
+    pub facts: Vec<Fact>,
+    #[serde(default)]
+    pub fact_characters: Vec<FactCharacter>,
+    #[serde(default)]
+    pub writing_sessions: Vec<WritingSession>,
 }
 
 impl Database {
@@ -48,17 +87,251 @@ impl Database {
         let arcs = self.get_arcs()?;
         let events = self.get_events()?;
 
-        let data = serde_json::json!({
-            "project": project,
-            "chapters": chapters,
-            "scenes": all_scenes,
-            "bible_entries": bible_entries,
-            "arcs": arcs,
-            "events": events,
+        // Collect junction tables
+        let canonical_associations = self.collect_junction_rows(
+            "SELECT id, scene_id, bible_entry_id, created_at FROM canonical_associations",
+        )?;
+        let scene_arcs =
+            self.collect_junction_rows("SELECT id, scene_id, arc_id, created_at FROM scene_arcs")?;
+        let arc_characters = self.collect_junction_rows(
+            "SELECT id, arc_id, bible_entry_id, created_at FROM arc_characters",
+        )?;
+        let event_scenes = self
+            .collect_junction_rows("SELECT id, event_id, scene_id, created_at FROM event_scenes")?;
+        let event_bible = self.collect_junction_rows(
+            "SELECT id, event_id, bible_entry_id, created_at FROM event_bible",
+        )?;
+        let bible_relationships = self.collect_bible_relationships_for_snapshot()?;
+        let issues = self.collect_issues_for_snapshot()?;
+        let issue_scenes =
+            self.collect_issue_junction_rows("SELECT id, issue_id, scene_id FROM issue_scenes")?;
+        let issue_bible = self
+            .collect_issue_junction_rows("SELECT id, issue_id, bible_entry_id FROM issue_bible")?;
+        let scene_steps = self
+            .collect_junction_rows("SELECT id, scene_id, step_id, created_at FROM scene_steps")?;
+        let annotations = self.collect_annotations_for_snapshot()?;
+        let name_registry = self.collect_name_registry_for_snapshot()?;
+        let name_mentions = self.collect_name_mentions_for_snapshot()?;
+        let facts = self.collect_facts_for_snapshot()?;
+        let fact_characters = self.collect_fact_characters_for_snapshot()?;
+        let writing_sessions = self.collect_writing_sessions_for_snapshot()?;
+
+        let data = SnapshotData {
+            project,
+            chapters,
+            scenes: all_scenes,
+            bible_entries,
+            arcs,
+            events,
+            canonical_associations,
+            scene_arcs,
+            arc_characters,
+            event_scenes,
+            event_bible,
+            bible_relationships,
+            issues,
+            issue_scenes,
+            issue_bible,
+            scene_steps,
+            annotations,
+            name_registry,
+            name_mentions,
+            facts,
+            fact_characters,
+            writing_sessions,
+        };
+
+        let json = serde_json::json!({
+            "project": data.project,
+            "chapters": data.chapters,
+            "scenes": data.scenes,
+            "bible_entries": data.bible_entries,
+            "arcs": data.arcs,
+            "events": data.events,
+            "canonical_associations": data.canonical_associations,
+            "scene_arcs": data.scene_arcs,
+            "arc_characters": data.arc_characters,
+            "event_scenes": data.event_scenes,
+            "event_bible": data.event_bible,
+            "bible_relationships": data.bible_relationships,
+            "issues": data.issues,
+            "issue_scenes": data.issue_scenes,
+            "issue_bible": data.issue_bible,
+            "scene_steps": data.scene_steps,
+            "annotations": data.annotations,
+            "name_registry": data.name_registry,
+            "name_mentions": data.name_mentions,
+            "facts": data.facts,
+            "fact_characters": data.fact_characters,
+            "writing_sessions": data.writing_sessions,
             "created_at": timestamp,
         });
 
-        Ok(data.to_string())
+        Ok(json.to_string())
+    }
+
+    fn collect_junction_rows(&self, sql: &str) -> Result<Vec<JunctionRow>, String> {
+        let mut stmt = self.conn.prepare(sql).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(JunctionRow {
+                    id: row.get(0)?,
+                    field_a: row.get(1)?,
+                    field_b: row.get(2)?,
+                    created_at: row.get(3)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn collect_issue_junction_rows(&self, sql: &str) -> Result<Vec<IssueJunctionRow>, String> {
+        let mut stmt = self.conn.prepare(sql).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(IssueJunctionRow {
+                    id: row.get(0)?,
+                    field_a: row.get(1)?,
+                    field_b: row.get(2)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn collect_bible_relationships_for_snapshot(&self) -> Result<Vec<BibleRelationship>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, source_id, target_id, relationship_type, note, status, created_at FROM bible_relationships",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(BibleRelationship {
+                    id: row.get(0)?,
+                    source_id: row.get(1)?,
+                    target_id: row.get(2)?,
+                    relationship_type: row.get(3)?,
+                    note: row.get(4)?,
+                    status: row.get(5)?,
+                    created_at: row.get(6)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn collect_issues_for_snapshot(&self) -> Result<Vec<Issue>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, issue_type, title, description, severity, status, resolution_note, created_at, updated_at FROM issues",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(Issue {
+                    id: row.get(0)?,
+                    issue_type: row.get(1)?,
+                    title: row.get(2)?,
+                    description: row.get(3)?,
+                    severity: row.get(4)?,
+                    status: row.get(5)?,
+                    resolution_note: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn collect_annotations_for_snapshot(&self) -> Result<Vec<Annotation>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, scene_id, start_offset, end_offset, annotation_type, content, status, created_at, updated_at FROM annotations",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(Annotation {
+                    id: row.get(0)?,
+                    scene_id: row.get(1)?,
+                    start_offset: row.get(2)?,
+                    end_offset: row.get(3)?,
+                    annotation_type: row.get(4)?,
+                    content: row.get(5)?,
+                    status: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn collect_name_registry_for_snapshot(&self) -> Result<Vec<NameRegistryEntry>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, canonical_name, name_type, bible_entry_id, aliases, is_confirmed, created_at, updated_at FROM name_registry",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(NameRegistryEntry {
+                    id: row.get(0)?,
+                    canonical_name: row.get(1)?,
+                    name_type: row.get(2)?,
+                    bible_entry_id: row.get(3)?,
+                    aliases: row.get(4)?,
+                    is_confirmed: row.get::<_, i32>(5)? != 0,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn collect_name_mentions_for_snapshot(&self) -> Result<Vec<NameMention>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, name_registry_id, scene_id, mention_text, start_offset, end_offset, status, created_at FROM name_mentions",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(NameMention {
+                    id: row.get(0)?,
+                    name_registry_id: row.get(1)?,
+                    scene_id: row.get(2)?,
+                    mention_text: row.get(3)?,
+                    start_offset: row.get(4)?,
+                    end_offset: row.get(5)?,
+                    status: row.get(6)?,
+                    created_at: row.get(7)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
     }
 
     fn collect_all_scenes(
@@ -146,10 +419,8 @@ impl Database {
     /// Restores project state from a snapshot.
     /// Creates an automatic backup before restoring.
     pub fn restore_snapshot(&self, id: &str) -> Result<(), String> {
-        // Get the snapshot
         let snapshot = self.get_snapshot(id)?;
 
-        // Parse the snapshot data
         let data: SnapshotData = serde_json::from_str(&snapshot.data)
             .map_err(|e| format!("Invalid snapshot data: {}", e))?;
 
@@ -160,7 +431,6 @@ impl Database {
             "pre_restore",
         )?;
 
-        // Use a transaction to ensure atomicity of the restore operation
         self.conn
             .execute("BEGIN TRANSACTION", [])
             .map_err(|e| e.to_string())?;
@@ -173,6 +443,48 @@ impl Database {
             self.restore_bible_entries(&data.bible_entries)?;
             self.restore_arcs(&data.arcs)?;
             self.restore_events(&data.events)?;
+            // Restore junction tables
+            self.restore_junction_rows(
+                "canonical_associations",
+                "scene_id",
+                "bible_entry_id",
+                &data.canonical_associations,
+            )?;
+            self.restore_junction_rows("scene_arcs", "scene_id", "arc_id", &data.scene_arcs)?;
+            self.restore_junction_rows(
+                "arc_characters",
+                "arc_id",
+                "bible_entry_id",
+                &data.arc_characters,
+            )?;
+            self.restore_junction_rows("event_scenes", "event_id", "scene_id", &data.event_scenes)?;
+            self.restore_junction_rows(
+                "event_bible",
+                "event_id",
+                "bible_entry_id",
+                &data.event_bible,
+            )?;
+            self.restore_bible_relationships_from_snapshot(&data.bible_relationships)?;
+            self.restore_issues_from_snapshot(&data.issues)?;
+            self.restore_issue_junction_rows(
+                "issue_scenes",
+                "issue_id",
+                "scene_id",
+                &data.issue_scenes,
+            )?;
+            self.restore_issue_junction_rows(
+                "issue_bible",
+                "issue_id",
+                "bible_entry_id",
+                &data.issue_bible,
+            )?;
+            self.restore_junction_rows("scene_steps", "scene_id", "step_id", &data.scene_steps)?;
+            self.restore_annotations_from_snapshot(&data.annotations)?;
+            self.restore_name_registry_from_snapshot(&data.name_registry)?;
+            self.restore_name_mentions_from_snapshot(&data.name_mentions)?;
+            self.restore_facts_from_snapshot(&data.facts)?;
+            self.restore_fact_characters_from_snapshot(&data.fact_characters)?;
+            self.restore_writing_sessions_from_snapshot(&data.writing_sessions)?;
             Ok(())
         })();
 
@@ -194,18 +506,15 @@ impl Database {
     /// Imports project data from a JSON backup string.
     /// Creates an automatic backup before importing.
     pub fn import_json_backup(&self, json_data: &str) -> Result<(), String> {
-        // Parse the JSON data
         let data: SnapshotData = serde_json::from_str(json_data)
             .map_err(|e| format!("Invalid JSON backup data: {}", e))?;
 
-        // Create automatic backup before import
         self.create_snapshot(
             "Auto-backup before JSON import",
             Some("Automatic backup created before importing from JSON backup"),
             "pre_import",
         )?;
 
-        // Use a transaction to ensure atomicity of the import operation
         self.conn
             .execute("BEGIN TRANSACTION", [])
             .map_err(|e| e.to_string())?;
@@ -218,6 +527,48 @@ impl Database {
             self.restore_bible_entries(&data.bible_entries)?;
             self.restore_arcs(&data.arcs)?;
             self.restore_events(&data.events)?;
+            // Restore junction tables
+            self.restore_junction_rows(
+                "canonical_associations",
+                "scene_id",
+                "bible_entry_id",
+                &data.canonical_associations,
+            )?;
+            self.restore_junction_rows("scene_arcs", "scene_id", "arc_id", &data.scene_arcs)?;
+            self.restore_junction_rows(
+                "arc_characters",
+                "arc_id",
+                "bible_entry_id",
+                &data.arc_characters,
+            )?;
+            self.restore_junction_rows("event_scenes", "event_id", "scene_id", &data.event_scenes)?;
+            self.restore_junction_rows(
+                "event_bible",
+                "event_id",
+                "bible_entry_id",
+                &data.event_bible,
+            )?;
+            self.restore_bible_relationships_from_snapshot(&data.bible_relationships)?;
+            self.restore_issues_from_snapshot(&data.issues)?;
+            self.restore_issue_junction_rows(
+                "issue_scenes",
+                "issue_id",
+                "scene_id",
+                &data.issue_scenes,
+            )?;
+            self.restore_issue_junction_rows(
+                "issue_bible",
+                "issue_id",
+                "bible_entry_id",
+                &data.issue_bible,
+            )?;
+            self.restore_junction_rows("scene_steps", "scene_id", "step_id", &data.scene_steps)?;
+            self.restore_annotations_from_snapshot(&data.annotations)?;
+            self.restore_name_registry_from_snapshot(&data.name_registry)?;
+            self.restore_name_mentions_from_snapshot(&data.name_mentions)?;
+            self.restore_facts_from_snapshot(&data.facts)?;
+            self.restore_fact_characters_from_snapshot(&data.fact_characters)?;
+            self.restore_writing_sessions_from_snapshot(&data.writing_sessions)?;
             Ok(())
         })();
 
@@ -245,7 +596,6 @@ impl Database {
     }
 
     /// Restore a single scene from a snapshot.
-    /// Replaces the current scene's text and metadata with the snapshotted version.
     pub fn restore_scene_from_snapshot(
         &self,
         snapshot_id: &str,
@@ -261,7 +611,6 @@ impl Database {
             .find(|s| s.id == scene_id)
             .ok_or_else(|| format!("Scene {} not found in snapshot", scene_id))?;
 
-        // Update the scene with the snapshotted data (all fields)
         self.conn
             .execute(
                 "UPDATE scenes SET title = ?1, summary = ?2, text = ?3, status = ?4,
@@ -304,63 +653,36 @@ impl Database {
 
     fn clear_for_restore(&self) -> Result<(), String> {
         // Junction tables referencing entities we'll restore:
-        self.conn
-            .execute("DELETE FROM canonical_associations", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM scene_arcs", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM arc_characters", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM event_scenes", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM event_bible", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM bible_relationships", [])
-            .map_err(|e| e.to_string())?;
-
-        // Clean up tables that reference scenes/bible entries via foreign keys.
-        // These must be cleared before the main tables to avoid FK violations,
-        // and because the restored data will have different IDs.
-        self.conn
-            .execute("DELETE FROM issue_scenes", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM issue_bible", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM scene_steps", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM annotations", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM name_mentions", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM scene_history", [])
-            .map_err(|e| e.to_string())?;
-
-        // Main tables that the snapshot restores:
-        self.conn
-            .execute("DELETE FROM scenes", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM chapters", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM bible_entries", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM arcs", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM events", [])
-            .map_err(|e| e.to_string())?;
+        let tables = [
+            "canonical_associations",
+            "scene_arcs",
+            "arc_characters",
+            "event_scenes",
+            "event_bible",
+            "bible_relationships",
+            "issue_scenes",
+            "issue_bible",
+            "scene_steps",
+            "annotations",
+            "name_mentions",
+            "fact_characters",
+            "scene_history",
+            // Main tables restored from snapshot
+            "facts",
+            "writing_sessions",
+            "scenes",
+            "chapters",
+            "bible_entries",
+            "arcs",
+            "events",
+            "issues",
+            "name_registry",
+        ];
+        for table in &tables {
+            self.conn
+                .execute(&format!("DELETE FROM {}", table), [])
+                .map_err(|e| e.to_string())?;
+        }
 
         Ok(())
     }
@@ -412,9 +734,9 @@ impl Database {
                     "INSERT INTO scenes (id, chapter_id, title, summary, text, status, pov, tags, notes, todos,
                      word_target, time_point, time_start, time_end, on_timeline, position,
                      pov_goal, has_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id,
-                     revision_notes, revision_checklist, created_at, updated_at)
+                     revision_notes, revision_checklist, word_count, created_at, updated_at)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                             ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
+                             ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
                     params![
                         scene.id,
                         scene.chapter_id,
@@ -440,6 +762,7 @@ impl Database {
                         scene.payoff_of_scene_id,
                         scene.revision_notes,
                         scene.revision_checklist,
+                        scene.word_count,
                         scene.created_at,
                         scene.updated_at
                     ],
@@ -500,11 +823,7 @@ impl Database {
                     ],
                 )
                 .map_err(|e| e.to_string())?;
-
-            // Restore arc-character links
-            if !arc.characters.is_empty() {
-                self.set_arc_characters(&arc.id, &arc.characters)?;
-            }
+            // Note: arc_characters are now restored separately via junction rows
         }
         Ok(())
     }
@@ -527,6 +846,310 @@ impl Database {
                         event.importance,
                         event.created_at,
                         event.updated_at
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_junction_rows(
+        &self,
+        table: &str,
+        col_a: &str,
+        col_b: &str,
+        rows: &[JunctionRow],
+    ) -> Result<(), String> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let sql = format!(
+            "INSERT OR IGNORE INTO {} (id, {}, {}, created_at) VALUES (?1, ?2, ?3, ?4)",
+            table, col_a, col_b
+        );
+        for row in rows {
+            self.conn
+                .execute(
+                    &sql,
+                    params![row.id, row.field_a, row.field_b, row.created_at],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_issue_junction_rows(
+        &self,
+        table: &str,
+        col_a: &str,
+        col_b: &str,
+        rows: &[IssueJunctionRow],
+    ) -> Result<(), String> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let sql = format!(
+            "INSERT OR IGNORE INTO {} (id, {}, {}) VALUES (?1, ?2, ?3)",
+            table, col_a, col_b
+        );
+        for row in rows {
+            self.conn
+                .execute(&sql, params![row.id, row.field_a, row.field_b])
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_bible_relationships_from_snapshot(
+        &self,
+        relationships: &[BibleRelationship],
+    ) -> Result<(), String> {
+        for rel in relationships {
+            self.conn
+                .execute(
+                    "INSERT OR IGNORE INTO bible_relationships (id, source_id, target_id, relationship_type, note, status, created_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        rel.id,
+                        rel.source_id,
+                        rel.target_id,
+                        rel.relationship_type,
+                        rel.note,
+                        rel.status,
+                        rel.created_at
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_issues_from_snapshot(&self, issues: &[Issue]) -> Result<(), String> {
+        for issue in issues {
+            self.conn
+                .execute(
+                    "INSERT INTO issues (id, issue_type, title, description, severity, status, resolution_note, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    params![
+                        issue.id,
+                        issue.issue_type,
+                        issue.title,
+                        issue.description,
+                        issue.severity,
+                        issue.status,
+                        issue.resolution_note,
+                        issue.created_at,
+                        issue.updated_at
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_annotations_from_snapshot(&self, annotations: &[Annotation]) -> Result<(), String> {
+        for ann in annotations {
+            self.conn
+                .execute(
+                    "INSERT INTO annotations (id, scene_id, start_offset, end_offset, annotation_type, content, status, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    params![
+                        ann.id,
+                        ann.scene_id,
+                        ann.start_offset,
+                        ann.end_offset,
+                        ann.annotation_type,
+                        ann.content,
+                        ann.status,
+                        ann.created_at,
+                        ann.updated_at
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_name_registry_from_snapshot(
+        &self,
+        entries: &[NameRegistryEntry],
+    ) -> Result<(), String> {
+        for entry in entries {
+            self.conn
+                .execute(
+                    "INSERT INTO name_registry (id, canonical_name, name_type, bible_entry_id, aliases, is_confirmed, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    params![
+                        entry.id,
+                        entry.canonical_name,
+                        entry.name_type,
+                        entry.bible_entry_id,
+                        entry.aliases,
+                        entry.is_confirmed as i32,
+                        entry.created_at,
+                        entry.updated_at
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_name_mentions_from_snapshot(&self, mentions: &[NameMention]) -> Result<(), String> {
+        for mention in mentions {
+            self.conn
+                .execute(
+                    "INSERT INTO name_mentions (id, name_registry_id, scene_id, mention_text, start_offset, end_offset, status, created_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    params![
+                        mention.id,
+                        mention.name_registry_id,
+                        mention.scene_id,
+                        mention.mention_text,
+                        mention.start_offset,
+                        mention.end_offset,
+                        mention.status,
+                        mention.created_at
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn collect_facts_for_snapshot(&self) -> Result<Vec<Fact>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, content, category, revealed_in_scene_id, status, created_at, updated_at FROM facts",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(Fact {
+                    id: row.get(0)?,
+                    content: row.get(1)?,
+                    category: row.get(2)?,
+                    revealed_in_scene_id: row.get(3)?,
+                    status: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn collect_fact_characters_for_snapshot(&self) -> Result<Vec<FactCharacter>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, fact_id, bible_entry_id, learned_in_scene_id, created_at FROM fact_characters",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(FactCharacter {
+                    id: row.get(0)?,
+                    fact_id: row.get(1)?,
+                    bible_entry_id: row.get(2)?,
+                    learned_in_scene_id: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn collect_writing_sessions_for_snapshot(&self) -> Result<Vec<WritingSession>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, date, words_start, words_end, duration_minutes, scenes_edited, created_at FROM writing_sessions",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(WritingSession {
+                    id: row.get(0)?,
+                    date: row.get(1)?,
+                    words_start: row.get(2)?,
+                    words_end: row.get(3)?,
+                    duration_minutes: row.get(4)?,
+                    scenes_edited: row.get(5)?,
+                    created_at: row.get(6)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    fn restore_facts_from_snapshot(&self, facts: &[Fact]) -> Result<(), String> {
+        for fact in facts {
+            self.conn
+                .execute(
+                    "INSERT INTO facts (id, content, category, revealed_in_scene_id, status, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        fact.id,
+                        fact.content,
+                        fact.category,
+                        fact.revealed_in_scene_id,
+                        fact.status,
+                        fact.created_at,
+                        fact.updated_at
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_fact_characters_from_snapshot(
+        &self,
+        fact_chars: &[FactCharacter],
+    ) -> Result<(), String> {
+        for fc in fact_chars {
+            self.conn
+                .execute(
+                    "INSERT INTO fact_characters (id, fact_id, bible_entry_id, learned_in_scene_id, created_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![
+                        fc.id,
+                        fc.fact_id,
+                        fc.bible_entry_id,
+                        fc.learned_in_scene_id,
+                        fc.created_at
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn restore_writing_sessions_from_snapshot(
+        &self,
+        sessions: &[WritingSession],
+    ) -> Result<(), String> {
+        for session in sessions {
+            self.conn
+                .execute(
+                    "INSERT INTO writing_sessions (id, date, words_start, words_end, duration_minutes, scenes_edited, created_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        session.id,
+                        session.date,
+                        session.words_start,
+                        session.words_end,
+                        session.duration_minutes,
+                        session.scenes_edited,
+                        session.created_at
                     ],
                 )
                 .map_err(|e| e.to_string())?;

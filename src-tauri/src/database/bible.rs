@@ -2,7 +2,7 @@
 
 use crate::models::{
     BibleEntry, BibleRelationship, BibleRelationshipWithEntry, CanonicalAssociation,
-    CreateAssociationRequest, CreateBibleEntryRequest, CreateBibleRelationshipRequest,
+    CreateAssociationRequest, CreateBibleEntryRequest, CreateBibleRelationshipRequest, Scene,
     UpdateBibleEntryRequest, UpdateBibleRelationshipRequest,
 };
 use rusqlite::params;
@@ -409,6 +409,31 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    pub fn get_bible_entry_scenes(&self, bible_entry_id: &str) -> Result<Vec<Scene>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT s.id, s.chapter_id, s.title, s.summary, s.text, s.status, s.pov, s.tags,
+                    s.notes, s.todos, s.word_target, s.time_point, s.time_start, s.time_end,
+                    s.on_timeline, s.position, s.pov_goal, s.has_conflict, s.has_change, s.tension,
+                    s.setup_for_scene_id, s.payoff_of_scene_id, s.revision_notes, s.revision_checklist,
+                    s.word_count, s.created_at, s.updated_at
+             FROM scenes s
+             JOIN canonical_associations ca ON s.id = ca.scene_id
+             WHERE ca.bible_entry_id = ?1 AND s.deleted_at IS NULL
+             ORDER BY s.position",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let scenes = stmt
+            .query_map(params![bible_entry_id], Self::map_scene)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(scenes)
     }
 
     // ========================================================================

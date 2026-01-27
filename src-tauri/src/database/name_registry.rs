@@ -3,12 +3,49 @@
 //! Manages proper nouns (characters, locations) and their mentions in scenes.
 
 use crate::models::{
-    CreateNameRegistryRequest, NameMention, NameRegistryEntry, UpdateNameMentionRequest,
-    UpdateNameRegistryRequest,
+    AssociationSuggestion, CreateIssueRequest, CreateNameRegistryRequest, NameMention,
+    NameRegistryEntry, ScanResult, UpdateNameMentionRequest, UpdateNameRegistryRequest,
 };
 use rusqlite::params;
 
 use super::Database;
+
+/// Compute the Levenshtein (edit) distance between two strings.
+///
+/// Uses the classic dynamic programming approach with O(min(m,n)) space.
+fn levenshtein_distance(a: &str, b: &str) -> usize {
+    let a_chars: Vec<char> = a.chars().collect();
+    let b_chars: Vec<char> = b.chars().collect();
+    let (a_len, b_len) = (a_chars.len(), b_chars.len());
+
+    if a_len == 0 {
+        return b_len;
+    }
+    if b_len == 0 {
+        return a_len;
+    }
+
+    // Use single-row DP with O(min(m,n)) space
+    let mut prev: Vec<usize> = (0..=b_len).collect();
+    let mut curr = vec![0usize; b_len + 1];
+
+    for i in 1..=a_len {
+        curr[0] = i;
+        for j in 1..=b_len {
+            let cost = if a_chars[i - 1] == b_chars[j - 1] {
+                0
+            } else {
+                1
+            };
+            curr[j] = (prev[j] + 1) // deletion
+                .min(curr[j - 1] + 1) // insertion
+                .min(prev[j - 1] + cost); // substitution
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[b_len]
+}
 
 impl Database {
     pub fn create_name_registry_entry(
@@ -567,10 +604,44 @@ impl Database {
             } else if existing_names.contains(lower_name) {
                 continue; // Already exists, skip
             } else {
-                // Create new entry
+                // Before creating a new entry, check Levenshtein distance
+                // against existing names. If within threshold, flag as an issue.
                 let Some(canonical) = original_forms.iter().next().cloned() else {
                     continue;
                 };
+
+                let mut similar_name: Option<String> = None;
+                for existing in &existing_names {
+                    if levenshtein_distance(lower_name, existing) <= 2 {
+                        similar_name = Some(existing.clone());
+                        break;
+                    }
+                }
+                // Also check aliases
+                if similar_name.is_none() {
+                    for alias_lower in alias_to_entry.keys() {
+                        if levenshtein_distance(lower_name, alias_lower) <= 2 {
+                            similar_name = Some(alias_lower.clone());
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(ref similar) = similar_name {
+                    // Create an issue instead of a new registry entry
+                    let issue_req = CreateIssueRequest {
+                        issue_type: "similar_name".to_string(),
+                        title: format!("Similar name detected: \"{}\" vs \"{}\"", canonical, similar),
+                        description: Some(format!(
+                            "The name \"{}\" is very similar to the existing name \"{}\". They may refer to the same entity.",
+                            canonical, similar
+                        )),
+                        severity: Some("warning".to_string()),
+                    };
+                    let _ = self.create_issue(&issue_req);
+                    continue;
+                }
+
                 let bible_entry_id = bible_name_map.get(lower_name).cloned();
 
                 let req = CreateNameRegistryRequest {
@@ -676,5 +747,432 @@ impl Database {
             .map_err(|e| e.to_string())?;
 
         self.get_name_registry_entry(keep_id)
+    }
+
+    /// Scan a single scene's text for proper nouns and register them.
+    ///
+    /// Works like `scan_names` but limited to a single scene. Also generates
+    /// association suggestions when a confirmed name with a linked bible entry
+    /// appears in the scene but has no canonical association.
+    pub fn scan_names_for_scene(&self, scene_id: &str) -> Result<ScanResult, String> {
+        use std::collections::{HashMap, HashSet};
+
+        // 1. Fetch the target scene
+        let (text, scene_title): (String, String) = self
+            .conn
+            .query_row(
+                "SELECT text, title FROM scenes WHERE id = ?1 AND deleted_at IS NULL",
+                params![scene_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| format!("Scene not found: {}", e))?;
+
+        if text.is_empty() {
+            return Ok(ScanResult {
+                new_entries: 0,
+                new_mentions: 0,
+                suggestions: Vec::new(),
+            });
+        }
+
+        // Clear old mentions for this scene before rescanning
+        self.conn
+            .execute(
+                "DELETE FROM name_mentions WHERE scene_id = ?1",
+                params![scene_id],
+            )
+            .map_err(|e| e.to_string())?;
+
+        // 2. Fetch existing registry entries and bible entries
+        let existing_entries = self.get_name_registry_entries(None)?;
+        let existing_names: HashSet<String> = existing_entries
+            .iter()
+            .map(|e| e.canonical_name.to_lowercase())
+            .collect();
+
+        let mut alias_to_entry: HashMap<String, String> = HashMap::new();
+        for entry in &existing_entries {
+            alias_to_entry.insert(entry.canonical_name.to_lowercase(), entry.id.clone());
+            if let Some(ref aliases) = entry.aliases {
+                for alias in aliases.split(',') {
+                    let alias = alias.trim().to_lowercase();
+                    if !alias.is_empty() {
+                        alias_to_entry.insert(alias, entry.id.clone());
+                    }
+                }
+            }
+        }
+
+        // Fetch bible entry names for auto-linking
+        let mut bible_stmt = self
+            .conn
+            .prepare("SELECT id, name FROM bible_entries WHERE deleted_at IS NULL")
+            .map_err(|e| e.to_string())?;
+        let bible_entries: Vec<(String, String)> = bible_stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        let bible_name_map: HashMap<String, String> = bible_entries
+            .iter()
+            .map(|(id, name)| (name.to_lowercase(), id.clone()))
+            .collect();
+
+        // Fetch existing canonical associations for this scene
+        let mut assoc_stmt = self
+            .conn
+            .prepare("SELECT bible_entry_id FROM canonical_associations WHERE scene_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let existing_assoc_bible_ids: HashSet<String> = assoc_stmt
+            .query_map(params![scene_id], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<HashSet<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        // Common words to skip
+        let skip_words: HashSet<&str> = [
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "is",
+            "it",
+            "its",
+            "this",
+            "that",
+            "was",
+            "were",
+            "be",
+            "been",
+            "are",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "shall",
+            "can",
+            "not",
+            "no",
+            "yes",
+            "he",
+            "she",
+            "they",
+            "we",
+            "you",
+            "i",
+            "me",
+            "him",
+            "her",
+            "us",
+            "them",
+            "my",
+            "your",
+            "his",
+            "our",
+            "their",
+            "what",
+            "which",
+            "who",
+            "whom",
+            "how",
+            "when",
+            "where",
+            "why",
+            "if",
+            "then",
+            "else",
+            "so",
+            "as",
+            "than",
+            "too",
+            "very",
+            "just",
+            "about",
+            "up",
+            "out",
+            "into",
+            "over",
+            "after",
+            "before",
+            "all",
+            "each",
+            "every",
+            "both",
+            "some",
+            "any",
+            "many",
+            "much",
+            "more",
+            "most",
+            "other",
+            "such",
+            "only",
+            "also",
+            "than",
+            "now",
+            "here",
+            "there",
+            "still",
+            "already",
+            "yet",
+            "again",
+            "however",
+            "although",
+            "because",
+            "since",
+            "while",
+            "until",
+            "chapter",
+            "scene",
+            "part",
+            "book",
+            "page",
+            "said",
+            "asked",
+            "told",
+            "thought",
+            "knew",
+            "saw",
+            "looked",
+            "made",
+            "came",
+            "went",
+            "got",
+            "took",
+            "gave",
+            "put",
+            "let",
+            "like",
+            "never",
+            "always",
+            "often",
+            "sometimes",
+            "once",
+            "even",
+            "first",
+            "last",
+            "next",
+            "new",
+            "old",
+            "long",
+            "little",
+            "big",
+            "great",
+            "good",
+            "bad",
+            "right",
+            "left",
+            "own",
+            "same",
+        ]
+        .iter()
+        .copied()
+        .collect();
+
+        let html_tag_re = &super::HTML_TAG_REGEX;
+
+        // 3. Extract capitalized words from the scene
+        type NameData = (HashSet<String>, Vec<(i32, i32)>);
+        let mut found_names: HashMap<String, NameData> = HashMap::new();
+
+        let plain = html_tag_re.replace_all(&text, " ");
+        let plain = plain.as_ref();
+
+        let sentences: Vec<&str> = plain.split(['.', '!', '?']).collect();
+
+        let mut offset = 0;
+        for sentence in &sentences {
+            let trimmed = sentence.trim();
+            let words: Vec<&str> = trimmed.split_whitespace().collect();
+
+            for (i, word) in words.iter().enumerate() {
+                let clean: String = word
+                    .chars()
+                    .filter(|c| c.is_alphabetic() || *c == '-' || *c == '\'')
+                    .collect();
+
+                if clean.len() < 2 {
+                    continue;
+                }
+
+                let Some(first_char) = clean.chars().next() else {
+                    continue;
+                };
+                if !first_char.is_uppercase() {
+                    continue;
+                }
+
+                // Skip first word of sentence
+                if i == 0 {
+                    continue;
+                }
+
+                let lower = clean.to_lowercase();
+                if skip_words.contains(lower.as_str()) {
+                    continue;
+                }
+
+                let word_offset = plain[offset..]
+                    .find(word.trim_matches(|c: char| !c.is_alphabetic()))
+                    .map(|o| o + offset)
+                    .unwrap_or(offset);
+
+                let entry = found_names
+                    .entry(lower.clone())
+                    .or_insert_with(|| (HashSet::new(), Vec::new()));
+                entry.0.insert(clean.clone());
+                entry
+                    .1
+                    .push((word_offset as i32, (word_offset + clean.len()) as i32));
+            }
+
+            offset += sentence.len() + 1;
+        }
+
+        // 4. Create registry entries for new names and mentions; collect suggestions
+        let mut new_entries = 0;
+        let mut new_mentions = 0;
+        let mut suggestions: Vec<AssociationSuggestion> = Vec::new();
+        // Track suggestions we've already added (to avoid duplicates)
+        let mut suggested_bible_ids: HashSet<String> = HashSet::new();
+
+        for (lower_name, (original_forms, occurrences)) in &found_names {
+            // Check if already in registry (existing or alias)
+            let registry_id = if let Some(id) = alias_to_entry.get(lower_name) {
+                id.clone()
+            } else if existing_names.contains(lower_name) {
+                continue;
+            } else {
+                // For scene-level scan, also require at least 2 occurrences
+                if occurrences.len() < 2 {
+                    continue;
+                }
+
+                let Some(canonical) = original_forms.iter().next().cloned() else {
+                    continue;
+                };
+
+                // Check Levenshtein distance against existing names
+                let mut similar_name: Option<String> = None;
+                for existing in &existing_names {
+                    if levenshtein_distance(lower_name, existing) <= 2 {
+                        similar_name = Some(existing.clone());
+                        break;
+                    }
+                }
+                if similar_name.is_none() {
+                    for alias_lower in alias_to_entry.keys() {
+                        if levenshtein_distance(lower_name, alias_lower) <= 2 {
+                            similar_name = Some(alias_lower.clone());
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(ref similar) = similar_name {
+                    let issue_req = CreateIssueRequest {
+                        issue_type: "similar_name".to_string(),
+                        title: format!(
+                            "Similar name detected: \"{}\" vs \"{}\"",
+                            canonical, similar
+                        ),
+                        description: Some(format!(
+                            "The name \"{}\" is very similar to the existing name \"{}\". They may refer to the same entity.",
+                            canonical, similar
+                        )),
+                        severity: Some("warning".to_string()),
+                    };
+                    let _ = self.create_issue(&issue_req);
+                    continue;
+                }
+
+                let bible_entry_id = bible_name_map.get(lower_name).cloned();
+
+                let req = CreateNameRegistryRequest {
+                    canonical_name: canonical,
+                    name_type: Some("character".to_string()),
+                    bible_entry_id,
+                    aliases: if original_forms.len() > 1 {
+                        Some(
+                            original_forms
+                                .iter()
+                                .skip(1)
+                                .cloned()
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        )
+                    } else {
+                        None
+                    },
+                };
+
+                let entry = self.create_name_registry_entry(&req)?;
+                new_entries += 1;
+                entry.id
+            };
+
+            // Create mentions
+            let max_mentions = 50;
+            for (start, end) in occurrences.iter().take(max_mentions) {
+                let Some(mention_text) = original_forms.iter().next() else {
+                    continue;
+                };
+                self.create_name_mention(&registry_id, scene_id, mention_text, *start, *end)?;
+                new_mentions += 1;
+            }
+
+            // Phase 3C: Association suggestions
+            // Find the registry entry to check if it's confirmed and has a bible_entry_id
+            if let Ok(reg_entry) = self.get_name_registry_entry(&registry_id) {
+                if reg_entry.is_confirmed {
+                    if let Some(ref bible_id) = reg_entry.bible_entry_id {
+                        // Only suggest if there's no existing canonical association
+                        if !existing_assoc_bible_ids.contains(bible_id)
+                            && !suggested_bible_ids.contains(bible_id)
+                        {
+                            // Look up the bible entry name
+                            let bible_entry_name = bible_entries
+                                .iter()
+                                .find(|(id, _)| id == bible_id)
+                                .map(|(_, name)| name.clone())
+                                .unwrap_or_else(|| reg_entry.canonical_name.clone());
+
+                            suggestions.push(AssociationSuggestion {
+                                scene_id: scene_id.to_string(),
+                                bible_entry_id: bible_id.clone(),
+                                bible_entry_name,
+                                scene_title: scene_title.clone(),
+                            });
+                            suggested_bible_ids.insert(bible_id.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(ScanResult {
+            new_entries,
+            new_mentions,
+            suggestions,
+        })
     }
 }

@@ -29,11 +29,16 @@ export type {
 	Annotation,
 	// Arc & Timeline
 	Arc,
+	// Name Registry Scan
+	AssociationSuggestion,
 	// Bible
 	BibleEntry,
 	BibleRelationshipWithEntry,
 	Chapter,
 	Cut,
+	// Facts
+	Fact,
+	FactCharacter,
 	Issue,
 	NameMention,
 	// Name Registry
@@ -43,6 +48,7 @@ export type {
 	RecentProject,
 	// Saved Filters
 	SavedFilter,
+	ScanResult,
 	Scene,
 	SceneHistoryEntry,
 	// Search & Stats
@@ -54,6 +60,8 @@ export type {
 	TimelineConflict,
 	TimelineEvent,
 	WordCounts,
+	// Writing Session
+	WritingSession,
 } from './types';
 
 // =============================================================================
@@ -63,6 +71,7 @@ export type {
 export { associationApi, bibleApi, relationshipApi } from './bible';
 export { annotationApi, cutApi, snapshotApi, templateApi, trashApi } from './content';
 export { exportApi, importApi } from './export';
+export { factApi } from './fact';
 export { issueApi } from './issue';
 export { chapterApi, historyApi, sceneApi } from './manuscript';
 export { nameMentionApi, nameRegistryApi } from './name-registry';
@@ -70,3 +79,4 @@ export { projectApi } from './project';
 export { savedFilterApi } from './saved-filter';
 export { searchApi, statsApi } from './search';
 export { arcApi, eventApi, timelineApi } from './timeline';
+export { writingSessionApi } from './writing-session';

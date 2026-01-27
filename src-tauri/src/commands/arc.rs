@@ -117,3 +117,20 @@ pub fn set_arc_characters(
     let db = db.as_ref().ok_or("No project open")?;
     db.set_arc_characters(&arc_id, &character_ids)
 }
+
+#[tauri::command]
+pub fn get_arc_scenes(arc_id: String, state: State<AppState>) -> Result<Vec<Scene>, String> {
+    let db = state.get_db()?;
+    let db = db.as_ref().ok_or("No project open")?;
+    db.get_arc_scenes(&arc_id)
+}
+
+#[tauri::command]
+pub fn get_character_arcs(
+    bible_entry_id: String,
+    state: State<AppState>,
+) -> Result<Vec<Arc>, String> {
+    let db = state.get_db()?;
+    let db = db.as_ref().ok_or("No project open")?;
+    db.get_character_arcs(&bible_entry_id)
+}

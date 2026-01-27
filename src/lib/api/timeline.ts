@@ -8,7 +8,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-import type { Arc, Scene, TimelineConflict, TimelineEvent } from './types';
+import type { Arc, BibleEntry, Scene, TimelineConflict, TimelineEvent } from './types';
 
 /**
  * API for plot arc operations.
@@ -43,6 +43,10 @@ export const arcApi = {
 
 	setCharacters: (arcId: string, characterIds: string[]) =>
 		invoke<string[]>('set_arc_characters', { arcId, characterIds }),
+
+	getArcScenes: (arcId: string) => invoke<Scene[]>('get_arc_scenes', { arcId }),
+
+	getCharacterArcs: (bibleEntryId: string) => invoke<Arc[]>('get_character_arcs', { bibleEntryId }),
 };
 
 /**
@@ -91,7 +95,7 @@ export const eventApi = {
 
 	getSceneEvents: (sceneId: string) => invoke<TimelineEvent[]>('get_scene_events', { sceneId }),
 
-	getEventScenes: (eventId: string) => invoke<string[]>('get_event_scenes', { eventId }),
+	getEventScenes: (eventId: string) => invoke<Scene[]>('get_event_scenes', { eventId }),
 
 	// Event-Bible linking
 	linkBibleEntry: (bibleEntryId: string, eventId: string) =>
@@ -101,7 +105,7 @@ export const eventApi = {
 		invoke<void>('unlink_bible_entry_from_event', { bibleEntryId, eventId }),
 
 	getEventBibleEntries: (eventId: string) =>
-		invoke<string[]>('get_event_bible_entries', { eventId }),
+		invoke<BibleEntry[]>('get_event_bible_entries', { eventId }),
 
 	getBibleEntryEvents: (bibleEntryId: string) =>
 		invoke<TimelineEvent[]>('get_bible_entry_events', { bibleEntryId }),

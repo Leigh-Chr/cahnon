@@ -8,7 +8,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-import type { NameMention, NameRegistryEntry } from './types';
+import type { NameMention, NameRegistryEntry, ScanResult } from './types';
 
 /**
  * API for name registry operations.
@@ -39,6 +39,8 @@ export const nameRegistryApi = {
 	delete: (id: string) => invoke<void>('delete_name_registry_entry', { id }),
 
 	scan: () => invoke<[number, number]>('scan_names'),
+
+	scanForScene: (sceneId: string) => invoke<ScanResult>('scan_names_for_scene', { sceneId }),
 
 	merge: (keepId: string, mergeId: string) =>
 		invoke<NameRegistryEntry>('merge_name_entries', { keepId, mergeId }),

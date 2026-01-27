@@ -23,6 +23,7 @@
 		{ id: 'bible', label: 'Bible', shortcut: '4' },
 		{ id: 'issues', label: 'Issues', shortcut: '5' },
 		{ id: 'names', label: 'Names', shortcut: '6' },
+		{ id: 'dashboard', label: 'Dashboard', shortcut: '7' },
 	] as const;
 
 	interface Props {
@@ -42,6 +43,43 @@
 
 <header class="toolbar">
 	<div class="toolbar-left">
+		<button
+			class="toolbar-btn icon-btn"
+			disabled={!appState.canNavigateBack}
+			onclick={() => appState.navigateBack()}
+			title="Navigate Back (Alt+Left)"
+		>
+			<svg
+				width="18"
+				height="18"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<polyline points="15 18 9 12 15 6" />
+			</svg>
+		</button>
+		<button
+			class="toolbar-btn icon-btn"
+			disabled={!appState.canNavigateForward}
+			onclick={() => appState.navigateForward()}
+			title="Navigate Forward (Alt+Right)"
+		>
+			<svg
+				width="18"
+				height="18"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<polyline points="9 18 15 12 9 6" />
+			</svg>
+		</button>
+
+		<div class="separator"></div>
+
 		<button
 			class="toolbar-btn icon-btn"
 			class:active={appState.showOutline}

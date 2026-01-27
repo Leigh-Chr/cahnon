@@ -17,6 +17,9 @@ impl Database {
         self.migrate_arc_characters_table()?;
         self.migrate_missing_indexes()?;
         self.migrate_bible_relationships_unique()?;
+        self.migrate_word_count_cache()?;
+        self.migrate_writing_sessions_table()?;
+        self.migrate_facts_tables()?;
         Ok(())
     }
 
@@ -462,10 +465,133 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_template_steps_template ON template_steps(template_id)",
             "CREATE INDEX IF NOT EXISTS idx_scene_steps_step ON scene_steps(step_id)",
             "CREATE INDEX IF NOT EXISTS idx_cuts_scene ON cuts(scene_id)",
+            "CREATE INDEX IF NOT EXISTS idx_scenes_pov ON scenes(pov) WHERE pov IS NOT NULL AND deleted_at IS NULL",
+            "CREATE INDEX IF NOT EXISTS idx_scenes_time ON scenes(time_point, time_start) WHERE deleted_at IS NULL",
         ];
         for sql in &indexes {
             self.conn.execute(sql, []).map_err(|e| e.to_string())?;
         }
+        Ok(())
+    }
+
+    fn migrate_word_count_cache(&self) -> Result<(), String> {
+        let has_word_count: bool = self
+            .conn
+            .prepare("SELECT word_count FROM scenes LIMIT 0")
+            .is_ok();
+        if !has_word_count {
+            self.conn
+                .execute(
+                    "ALTER TABLE scenes ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )
+                .map_err(|e| format!("Failed to add word_count column: {}", e))?;
+
+            // Backfill existing scenes
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id, text FROM scenes WHERE text != ''")
+                .map_err(|e| e.to_string())?;
+            let rows: Vec<(String, String)> = stmt
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+
+            for (id, text) in rows {
+                let plain = crate::database::HTML_TAG_REGEX.replace_all(&text, " ");
+                let wc = plain.split_whitespace().count() as i32;
+                self.conn
+                    .execute(
+                        "UPDATE scenes SET word_count = ?1 WHERE id = ?2",
+                        rusqlite::params![wc, id],
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn migrate_writing_sessions_table(&self) -> Result<(), String> {
+        self.conn
+            .execute(
+                "CREATE TABLE IF NOT EXISTS writing_sessions (
+                id TEXT PRIMARY KEY,
+                date TEXT NOT NULL,
+                words_start INTEGER NOT NULL DEFAULT 0,
+                words_end INTEGER NOT NULL DEFAULT 0,
+                duration_minutes INTEGER NOT NULL DEFAULT 0,
+                scenes_edited TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_writing_sessions_date ON writing_sessions(date)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn migrate_facts_tables(&self) -> Result<(), String> {
+        self.conn
+            .execute(
+                "CREATE TABLE IF NOT EXISTS facts (
+                id TEXT PRIMARY KEY,
+                content TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'plot',
+                revealed_in_scene_id TEXT,
+                status TEXT NOT NULL DEFAULT 'secret',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (revealed_in_scene_id) REFERENCES scenes(id)
+            )",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE TABLE IF NOT EXISTS fact_characters (
+                id TEXT PRIMARY KEY,
+                fact_id TEXT NOT NULL,
+                bible_entry_id TEXT NOT NULL,
+                learned_in_scene_id TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (fact_id) REFERENCES facts(id),
+                FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
+                FOREIGN KEY (learned_in_scene_id) REFERENCES scenes(id),
+                UNIQUE(fact_id, bible_entry_id)
+            )",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_facts_status ON facts(status)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_facts_revealed ON facts(revealed_in_scene_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_fact_characters_fact ON fact_characters(fact_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_fact_characters_bible ON fact_characters(bible_entry_id)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -554,6 +680,8 @@ CREATE TABLE IF NOT EXISTS scenes (
     payoff_of_scene_id TEXT,
     revision_notes TEXT,
     revision_checklist TEXT,
+    -- Cached word count
+    word_count INTEGER NOT NULL DEFAULT 0,
     -- Timestamps
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -832,6 +960,42 @@ CREATE TABLE IF NOT EXISTS saved_filters (
     updated_at TEXT NOT NULL
 );
 
+-- Writing sessions
+CREATE TABLE IF NOT EXISTS writing_sessions (
+    id TEXT PRIMARY KEY,
+    date TEXT NOT NULL,
+    words_start INTEGER NOT NULL DEFAULT 0,
+    words_end INTEGER NOT NULL DEFAULT 0,
+    duration_minutes INTEGER NOT NULL DEFAULT 0,
+    scenes_edited TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+-- Narrative facts / revelations
+CREATE TABLE IF NOT EXISTS facts (
+    id TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'plot',
+    revealed_in_scene_id TEXT,
+    status TEXT NOT NULL DEFAULT 'secret',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (revealed_in_scene_id) REFERENCES scenes(id)
+);
+
+-- Fact-Character knowledge links
+CREATE TABLE IF NOT EXISTS fact_characters (
+    id TEXT PRIMARY KEY,
+    fact_id TEXT NOT NULL,
+    bible_entry_id TEXT NOT NULL,
+    learned_in_scene_id TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (fact_id) REFERENCES facts(id),
+    FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
+    FOREIGN KEY (learned_in_scene_id) REFERENCES scenes(id),
+    UNIQUE(fact_id, bible_entry_id)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_scenes_chapter ON scenes(chapter_id);
 CREATE INDEX IF NOT EXISTS idx_scenes_status ON scenes(status);
@@ -862,6 +1026,13 @@ CREATE INDEX IF NOT EXISTS idx_name_registry_bible ON name_registry(bible_entry_
 CREATE INDEX IF NOT EXISTS idx_name_mentions_registry ON name_mentions(name_registry_id);
 CREATE INDEX IF NOT EXISTS idx_name_mentions_scene ON name_mentions(scene_id);
 CREATE INDEX IF NOT EXISTS idx_saved_filters_type ON saved_filters(filter_type);
+CREATE INDEX IF NOT EXISTS idx_writing_sessions_date ON writing_sessions(date);
+CREATE INDEX IF NOT EXISTS idx_facts_status ON facts(status);
+CREATE INDEX IF NOT EXISTS idx_facts_revealed ON facts(revealed_in_scene_id);
+CREATE INDEX IF NOT EXISTS idx_fact_characters_fact ON fact_characters(fact_id);
+CREATE INDEX IF NOT EXISTS idx_fact_characters_bible ON fact_characters(bible_entry_id);
+CREATE INDEX IF NOT EXISTS idx_scenes_pov ON scenes(pov) WHERE pov IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_scenes_time ON scenes(time_point, time_start) WHERE deleted_at IS NULL;
 
 -- Full-text search
 CREATE VIRTUAL TABLE IF NOT EXISTS scenes_fts USING fts5(

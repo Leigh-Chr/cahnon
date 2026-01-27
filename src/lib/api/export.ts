@@ -38,6 +38,18 @@ export const exportApi = {
 	bible: () => invoke<string>('export_bible'),
 
 	timeline: () => invoke<string>('export_timeline'),
+
+	/** Export bible entries as CSV. */
+	exportBibleCsv: () => invoke<string>('export_bible_csv'),
+
+	/** Export timeline (events + scenes) as CSV. */
+	exportTimelineCsv: () => invoke<string>('export_timeline_csv'),
+
+	/** Export review grid data as CSV. */
+	exportReviewGridCsv: () => invoke<string>('export_review_grid_csv'),
+
+	/** Export word count stats as CSV. */
+	exportStatsCsv: () => invoke<string>('export_stats_csv'),
 };
 
 /**

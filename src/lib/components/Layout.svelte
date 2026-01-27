@@ -13,6 +13,7 @@
 	import BibleView from './BibleView.svelte';
 	import ContextPanel from './ContextPanel.svelte';
 	import Corkboard from './Corkboard.svelte';
+	import Dashboard from './Dashboard.svelte';
 	import Editor from './Editor.svelte';
 	import EventsManager from './EventsManager.svelte';
 	import ExportDialog from './ExportDialog.svelte';
@@ -67,8 +68,17 @@
 			'viewBible',
 			'viewIssues',
 			'viewNames',
+			'viewDashboard',
 		] as const;
-		const viewModes = ['editor', 'corkboard', 'timeline', 'bible', 'issues', 'names'] as const;
+		const viewModes = [
+			'editor',
+			'corkboard',
+			'timeline',
+			'bible',
+			'issues',
+			'names',
+			'dashboard',
+		] as const;
 		for (let i = 0; i < viewActions.length; i++) {
 			if (appState.matchesShortcut(event, viewActions[i])) {
 				event.preventDefault();
@@ -145,6 +155,20 @@
 		) {
 			event.preventDefault();
 			appState.toggleFullscreenMode();
+			return;
+		}
+
+		// Alt+Left: Navigate back
+		if (event.altKey && event.key === 'ArrowLeft') {
+			event.preventDefault();
+			appState.navigateBack();
+			return;
+		}
+
+		// Alt+Right: Navigate forward
+		if (event.altKey && event.key === 'ArrowRight') {
+			event.preventDefault();
+			appState.navigateForward();
 			return;
 		}
 
@@ -240,6 +264,8 @@
 				<IssuesView />
 			{:else if appState.viewMode === 'names'}
 				<NameRegistryView />
+			{:else if appState.viewMode === 'dashboard'}
+				<Dashboard />
 			{/if}
 		</main>
 

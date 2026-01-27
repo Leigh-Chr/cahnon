@@ -8,7 +8,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-import type { Issue } from './types';
+import type { BibleEntry, Issue, Scene } from './types';
 
 /**
  * API for issue management operations.
@@ -68,7 +68,7 @@ export const issueApi = {
 	/**
 	 * Get all scene IDs linked to an issue.
 	 */
-	getIssueScenes: (issueId: string) => invoke<string[]>('get_issue_scenes', { issueId }),
+	getIssueScenes: (issueId: string) => invoke<Scene[]>('get_issue_scenes', { issueId }),
 
 	/**
 	 * Get all issues linked to a scene.
@@ -91,5 +91,10 @@ export const issueApi = {
 	 * Get all bible entry IDs linked to an issue.
 	 */
 	getIssueBibleEntries: (issueId: string) =>
-		invoke<string[]>('get_issue_bible_entries', { issueId }),
+		invoke<BibleEntry[]>('get_issue_bible_entries', { issueId }),
+
+	getBibleEntryIssues: (bibleEntryId: string) =>
+		invoke<Issue[]>('get_bible_entry_issues', { bibleEntryId }),
+
+	runDetections: () => invoke<Issue[]>('run_all_detections'),
 };

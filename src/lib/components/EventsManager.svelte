@@ -10,7 +10,7 @@
   - Link/unlink bible entries to events
 -->
 <script lang="ts">
-	import { eventApi, type TimelineEvent } from '$lib/api';
+	import { type BibleEntry, eventApi, type Scene, type TimelineEvent } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { bibleEntryTypes } from '$lib/utils';
@@ -40,8 +40,8 @@
 	let formImportance = $state('moderate');
 
 	// Linked items
-	let linkedSceneIds = $state<string[]>([]);
-	let linkedBibleIds = $state<string[]>([]);
+	let linkedScenes = $state<Scene[]>([]);
+	let linkedBibleEntries = $state<BibleEntry[]>([]);
 	let isAddingScene = $state(false);
 	let isAddingBibleEntry = $state(false);
 	let selectedSceneToAdd = $state('');
@@ -75,6 +75,9 @@
 		}
 		return result;
 	});
+
+	let linkedSceneIds = $derived(linkedScenes.map((s) => s.id));
+	let linkedBibleIds = $derived(linkedBibleEntries.map((e) => e.id));
 
 	let availableScenes = $derived(allScenes.filter((s) => !linkedSceneIds.includes(s.id)));
 
@@ -117,8 +120,8 @@
 
 	async function loadLinkedItems(eventId: string) {
 		try {
-			linkedSceneIds = await eventApi.getEventScenes(eventId);
-			linkedBibleIds = await eventApi.getEventBibleEntries(eventId);
+			linkedScenes = await eventApi.getEventScenes(eventId);
+			linkedBibleEntries = await eventApi.getEventBibleEntries(eventId);
 		} catch (e) {
 			console.error('Failed to load linked items:', e);
 		}
@@ -257,16 +260,6 @@
 			console.error('Failed to unlink bible entry:', e);
 			showError('Failed to unlink bible entry');
 		}
-	}
-
-	function getSceneTitle(sceneId: string): string {
-		const scene = allScenes.find((s) => s.id === sceneId);
-		return scene?.title || 'Unknown scene';
-	}
-
-	function getBibleEntryName(entryId: string): string {
-		const entry = appState.bibleEntries.find((e) => e.id === entryId);
-		return entry?.name || 'Unknown entry';
 	}
 
 	function getTypeIcon(type: string): string {
@@ -487,12 +480,12 @@
 								{/if}
 
 								<div class="linked-list">
-									{#each linkedSceneIds as sceneId (sceneId)}
+									{#each linkedScenes as scene (scene.id)}
 										<div class="linked-item">
-											<span class="linked-name">{getSceneTitle(sceneId)}</span>
+											<span class="linked-name">{scene.title}</span>
 											<button
 												class="remove-btn"
-												onclick={() => unlinkScene(sceneId)}
+												onclick={() => unlinkScene(scene.id)}
 												title="Unlink scene"
 											>
 												&times;
@@ -542,12 +535,12 @@
 								{/if}
 
 								<div class="linked-list">
-									{#each linkedBibleIds as entryId (entryId)}
+									{#each linkedBibleEntries as entry (entry.id)}
 										<div class="linked-item">
-											<span class="linked-name">{getBibleEntryName(entryId)}</span>
+											<span class="linked-name">{entry.name}</span>
 											<button
 												class="remove-btn"
-												onclick={() => unlinkBibleEntry(entryId)}
+												onclick={() => unlinkBibleEntry(entry.id)}
 												title="Unlink entry"
 											>
 												&times;

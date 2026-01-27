@@ -177,20 +177,30 @@ impl Database {
         Ok(())
     }
 
-    /// Gets all scene IDs linked to an issue.
-    pub fn get_issue_scenes(&self, issue_id: &str) -> Result<Vec<String>, String> {
+    /// Gets all scenes linked to an issue.
+    pub fn get_issue_scenes(&self, issue_id: &str) -> Result<Vec<crate::models::Scene>, String> {
         let mut stmt = self
             .conn
-            .prepare("SELECT scene_id FROM issue_scenes WHERE issue_id = ?1")
+            .prepare(
+                "SELECT s.id, s.chapter_id, s.title, s.summary, s.text, s.status, s.pov, s.tags,
+                    s.notes, s.todos, s.word_target, s.time_point, s.time_start, s.time_end,
+                    s.on_timeline, s.position, s.pov_goal, s.has_conflict, s.has_change, s.tension,
+                    s.setup_for_scene_id, s.payoff_of_scene_id, s.revision_notes, s.revision_checklist,
+                    s.word_count, s.created_at, s.updated_at
+             FROM scenes s
+             JOIN issue_scenes isc ON s.id = isc.scene_id
+             WHERE isc.issue_id = ?1 AND s.deleted_at IS NULL
+             ORDER BY s.position",
+            )
             .map_err(|e| e.to_string())?;
 
-        let scene_ids = stmt
-            .query_map(rusqlite::params![issue_id], |row| row.get(0))
-            .map_err(|e| e.to_string())?;
-
-        scene_ids
+        let scenes = stmt
+            .query_map(rusqlite::params![issue_id], Self::map_scene)
+            .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+
+        Ok(scenes)
     }
 
     /// Gets all issues linked to a scene.
@@ -274,19 +284,112 @@ impl Database {
         Ok(())
     }
 
-    /// Gets all bible entry IDs linked to an issue.
-    pub fn get_issue_bible_entries(&self, issue_id: &str) -> Result<Vec<String>, String> {
+    /// Gets all bible entries linked to an issue.
+    pub fn get_issue_bible_entries(
+        &self,
+        issue_id: &str,
+    ) -> Result<Vec<crate::models::BibleEntry>, String> {
         let mut stmt = self
             .conn
-            .prepare("SELECT bible_entry_id FROM issue_bible WHERE issue_id = ?1")
+            .prepare(
+                "SELECT b.id, b.entry_type, b.name, b.aliases, b.short_description, b.full_description,
+                    b.status, b.tags, b.image_path, b.notes, b.todos, b.color, b.custom_fields,
+                    b.created_at, b.updated_at, b.deleted_at
+             FROM bible_entries b
+             JOIN issue_bible ib ON b.id = ib.bible_entry_id
+             WHERE ib.issue_id = ?1 AND b.deleted_at IS NULL
+             ORDER BY b.entry_type, b.name",
+            )
             .map_err(|e| e.to_string())?;
 
-        let entry_ids = stmt
-            .query_map(rusqlite::params![issue_id], |row| row.get(0))
-            .map_err(|e| e.to_string())?;
-
-        entry_ids
+        let entries = stmt
+            .query_map(rusqlite::params![issue_id], Self::map_bible_entry)
+            .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+
+        Ok(entries)
+    }
+
+    /// Deletes all auto-detected issues (issue_type starts with "auto_").
+    pub fn delete_auto_detected_issues(&self) -> Result<(), String> {
+        // Clean junction tables
+        self.conn
+            .execute(
+                "DELETE FROM issue_scenes WHERE issue_id IN (SELECT id FROM issues WHERE issue_type LIKE 'auto_%')",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute(
+                "DELETE FROM issue_bible WHERE issue_id IN (SELECT id FROM issues WHERE issue_type LIKE 'auto_%')",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM issues WHERE issue_type LIKE 'auto_%'", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Creates an issue from a detection result and links scenes/bible entries.
+    pub fn create_issue_from_detection(
+        &self,
+        d: &crate::models::DetectedIssue,
+    ) -> Result<crate::models::Issue, String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        self.conn
+            .execute(
+                "INSERT INTO issues (id, issue_type, title, description, severity, status, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![
+                    id,
+                    format!("auto_{}", d.issue_type),
+                    d.title,
+                    d.description,
+                    d.severity,
+                    "open",
+                    now,
+                    now
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+
+        for scene_id in &d.scene_ids {
+            self.link_scene_to_issue(scene_id, &id)?;
+        }
+        for bible_id in &d.bible_entry_ids {
+            self.link_bible_entry_to_issue(bible_id, &id)?;
+        }
+
+        self.get_issue(&id)
+    }
+
+    /// Gets all issues linked to a bible entry.
+    pub fn get_bible_entry_issues(
+        &self,
+        bible_entry_id: &str,
+    ) -> Result<Vec<crate::models::Issue>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT i.id, i.issue_type, i.title, i.description, i.severity, i.status,
+                        i.resolution_note, i.created_at, i.updated_at
+                 FROM issues i
+                 JOIN issue_bible ib ON i.id = ib.issue_id
+                 WHERE ib.bible_entry_id = ?1
+                 ORDER BY i.severity, i.created_at DESC",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let issues = stmt
+            .query_map(rusqlite::params![bible_entry_id], Self::map_issue)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(issues)
     }
 }

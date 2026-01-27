@@ -30,6 +30,13 @@ pub fn restore_chapter(id: String, state: State<AppState>) -> Result<Chapter, St
 }
 
 #[tauri::command]
+pub fn purge_expired_trash(state: State<AppState>) -> Result<(usize, usize), String> {
+    let db = state.get_db()?;
+    let db = db.as_ref().ok_or("No project open")?;
+    db.purge_expired_trash()
+}
+
+#[tauri::command]
 pub fn duplicate_scene(
     id: String,
     structure_only: Option<bool>,

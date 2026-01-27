@@ -30,6 +30,7 @@
 	import { bibleEntryTypes, countWords, formatWordCount } from '$lib/utils';
 
 	import AnnotationsPanel from './AnnotationsPanel.svelte';
+	import FactsPanel from './FactsPanel.svelte';
 	import RevisionChecklist from './RevisionChecklist.svelte';
 	import StatusChart from './StatusChart.svelte';
 	import { Button, Icon } from './ui';
@@ -377,13 +378,14 @@
 
 <div class="context-panel">
 	{#if selectedScene}
+		{@const sceneWords = countWords(selectedScene.text)}
 		<!-- Word Count Section -->
 		<section class="panel-section">
 			<h3>Word Count</h3>
 			<div class="word-stats">
 				<div class="stat">
-					<span class="stat-value">{formatWordCount(countWords(selectedScene.text))}</span>
-					<span class="stat-label">Scene</span>
+					<span class="stat-value">{formatWordCount(sceneWords)}</span>
+					<span class="stat-label">Scene (~{Math.max(1, Math.ceil(sceneWords / 250))} min)</span>
 				</div>
 				{#if appState.wordCounts && appState.selectedChapterId}
 					{@const chapterStats = appState.wordCounts.by_chapter.find(
@@ -845,6 +847,14 @@
 				{/if}
 			</div>
 		</section>
+
+		<!-- Facts & Revelations Section (Revision Mode) -->
+		{#if appState.workMode === 'revision' && selectedSceneId}
+			<section class="panel-section">
+				<h3>Facts & Revelations</h3>
+				<FactsPanel sceneId={selectedSceneId} />
+			</section>
+		{/if}
 
 		<!-- Annotations Section (Revision Mode) -->
 		{#if appState.workMode === 'revision'}
