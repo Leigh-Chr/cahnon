@@ -29,6 +29,7 @@
 	import { showError, showSuccess } from '$lib/toast';
 	import { countWords, debounce, sceneStatuses, statusColors } from '$lib/utils';
 	import { isModKey } from '$lib/utils';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import CutLibrary from './CutLibrary.svelte';
 	import EditorToolbar from './EditorToolbar.svelte';
@@ -82,11 +83,11 @@
 
 		const nextScene = chapterScenes[currentIndex + 1];
 
-		if (
-			!confirm(
-				`Merge "${appState.selectedScene.title}" with "${nextScene.title}"? This cannot be undone.`
-			)
-		) {
+		const confirmed = await nativeConfirm(
+			`Merge "${appState.selectedScene.title}" with "${nextScene.title}"? This cannot be undone.`,
+			'Merge Scenes'
+		);
+		if (!confirmed) {
 			return;
 		}
 
@@ -190,12 +191,13 @@
 	});
 
 	/** Check for and optionally restore a recovery draft for the given scene */
-	function checkRecoveryDraft(sceneId: string, targetEditor: Editor) {
+	async function checkRecoveryDraft(sceneId: string, targetEditor: Editor) {
 		const recoveryDraft = getRecoveryDraft();
 		if (recoveryDraft && recoveryDraft.sceneId === sceneId) {
-			const shouldRecover = confirm(
+			const shouldRecover = await nativeConfirm(
 				'A recovery draft was found from a previous session. Would you like to restore it?\n\n' +
-					'Click OK to restore the draft, or Cancel to discard it.'
+					'Click OK to restore the draft, or Cancel to discard it.',
+				'Recovery Draft Found'
 			);
 			if (shouldRecover) {
 				isUpdating = true;
@@ -1114,7 +1116,6 @@
 		border-radius: var(--border-radius-sm);
 		border-width: 2px;
 		background-color: var(--color-bg-secondary);
-		cursor: pointer;
 	}
 
 	.word-count {
@@ -1325,7 +1326,6 @@
 	.editor-content :global(.annotation-highlight) {
 		padding: 0.1em 0;
 		border-radius: 2px;
-		cursor: pointer;
 	}
 
 	.editor-content :global(.annotation-comment) {
@@ -1398,7 +1398,6 @@
 		background-color: var(--color-bg-secondary);
 		color: var(--color-text-primary);
 		transition: all var(--transition-fast);
-		cursor: pointer;
 	}
 
 	.quick-add-btn:hover {

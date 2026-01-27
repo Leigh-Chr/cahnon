@@ -2,6 +2,7 @@
 	import { type Snapshot, snapshotApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import { Button, EmptyState, FormActions, FormGroup, Icon, LoadingState } from './ui';
 
@@ -226,11 +227,11 @@
 	}
 
 	async function deleteSnapshot(snapshot: Snapshot) {
-		if (
-			!confirm(
-				`Are you sure you want to delete the snapshot "${snapshot.name}"?\n\nThis action cannot be undone.`
-			)
-		) {
+		const confirmed = await nativeConfirm(
+			`Are you sure you want to delete the snapshot "${snapshot.name}"?\n\nThis action cannot be undone.`,
+			'Delete Snapshot'
+		);
+		if (!confirmed) {
 			return;
 		}
 
@@ -247,12 +248,12 @@
 
 	async function restoreSceneFromSnapshot(sceneId: string, sceneTitle: string) {
 		if (!selectedSnapshot) return;
-		if (
-			!confirm(
-				`Restore scene "${sceneTitle}" from this snapshot?\n\n` +
-					'This will replace the current scene content with the snapshot version.'
-			)
-		) {
+		const confirmed = await nativeConfirm(
+			`Restore scene "${sceneTitle}" from this snapshot?\n\n` +
+				'This will replace the current scene content with the snapshot version.',
+			'Restore Scene'
+		);
+		if (!confirmed) {
 			return;
 		}
 
@@ -270,7 +271,13 @@
 	}
 
 	async function cleanupExpired() {
-		if (!confirm('Remove all expired snapshots? This cannot be undone.')) return;
+		if (
+			!(await nativeConfirm(
+				'Remove all expired snapshots? This cannot be undone.',
+				'Cleanup Snapshots'
+			))
+		)
+			return;
 		try {
 			const removed = await snapshotApi.cleanupExpired();
 			if (removed > 0) {
@@ -287,14 +294,14 @@
 	}
 
 	async function restoreSnapshot(snapshot: Snapshot) {
-		if (
-			!confirm(
-				`Are you sure you want to restore the snapshot "${snapshot.name}"?\n\n` +
-					'This will replace ALL current project data (chapters, scenes, bible entries, arcs, events) ' +
-					'with the data from this snapshot.\n\n' +
-					'An automatic backup will be created before restoring.'
-			)
-		) {
+		const confirmed = await nativeConfirm(
+			`Are you sure you want to restore the snapshot "${snapshot.name}"?\n\n` +
+				'This will replace ALL current project data (chapters, scenes, bible entries, arcs, events) ' +
+				'with the data from this snapshot.\n\n' +
+				'An automatic backup will be created before restoring.',
+			'Restore Snapshot'
+		);
+		if (!confirmed) {
 			return;
 		}
 

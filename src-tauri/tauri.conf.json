@@ -17,7 +17,8 @@
 				"height": 800,
 				"minWidth": 800,
 				"minHeight": 600,
-				"center": true
+				"center": true,
+				"visible": false
 			}
 		],
 		"security": {
@@ -37,6 +38,13 @@
 		"category": "Productivity",
 		"shortDescription": "Write freely. Stay consistent.",
 		"longDescription": "A desktop application for fiction writers to write and organize scenes freely, centralize the story universe, maintain consistency, revise with annotations, and export clean manuscripts.",
-		"license": "GPL-3.0"
+		"license": "GPL-3.0",
+		"fileAssociations": [
+			{
+				"ext": ["cahnon"],
+				"mimeType": "application/x-cahnon",
+				"description": "Cahnon Project File"
+			}
+		]
 	}
 }

@@ -174,7 +174,6 @@
 		align-items: flex-start;
 		gap: var(--spacing-sm);
 		padding: var(--spacing-sm) var(--spacing-md);
-		cursor: pointer;
 		transition: background-color var(--transition-fast);
 	}
 

@@ -215,7 +215,6 @@
 		gap: var(--spacing-xs);
 		color: var(--color-text-primary);
 		font-weight: 500;
-		cursor: pointer;
 		background: none;
 		border: none;
 		padding: 0;

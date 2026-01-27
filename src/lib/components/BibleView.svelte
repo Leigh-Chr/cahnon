@@ -36,6 +36,23 @@
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { bibleEntryTypes, bibleStatuses } from '$lib/utils';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
+
+	import ContextMenu from './ui/ContextMenu.svelte';
+	import ContextMenuItem from './ui/ContextMenuItem.svelte';
+	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
+
+	// Context menu for bible entries
+	let entryContextMenu = $state<{ x: number; y: number; entryId: string } | null>(null);
+
+	function handleEntryContextMenu(event: MouseEvent, entryId: string) {
+		event.preventDefault();
+		entryContextMenu = { x: event.clientX, y: event.clientY, entryId };
+	}
+
+	function closeEntryContextMenu() {
+		entryContextMenu = null;
+	}
 
 	import { Button, FormActions, FormGroup, Icon } from './ui';
 
@@ -199,7 +216,7 @@
 
 	async function deleteRelationship(relationshipId: string) {
 		if (!selectedEntry) return;
-		if (!confirm('Remove this relationship?')) return;
+		if (!(await nativeConfirm('Remove this relationship?', 'Delete Relationship'))) return;
 		try {
 			await relationshipApi.delete(relationshipId);
 			await loadRelationships(selectedEntry.id);
@@ -532,6 +549,7 @@
 					class="entry-item"
 					class:selected={selectedEntry?.id === entry.id}
 					onclick={() => selectEntry(entry)}
+					oncontextmenu={(e) => handleEntryContextMenu(e, entry.id)}
 					style="--entry-color: {entry.color || 'var(--color-accent)'}"
 				>
 					<span class="entry-icon">{typeInfo.icon}</span>
@@ -941,6 +959,32 @@
 		onconfirm={confirmDeleteEntry}
 		oncancel={() => (impactDialog = null)}
 	/>
+{/if}
+
+{#if entryContextMenu}
+	<ContextMenu x={entryContextMenu.x} y={entryContextMenu.y} onclose={closeEntryContextMenu}>
+		<ContextMenuItem
+			label="Edit"
+			onclick={() => {
+				const entry = appState.bibleEntries.find((e) => e.id === entryContextMenu!.entryId);
+				if (entry) selectEntry(entry);
+				closeEntryContextMenu();
+			}}
+		/>
+		<ContextMenuSeparator />
+		<ContextMenuItem
+			label="Delete"
+			danger
+			onclick={() => {
+				const entry = appState.bibleEntries.find((e) => e.id === entryContextMenu!.entryId);
+				if (entry) {
+					selectEntry(entry);
+					impactDialog = { entityId: entry.id, entityName: entry.name };
+				}
+				closeEntryContextMenu();
+			}}
+		/>
+	</ContextMenu>
 {/if}
 
 <style>
@@ -1383,7 +1427,6 @@
 		height: 28px;
 		border-radius: 50%;
 		border: 2px solid transparent;
-		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 

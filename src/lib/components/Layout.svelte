@@ -9,6 +9,12 @@
   - Dialogs (export, import, settings, trash, snapshots)
 -->
 <script lang="ts">
+	import { listen } from '@tauri-apps/api/event';
+	import { message, open } from '@tauri-apps/plugin-dialog';
+
+	import type { Scene } from '$lib/api';
+	import { appState } from '$lib/stores';
+
 	import ArcsManager from './ArcsManager.svelte';
 	import BibleView from './BibleView.svelte';
 	import ContextPanel from './ContextPanel.svelte';
@@ -30,6 +36,7 @@
 	import ToastNotifications from './ToastNotifications.svelte';
 	import Toolbar from './Toolbar.svelte';
 	import TrashView from './TrashView.svelte';
+	import Splitter from './ui/Splitter.svelte';
 
 	let showReviewGrid = $state(false);
 	let showImportDialog = $state(false);
@@ -37,8 +44,26 @@
 	let showArcsManager = $state(false);
 	let showEventsManager = $state(false);
 	let showTemplatesManager = $state(false);
-	import type { Scene } from '$lib/api';
-	import { appState } from '$lib/stores';
+
+	// Resizable panel widths
+	const DEFAULT_SIDEBAR_WIDTH = 260;
+	const DEFAULT_CONTEXT_PANEL_WIDTH = 300;
+	let sidebarWidth = $state(
+		parseInt(localStorage.getItem('sidebarWidth') || String(DEFAULT_SIDEBAR_WIDTH), 10)
+	);
+	let contextPanelWidth = $state(
+		parseInt(localStorage.getItem('contextPanelWidth') || String(DEFAULT_CONTEXT_PANEL_WIDTH), 10)
+	);
+
+	function handleSidebarResize(newWidth: number) {
+		sidebarWidth = newWidth;
+		localStorage.setItem('sidebarWidth', String(newWidth));
+	}
+
+	function handleContextPanelResize(newWidth: number) {
+		contextPanelWidth = newWidth;
+		localStorage.setItem('contextPanelWidth', String(newWidth));
+	}
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (appState.matchesShortcut(event, 'quickOpen')) {
@@ -162,12 +187,81 @@
 			return;
 		}
 
-		// Escape exits focus mode
-		if (event.key === 'Escape' && appState.isFocusMode) {
-			event.preventDefault();
-			appState.isFocusMode = false;
-			appState.focusSettings = { ...appState.focusSettings, fullscreenMode: false };
-			return;
+		// Escape key priority chain
+		if (event.key === 'Escape') {
+			// 1. Close QuickOpen
+			if (appState.isQuickOpenVisible) {
+				event.preventDefault();
+				appState.isQuickOpenVisible = false;
+				return;
+			}
+
+			// 2. Close modals/dialogs
+			if (showReviewGrid) {
+				event.preventDefault();
+				showReviewGrid = false;
+				return;
+			}
+			if (showImportDialog) {
+				event.preventDefault();
+				showImportDialog = false;
+				return;
+			}
+			if (showSettingsDialog) {
+				event.preventDefault();
+				showSettingsDialog = false;
+				return;
+			}
+			if (showArcsManager) {
+				event.preventDefault();
+				showArcsManager = false;
+				return;
+			}
+			if (showEventsManager) {
+				event.preventDefault();
+				showEventsManager = false;
+				return;
+			}
+			if (showTemplatesManager) {
+				event.preventDefault();
+				showTemplatesManager = false;
+				return;
+			}
+			if (appState.isExportDialogOpen) {
+				event.preventDefault();
+				appState.closeExportDialog();
+				return;
+			}
+			if (appState.isTrashViewOpen) {
+				event.preventDefault();
+				appState.closeTrashView();
+				return;
+			}
+			if (appState.isSnapshotsViewOpen) {
+				event.preventDefault();
+				appState.closeSnapshotsView();
+				return;
+			}
+			if (appState.isCutLibraryOpen) {
+				event.preventDefault();
+				appState.closeCutLibrary();
+				return;
+			}
+
+			// 3. Exit focus mode
+			if (appState.isFocusMode) {
+				event.preventDefault();
+				appState.isFocusMode = false;
+				appState.focusSettings = { ...appState.focusSettings, fullscreenMode: false };
+				return;
+			}
+
+			// 4. Deselect current scene
+			if (appState.selectedSceneId) {
+				event.preventDefault();
+				appState.selectedSceneId = null;
+				return;
+			}
 		}
 	}
 
@@ -222,6 +316,90 @@
 			window.removeEventListener('keydown', handleKeydown);
 		};
 	});
+
+	// Listen for native menu events from Tauri
+	$effect(() => {
+		const unlistenPromise = listen<string>('menu-event', (event) => {
+			const id = event.payload;
+			switch (id) {
+				case 'new_project':
+					appState.closeProject();
+					break;
+				case 'open_project':
+					handleMenuOpenProject();
+					break;
+				case 'save':
+					if (appState.hasUnsavedChanges) appState.triggerImmediateSave();
+					break;
+				case 'export':
+					appState.openExportDialog();
+					break;
+				case 'import':
+					showImportDialog = true;
+					break;
+				case 'close_project':
+					appState.closeProject();
+					break;
+				case 'about':
+					handleMenuAbout();
+					break;
+				case 'view_editor':
+					appState.setViewMode('editor');
+					break;
+				case 'view_corkboard':
+					appState.setViewMode('corkboard');
+					break;
+				case 'view_timeline':
+					appState.setViewMode('timeline');
+					break;
+				case 'view_bible':
+					appState.setViewMode('bible');
+					break;
+				case 'view_issues':
+					appState.setViewMode('issues');
+					break;
+				case 'view_dashboard':
+					appState.setViewMode('dashboard');
+					break;
+				case 'toggle_outline':
+					appState.toggleOutline();
+					break;
+				case 'toggle_context_panel':
+					appState.toggleContextPanel();
+					break;
+				case 'focus_mode':
+					appState.toggleFullscreenMode();
+					break;
+				case 'review_grid':
+					showReviewGrid = !showReviewGrid;
+					break;
+				case 'quick_open':
+					appState.toggleQuickOpen();
+					break;
+			}
+		});
+
+		return () => {
+			unlistenPromise.then((fn) => fn());
+		};
+	});
+
+	async function handleMenuOpenProject() {
+		const selected = await open({
+			filters: [{ name: 'Cahnon Project', extensions: ['cahnon'] }],
+			multiple: false,
+		});
+		if (selected) {
+			await appState.loadProject(selected);
+		}
+	}
+
+	async function handleMenuAbout() {
+		await message('Write freely. Stay consistent.\n\nA desktop application for fiction writers.', {
+			title: 'Cahnon',
+			kind: 'info',
+		});
+	}
 </script>
 
 <div class="layout" class:focus-mode={appState.isFocusMode}>
@@ -236,9 +414,16 @@
 
 	<div class="main">
 		{#if appState.showOutline && !appState.isFocusMode}
-			<aside class="sidebar">
+			<aside class="sidebar" style="width: {sidebarWidth}px; min-width: {sidebarWidth}px">
 				<Outline />
 			</aside>
+			<Splitter
+				position={sidebarWidth}
+				min={180}
+				max={450}
+				side="left"
+				onresize={handleSidebarResize}
+			/>
 		{/if}
 
 		<main class="content">
@@ -258,7 +443,17 @@
 		</main>
 
 		{#if appState.showContextPanel && appState.viewMode === 'editor' && !appState.isFocusMode}
-			<aside class="context-panel">
+			<Splitter
+				position={contextPanelWidth}
+				min={200}
+				max={500}
+				side="right"
+				onresize={handleContextPanelResize}
+			/>
+			<aside
+				class="context-panel"
+				style="width: {contextPanelWidth}px; min-width: {contextPanelWidth}px"
+			>
 				<ContextPanel />
 			</aside>
 		{/if}
@@ -355,8 +550,6 @@
 	}
 
 	.sidebar {
-		width: var(--sidebar-width);
-		min-width: var(--sidebar-width);
 		border-right: 1px solid var(--color-border);
 		background-color: var(--color-bg-secondary);
 		overflow-y: auto;
@@ -370,8 +563,6 @@
 	}
 
 	.context-panel {
-		width: var(--context-panel-width);
-		min-width: var(--context-panel-width);
 		border-left: 1px solid var(--color-border);
 		background-color: var(--color-bg-secondary);
 		overflow-y: auto;

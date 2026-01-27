@@ -1213,7 +1213,6 @@
 	.add-link {
 		color: var(--color-accent);
 		font-style: normal;
-		cursor: pointer;
 	}
 
 	.add-link:hover {
@@ -1473,7 +1472,6 @@
 		gap: var(--spacing-sm);
 		font-size: var(--font-size-sm);
 		color: var(--color-text-primary);
-		cursor: pointer;
 	}
 
 	.checkbox-label input[type='checkbox'] {
@@ -1591,7 +1589,6 @@
 		width: 100%;
 		padding: 0;
 		margin-bottom: var(--spacing-sm);
-		cursor: pointer;
 		background: none;
 		border: none;
 		text-align: left;

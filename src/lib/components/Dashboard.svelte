@@ -345,7 +345,6 @@
 		border: none;
 		font-size: var(--font-size-xs);
 		color: var(--color-accent);
-		cursor: pointer;
 		padding: var(--spacing-xs);
 		border-radius: var(--border-radius-sm);
 	}

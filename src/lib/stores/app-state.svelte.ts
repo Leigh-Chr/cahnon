@@ -23,6 +23,7 @@ import {
 	trashApi,
 } from '$lib/api';
 import { showError } from '$lib/toast.svelte';
+import { nativeConfirm } from '$lib/utils/native-dialog';
 import type { RevisionPassId } from '$lib/utils/revision-passes';
 
 import type {
@@ -117,6 +118,12 @@ class AppState {
 	revisionPass = $state<RevisionPassId | null>(null);
 
 	// -------------------------------------------------------------------------
+	// Status Bar Message
+	// -------------------------------------------------------------------------
+	statusMessage = $state<{ text: string; type: 'info' | 'success' | 'warning' } | null>(null);
+	private _statusTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// -------------------------------------------------------------------------
 	// Quick Open
 	// -------------------------------------------------------------------------
 	isQuickOpenVisible = $state(false);
@@ -184,6 +191,8 @@ class AppState {
 	// -------------------------------------------------------------------------
 	private _pendingSave: (() => Promise<void>) | null = null;
 	private _isSaving = false;
+	private _pendingSceneId: string | null = null;
+	private _pendingChapterId: string | null = null;
 	private _autosaveIntervalId: ReturnType<typeof setInterval> | null = null;
 	private _windowFocusHandler: (() => void) | null = null;
 	private _colorSchemeHandler: ((e: MediaQueryListEvent) => void) | null = null;
@@ -250,6 +259,40 @@ class AppState {
 				console.error('Failed to parse keyboard shortcuts:', e);
 			}
 		}
+
+		// Panel visibility
+		const savedShowOutline = localStorage.getItem('showOutline');
+		if (savedShowOutline !== null) {
+			this.showOutline = savedShowOutline === 'true';
+		}
+		const savedShowContextPanel = localStorage.getItem('showContextPanel');
+		if (savedShowContextPanel !== null) {
+			this.showContextPanel = savedShowContextPanel === 'true';
+		}
+
+		// View mode
+		const savedViewMode = localStorage.getItem('viewMode') as ViewMode | null;
+		const validViewModes: ViewMode[] = [
+			'editor',
+			'corkboard',
+			'timeline',
+			'bible',
+			'issues',
+			'dashboard',
+		];
+		if (savedViewMode && validViewModes.includes(savedViewMode)) {
+			this.viewMode = savedViewMode;
+		}
+
+		// Work mode
+		const savedWorkMode = localStorage.getItem('workMode') as WorkMode | null;
+		if (savedWorkMode && ['writing', 'revision'].includes(savedWorkMode)) {
+			this.workMode = savedWorkMode;
+		}
+
+		// Pending selection (applied after manuscript loads)
+		this._pendingSceneId = localStorage.getItem('selectedSceneId');
+		this._pendingChapterId = localStorage.getItem('selectedChapterId');
 	}
 
 	private setupStorageSync() {
@@ -287,6 +330,40 @@ class AppState {
 			$effect(() => {
 				const shortcuts = this.keyboardShortcuts;
 				localStorage.setItem('keyboardShortcuts', JSON.stringify(shortcuts));
+			});
+
+			// Sync panel visibility
+			$effect(() => {
+				localStorage.setItem('showOutline', String(this.showOutline));
+			});
+			$effect(() => {
+				localStorage.setItem('showContextPanel', String(this.showContextPanel));
+			});
+
+			// Sync view mode
+			$effect(() => {
+				localStorage.setItem('viewMode', this.viewMode);
+			});
+
+			// Sync work mode
+			$effect(() => {
+				localStorage.setItem('workMode', this.workMode);
+			});
+
+			// Sync selection
+			$effect(() => {
+				if (this.selectedSceneId) {
+					localStorage.setItem('selectedSceneId', this.selectedSceneId);
+				} else {
+					localStorage.removeItem('selectedSceneId');
+				}
+			});
+			$effect(() => {
+				if (this.selectedChapterId) {
+					localStorage.setItem('selectedChapterId', this.selectedChapterId);
+				} else {
+					localStorage.removeItem('selectedChapterId');
+				}
 			});
 		});
 	}
@@ -341,10 +418,11 @@ class AppState {
 			try {
 				const status = await projectApi.checkFileStatus(this.projectPath);
 				if (status.is_modified_externally) {
-					const reload = confirm(
+					const reload = await nativeConfirm(
 						'The project file has been modified externally.\n\n' +
 							'Would you like to reload the project to get the latest changes?\n' +
-							'Click Cancel to keep your current version.'
+							'Click Cancel to keep your current version.',
+						'External Modification Detected'
 					);
 					if (reload) {
 						await this.loadManuscript();
@@ -447,9 +525,10 @@ class AppState {
 	async loadProject(path: string) {
 		// Check for unsaved changes in current project
 		if (this.project && this.hasUnsavedChanges) {
-			const confirmed = confirm(
+			const confirmed = await nativeConfirm(
 				'You have unsaved changes in the current project. Are you sure you want to open a different project?\n\n' +
-					'Any unsaved changes will be lost.'
+					'Any unsaved changes will be lost.',
+				'Unsaved Changes'
 			);
 			if (!confirmed) {
 				return;
@@ -463,11 +542,12 @@ class AppState {
 			const fileStatus = await projectApi.checkFileStatus(path);
 			if (fileStatus.has_lock && fileStatus.lock_info) {
 				const lockInfo = fileStatus.lock_info;
-				const proceed = confirm(
+				const proceed = await nativeConfirm(
 					`This project may be open on another device:\n\n` +
 						`Machine: ${lockInfo.machine_name}\n` +
 						`Since: ${new Date(lockInfo.timestamp).toLocaleString()}\n\n` +
-						`Opening it here may cause conflicts. Continue anyway?`
+						`Opening it here may cause conflicts. Continue anyway?`,
+					'Project Locked'
 				);
 				if (!proceed) {
 					this.isLoading = false;
@@ -490,10 +570,11 @@ class AppState {
 			} catch (integrityError) {
 				const msg =
 					integrityError instanceof Error ? integrityError.message : String(integrityError);
-				const proceed = confirm(
+				const proceed = await nativeConfirm(
 					`Warning: Database integrity check detected an issue:\n\n${msg}\n\n` +
 						`The file may be corrupted. It is recommended to create a backup before continuing.\n\n` +
-						`Continue opening the project anyway?`
+						`Continue opening the project anyway?`,
+					'Database Integrity Warning'
 				);
 				if (!proceed) {
 					await projectApi.close();
@@ -555,9 +636,10 @@ class AppState {
 	async closeProject(force = false): Promise<boolean> {
 		// Check for unsaved changes unless force closing (skip for demo)
 		if (!force && !this.isDemo && this.hasUnsavedChanges) {
-			const confirmed = confirm(
+			const confirmed = await nativeConfirm(
 				'You have unsaved changes. Are you sure you want to close this project?\n\n' +
-					'Any unsaved changes will be lost.'
+					'Any unsaved changes will be lost.',
+				'Unsaved Changes'
 			);
 			if (!confirmed) {
 				return false;
@@ -622,8 +704,23 @@ class AppState {
 		}
 		this.scenes = scenesMap;
 
-		// Auto-select first chapter/scene if none selected
-		if (chaptersData.length > 0 && !this.selectedChapterId) {
+		// Try to restore pending selection from previous session
+		let restored = false;
+		if (this._pendingChapterId && this._pendingSceneId) {
+			const chapterExists = chaptersData.some((c) => c.id === this._pendingChapterId);
+			const sceneExists =
+				scenesMap.get(this._pendingChapterId)?.some((s) => s.id === this._pendingSceneId) ?? false;
+			if (chapterExists && sceneExists) {
+				this.selectedChapterId = this._pendingChapterId;
+				this.selectedSceneId = this._pendingSceneId;
+				restored = true;
+			}
+			this._pendingSceneId = null;
+			this._pendingChapterId = null;
+		}
+
+		// Auto-select first chapter/scene if none selected and nothing restored
+		if (!restored && chaptersData.length > 0 && !this.selectedChapterId) {
 			this.selectedChapterId = chaptersData[0].id;
 			const firstScenes = scenesMap.get(chaptersData[0].id);
 			if (firstScenes && firstScenes.length > 0) {
@@ -1019,6 +1116,16 @@ class AppState {
 
 	closeSnapshotsView() {
 		this.isSnapshotsViewOpen = false;
+	}
+
+	/** Show a transient message in the status bar. */
+	showStatusMessage(text: string, type: 'info' | 'success' | 'warning' = 'info', duration = 3000) {
+		if (this._statusTimer) clearTimeout(this._statusTimer);
+		this.statusMessage = { text, type };
+		this._statusTimer = setTimeout(() => {
+			this.statusMessage = null;
+			this._statusTimer = null;
+		}, duration);
 	}
 
 	// -------------------------------------------------------------------------

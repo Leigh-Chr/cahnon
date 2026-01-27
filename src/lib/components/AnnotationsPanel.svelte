@@ -359,7 +359,6 @@
 		background-color: var(--color-bg-secondary);
 		border: 1px solid var(--color-border-light);
 		border-radius: var(--border-radius-sm);
-		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 
@@ -395,7 +394,6 @@
 		border: none;
 		font-weight: 500;
 		text-transform: capitalize;
-		cursor: pointer;
 	}
 
 	.annotation-content {

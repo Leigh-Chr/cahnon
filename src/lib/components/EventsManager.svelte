@@ -14,8 +14,23 @@
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { bibleEntryTypes } from '$lib/utils';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import { Button, EmptyState, FormActions, FormGroup, Icon } from './ui';
+	import ContextMenu from './ui/ContextMenu.svelte';
+	import ContextMenuItem from './ui/ContextMenuItem.svelte';
+	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
+
+	let eventContextMenu = $state<{ x: number; y: number; eventId: string } | null>(null);
+
+	function handleEventContextMenu(event: MouseEvent, eventId: string) {
+		event.preventDefault();
+		eventContextMenu = { x: event.clientX, y: event.clientY, eventId };
+	}
+
+	function closeEventContextMenu() {
+		eventContextMenu = null;
+	}
 
 	interface Props {
 		isOpen: boolean;
@@ -200,7 +215,8 @@
 	}
 
 	async function deleteEvent(eventId: string) {
-		if (!confirm('Delete this event? This action cannot be undone.')) return;
+		if (!(await nativeConfirm('Delete this event? This action cannot be undone.', 'Delete Event')))
+			return;
 
 		try {
 			await eventApi.delete(eventId);
@@ -323,6 +339,7 @@
 										isCreating = false;
 										isEditing = false;
 									}}
+									oncontextmenu={(e) => handleEventContextMenu(e, event.id)}
 								>
 									<div class="event-info">
 										<span class="event-name">{event.title}</span>
@@ -569,6 +586,29 @@
 	</div>
 {/if}
 
+{#if eventContextMenu}
+	<ContextMenu x={eventContextMenu.x} y={eventContextMenu.y} onclose={closeEventContextMenu}>
+		<ContextMenuItem
+			label="Edit"
+			onclick={() => {
+				selectedEventId = eventContextMenu!.eventId;
+				isEditing = true;
+				isCreating = false;
+				closeEventContextMenu();
+			}}
+		/>
+		<ContextMenuSeparator />
+		<ContextMenuItem
+			label="Delete"
+			danger
+			onclick={() => {
+				deleteEvent(eventContextMenu!.eventId);
+				closeEventContextMenu();
+			}}
+		/>
+	</ContextMenu>
+{/if}
+
 <style>
 	.modal-overlay {
 		position: fixed;
@@ -656,7 +696,6 @@
 		border-bottom: 1px solid var(--color-border-light);
 		text-align: left;
 		background: none;
-		cursor: pointer;
 		transition: background-color var(--transition-fast);
 	}
 

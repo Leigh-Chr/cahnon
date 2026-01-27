@@ -55,7 +55,6 @@
 		font-weight: 500;
 		border: none;
 		border-radius: var(--border-radius-md);
-		cursor: pointer;
 		transition:
 			background-color var(--transition-fast),
 			color var(--transition-fast),

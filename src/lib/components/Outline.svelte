@@ -20,6 +20,9 @@
 
 	import ImpactDialog from './ImpactDialog.svelte';
 	import { Button, Icon } from './ui';
+	import ContextMenu from './ui/ContextMenu.svelte';
+	import ContextMenuItem from './ui/ContextMenuItem.svelte';
+	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
 
 	// Impact dialog state
 	let impactDialog = $state<{
@@ -340,13 +343,7 @@
 		closeContextMenu();
 	}
 
-	// Close context menu when clicking elsewhere
-	$effect(() => {
-		if (!contextMenu) return;
-		const handleClick = () => closeContextMenu();
-		document.addEventListener('click', handleClick);
-		return () => document.removeEventListener('click', handleClick);
-	});
+	// Context menu close is handled by the ContextMenu component
 </script>
 
 <div class="outline">
@@ -514,61 +511,57 @@
 	</div>
 
 	{#if contextMenu}
-		<div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px" role="menu">
+		<ContextMenu x={contextMenu.x} y={contextMenu.y} onclose={closeContextMenu}>
 			{#if contextMenu.menuType === 'chapter'}
-				<button
-					class="context-menu-item"
-					onclick={() => startRenamingChapter(contextMenu!.chapterId)}
-					role="menuitem"
-				>
-					<Icon name="edit" size={14} />
-					Rename
-				</button>
-				<button
-					class="context-menu-item"
-					onclick={() => openChapterDetails(contextMenu!.chapterId)}
-					role="menuitem"
-				>
-					<Icon name="info" size={14} />
-					Edit Details...
-				</button>
-				<div class="context-menu-separator"></div>
-				<button
-					class="context-menu-item danger"
-					onclick={() => handleDeleteChapter(contextMenu!.chapterId)}
-					role="menuitem"
-				>
-					<Icon name="trash" size={14} />
-					Delete
-				</button>
+				<ContextMenuItem
+					label="Rename"
+					onclick={() => {
+						startRenamingChapter(contextMenu!.chapterId);
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuItem
+					label="Edit Details…"
+					onclick={() => {
+						openChapterDetails(contextMenu!.chapterId);
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					label="Delete"
+					danger
+					onclick={() => {
+						handleDeleteChapter(contextMenu!.chapterId);
+						closeContextMenu();
+					}}
+				/>
 			{:else}
-				<button
-					class="context-menu-item"
-					onclick={() => handleDuplicateScene(contextMenu!.sceneId, false)}
-					role="menuitem"
-				>
-					<Icon name="copy" size={14} />
-					Duplicate
-				</button>
-				<button
-					class="context-menu-item"
-					onclick={() => handleDuplicateScene(contextMenu!.sceneId, true)}
-					role="menuitem"
-				>
-					<Icon name="file" size={14} />
-					Duplicate (structure only)
-				</button>
-				<div class="context-menu-separator"></div>
-				<button
-					class="context-menu-item danger"
-					onclick={() => handleDeleteScene(contextMenu!.sceneId)}
-					role="menuitem"
-				>
-					<Icon name="trash" size={14} />
-					Delete
-				</button>
+				<ContextMenuItem
+					label="Duplicate"
+					onclick={() => {
+						handleDuplicateScene(contextMenu!.sceneId, false);
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuItem
+					label="Duplicate (structure only)"
+					onclick={() => {
+						handleDuplicateScene(contextMenu!.sceneId, true);
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					label="Delete"
+					danger
+					onclick={() => {
+						handleDeleteScene(contextMenu!.sceneId);
+						closeContextMenu();
+					}}
+				/>
 			{/if}
-		</div>
+		</ContextMenu>
 	{/if}
 
 	{#if showChapterDetails}
@@ -665,7 +658,6 @@
 		font-size: var(--font-size-sm);
 		font-weight: 500;
 		transition: background-color var(--transition-fast);
-		cursor: pointer;
 	}
 
 	.chapter-item:hover {
@@ -835,50 +827,6 @@
 
 	[draggable='true']:active {
 		cursor: grabbing;
-	}
-
-	/* Context Menu */
-	.context-menu {
-		position: fixed;
-		z-index: 1000;
-		background-color: var(--color-bg-primary);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-md);
-		box-shadow: var(--shadow-lg);
-		padding: var(--spacing-xs);
-		min-width: 180px;
-	}
-
-	.context-menu-item {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-sm);
-		width: 100%;
-		padding: var(--spacing-sm) var(--spacing-md);
-		font-size: var(--font-size-sm);
-		text-align: left;
-		border-radius: var(--border-radius-sm);
-		color: var(--color-text-primary);
-		transition: background-color var(--transition-fast);
-	}
-
-	.context-menu-item:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.context-menu-item.danger {
-		color: var(--color-error);
-	}
-
-	.context-menu-item.danger:hover {
-		background-color: var(--color-error);
-		color: white;
-	}
-
-	.context-menu-separator {
-		height: 1px;
-		background-color: var(--color-border);
-		margin: var(--spacing-xs) 0;
 	}
 
 	/* Inline rename */

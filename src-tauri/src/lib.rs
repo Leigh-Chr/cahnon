@@ -26,6 +26,8 @@ pub mod validation;
 mod tests;
 
 use database::Database;
+use tauri::menu::{MenuBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::Emitter;
 
 /// Global application state managed by Tauri.
 ///
@@ -70,6 +72,85 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .setup(|app| {
+            // Build native application menu
+            // Note: Accelerators are intentionally omitted from custom items.
+            // Keyboard shortcuts are handled in the frontend (Layout.svelte) to
+            // support user-customizable bindings via keyboardShortcuts settings.
+            // PredefinedMenuItems keep their OS-level accelerators (Undo, Copy, etc.)
+            // since they operate directly on the focused DOM element.
+            let file_menu = SubmenuBuilder::new(app, "File")
+                .item(&tauri::menu::MenuItem::with_id(app, "new_project", "New Project", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "open_project", "Open Project…", true, None::<&str>)?)
+                .separator()
+                .item(&tauri::menu::MenuItem::with_id(app, "save", "Save", true, None::<&str>)?)
+                .separator()
+                .item(&tauri::menu::MenuItem::with_id(app, "export", "Export…", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "import", "Import…", true, None::<&str>)?)
+                .separator()
+                .item(&tauri::menu::MenuItem::with_id(app, "close_project", "Close Project", true, None::<&str>)?)
+                .build()?;
+
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .item(&PredefinedMenuItem::undo(app, None)?)
+                .item(&PredefinedMenuItem::redo(app, None)?)
+                .separator()
+                .item(&PredefinedMenuItem::cut(app, None)?)
+                .item(&PredefinedMenuItem::copy(app, None)?)
+                .item(&PredefinedMenuItem::paste(app, None)?)
+                .item(&PredefinedMenuItem::select_all(app, None)?)
+                .build()?;
+
+            let view_menu = SubmenuBuilder::new(app, "View")
+                .item(&tauri::menu::MenuItem::with_id(app, "view_editor", "Editor", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "view_corkboard", "Corkboard", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "view_timeline", "Timeline", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "view_bible", "Bible", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "view_issues", "Issues", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "view_dashboard", "Dashboard", true, None::<&str>)?)
+                .separator()
+                .item(&tauri::menu::MenuItem::with_id(app, "toggle_outline", "Toggle Outline", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "toggle_context_panel", "Toggle Context Panel", true, None::<&str>)?)
+                .separator()
+                .item(&tauri::menu::MenuItem::with_id(app, "focus_mode", "Focus Mode", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "review_grid", "Review Grid", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(app, "quick_open", "Quick Open", true, None::<&str>)?)
+                .build()?;
+
+            let help_menu = SubmenuBuilder::new(app, "Help")
+                .item(&tauri::menu::MenuItem::with_id(app, "about", "About Cahnon", true, None::<&str>)?)
+                .build()?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&file_menu)
+                .item(&edit_menu)
+                .item(&view_menu)
+                .item(&help_menu)
+                .build()?;
+
+            app.set_menu(menu)?;
+
+            // Handle file passed as CLI argument (Phase 8.1)
+            let args: Vec<String> = std::env::args().collect();
+            if let Some(file_arg) = args.get(1) {
+                if file_arg.ends_with(".cahnon") {
+                    let path = file_arg.to_string();
+                    let handle = app.handle().clone();
+                    // Emit after setup completes
+                    std::thread::spawn(move || {
+                        // Small delay to let frontend initialize
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        let _ = handle.emit("open-file", path);
+                    });
+                }
+            }
+
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            let _ = app.emit("menu-event", event.id().0.as_str());
+        })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             // Project commands

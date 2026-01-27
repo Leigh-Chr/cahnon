@@ -3,6 +3,7 @@
 	import { importFromDocx } from '$lib/export';
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import { Button, Icon } from './ui';
 
@@ -89,13 +90,13 @@
 				return;
 			}
 			// Confirm before importing (it's destructive)
-			if (
-				!confirm(
-					'Are you sure you want to import this JSON backup?\n\n' +
-						'This will REPLACE all current project data (chapters, scenes, bible entries, arcs, events).\n\n' +
-						'An automatic backup will be created before importing.'
-				)
-			) {
+			const importConfirmed = await nativeConfirm(
+				'Are you sure you want to import this JSON backup?\n\n' +
+					'This will REPLACE all current project data (chapters, scenes, bible entries, arcs, events).\n\n' +
+					'An automatic backup will be created before importing.',
+				'Import JSON Backup'
+			);
+			if (!importConfirmed) {
 				return;
 			}
 		} else if (!content.trim()) {
@@ -504,7 +505,6 @@
 		padding: var(--spacing-lg);
 		border: 2px dashed var(--color-border);
 		border-radius: var(--border-radius-md);
-		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 

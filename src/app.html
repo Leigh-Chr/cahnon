@@ -12,13 +12,20 @@
 				const savedMode = localStorage.getItem('colorMode');
 				const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 				const mode = savedMode || (prefersDark ? 'dark' : 'light');
-				document.documentElement.style.colorScheme =
-					mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode;
+				const effectiveDark = mode === 'system' ? prefersDark : mode === 'dark';
+				document.documentElement.style.colorScheme = effectiveDark ? 'dark' : 'light';
 				document.documentElement.dataset.colorMode = mode;
 
-				// Theme palette (cool/warm)
+				// Theme palette (cool/warm) — read before anti-flash so colors match
 				const savedTheme = localStorage.getItem('themePalette') || 'cool';
 				document.documentElement.dataset.theme = savedTheme;
+
+				// Anti-flash: set background color immediately (palette-aware)
+				var bg = effectiveDark ? 'oklch(16% 0.012 260)' : 'oklch(99% 0.004 260)';
+				if (savedTheme === 'warm') {
+					bg = effectiveDark ? 'oklch(16% 0.012 50)' : 'oklch(99% 0.006 70)';
+				}
+				document.body.style.backgroundColor = bg;
 			})();
 		</script>
 		%sveltekit.head%

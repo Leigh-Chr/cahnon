@@ -621,7 +621,6 @@
 	}
 
 	.review-table th.sortable {
-		cursor: pointer;
 		user-select: none;
 	}
 
@@ -638,7 +637,6 @@
 	}
 
 	.review-table tbody tr {
-		cursor: pointer;
 		transition: background-color var(--transition-fast);
 	}
 
@@ -685,7 +683,6 @@
 		border: 1px solid var(--color-border-light);
 		border-radius: var(--border-radius-sm);
 		font-weight: 500;
-		cursor: pointer;
 	}
 
 	.words-cell {
@@ -723,7 +720,6 @@
 	.checkbox-input {
 		width: 16px;
 		height: 16px;
-		cursor: pointer;
 	}
 
 	.tension-cell {
@@ -736,7 +732,6 @@
 		background: transparent;
 		border: 1px solid var(--color-border-light);
 		border-radius: var(--border-radius-sm);
-		cursor: pointer;
 		width: 100%;
 	}
 
@@ -753,7 +748,6 @@
 		background: transparent;
 		border: 1px solid transparent;
 		border-radius: var(--border-radius-sm);
-		cursor: pointer;
 		width: 100%;
 		max-width: 120px;
 		overflow: hidden;

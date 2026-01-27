@@ -13,6 +13,7 @@
 	import { type Template, templateApi, type TemplateStep } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import { Button, EmptyState, FormActions, FormGroup, Icon } from './ui';
 
@@ -152,7 +153,13 @@
 			return;
 		}
 
-		if (!confirm(`Delete template "${template.name}"? This action cannot be undone.`)) return;
+		if (
+			!(await nativeConfirm(
+				`Delete template "${template.name}"? This action cannot be undone.`,
+				'Delete Template'
+			))
+		)
+			return;
 
 		try {
 			await templateApi.delete(templateId);
@@ -225,7 +232,7 @@
 	}
 
 	async function deleteStep(stepId: string) {
-		if (!confirm('Delete this step?')) return;
+		if (!(await nativeConfirm('Delete this step?', 'Delete Step'))) return;
 
 		try {
 			await templateApi.deleteStep(stepId);
@@ -624,7 +631,6 @@
 		border-bottom: 1px solid var(--color-border-light);
 		text-align: left;
 		background: none;
-		cursor: pointer;
 		transition: background-color var(--transition-fast);
 	}
 
@@ -720,7 +726,6 @@
 		height: 28px;
 		border-radius: 50%;
 		border: 2px solid transparent;
-		cursor: pointer;
 		transition: transform var(--transition-fast);
 	}
 

@@ -313,7 +313,6 @@
 
 	.pie-segment {
 		transition: opacity 0.15s ease;
-		cursor: pointer;
 	}
 
 	.pie-segment:hover {

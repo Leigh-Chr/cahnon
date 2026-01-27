@@ -40,7 +40,11 @@
 	</div>
 
 	<div class="status-center">
-		{#if appState.selectedScene}
+		{#if appState.statusMessage}
+			<span class="status-message status-{appState.statusMessage.type}">
+				{appState.statusMessage.text}
+			</span>
+		{:else if appState.selectedScene}
 			{@const sceneWords = countWords(appState.selectedScene.text)}
 			<span class="scene-info">
 				{sceneWords} words in scene (~{Math.max(1, Math.ceil(sceneWords / 250))} min)
@@ -186,5 +190,21 @@
 		font-weight: 500;
 		color: var(--color-text-secondary);
 		min-width: 35px;
+	}
+
+	.status-message {
+		font-weight: 500;
+	}
+
+	.status-message.status-success {
+		color: var(--color-success);
+	}
+
+	.status-message.status-warning {
+		color: var(--color-warning);
+	}
+
+	.status-message.status-info {
+		color: var(--color-text-secondary);
 	}
 </style>

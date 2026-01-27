@@ -136,7 +136,6 @@
 		color: var(--color-text-secondary);
 		border-radius: var(--border-radius-sm);
 		transition: background-color var(--transition-fast);
-		cursor: pointer;
 	}
 
 	.fmt-btn:hover {

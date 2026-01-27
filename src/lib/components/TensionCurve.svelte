@@ -248,7 +248,6 @@
 		fill: var(--color-accent);
 		stroke: var(--color-bg-primary);
 		stroke-width: 1.5;
-		cursor: pointer;
 		transition: r 0.15s ease;
 	}
 

@@ -491,7 +491,6 @@
 		background-color: var(--color-bg-secondary);
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-sm);
-		cursor: pointer;
 		min-width: 80px;
 		text-align: center;
 		transition: all var(--transition-fast);

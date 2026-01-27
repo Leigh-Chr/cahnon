@@ -13,8 +13,23 @@
 	import { type Arc, arcApi, type Scene } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import { Button, EmptyState, FormActions, FormGroup, Icon } from './ui';
+	import ContextMenu from './ui/ContextMenu.svelte';
+	import ContextMenuItem from './ui/ContextMenuItem.svelte';
+	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
+
+	let arcContextMenu = $state<{ x: number; y: number; arcId: string } | null>(null);
+
+	function handleArcContextMenu(event: MouseEvent, arcId: string) {
+		event.preventDefault();
+		arcContextMenu = { x: event.clientX, y: event.clientY, arcId };
+	}
+
+	function closeArcContextMenu() {
+		arcContextMenu = null;
+	}
 
 	interface Props {
 		isOpen: boolean;
@@ -196,7 +211,8 @@
 	}
 
 	async function deleteArc(arcId: string) {
-		if (!confirm('Delete this arc? This action cannot be undone.')) return;
+		if (!(await nativeConfirm('Delete this arc? This action cannot be undone.', 'Delete Arc')))
+			return;
 
 		try {
 			await arcApi.delete(arcId);
@@ -282,6 +298,7 @@
 										isCreating = false;
 										isEditing = false;
 									}}
+									oncontextmenu={(e) => handleArcContextMenu(e, arc.id)}
 								>
 									<span class="arc-color" style="background-color: {arc.color || '#6366f1'}"></span>
 									<div class="arc-info">
@@ -484,6 +501,29 @@
 	</div>
 {/if}
 
+{#if arcContextMenu}
+	<ContextMenu x={arcContextMenu.x} y={arcContextMenu.y} onclose={closeArcContextMenu}>
+		<ContextMenuItem
+			label="Edit"
+			onclick={() => {
+				selectedArcId = arcContextMenu!.arcId;
+				isEditing = true;
+				isCreating = false;
+				closeArcContextMenu();
+			}}
+		/>
+		<ContextMenuSeparator />
+		<ContextMenuItem
+			label="Delete"
+			danger
+			onclick={() => {
+				deleteArc(arcContextMenu!.arcId);
+				closeArcContextMenu();
+			}}
+		/>
+	</ContextMenu>
+{/if}
+
 <style>
 	.modal-overlay {
 		position: fixed;
@@ -572,7 +612,6 @@
 		border-bottom: 1px solid var(--color-border-light);
 		text-align: left;
 		background: none;
-		cursor: pointer;
 		transition: background-color var(--transition-fast);
 	}
 
@@ -654,7 +693,6 @@
 		height: 28px;
 		border-radius: 50%;
 		border: 2px solid transparent;
-		cursor: pointer;
 		transition: transform var(--transition-fast);
 	}
 
@@ -814,7 +852,6 @@
 		padding: 1px;
 		border-radius: 50%;
 		color: var(--color-text-muted);
-		cursor: pointer;
 	}
 
 	.chip-remove:hover {
@@ -845,7 +882,6 @@
 		padding: var(--spacing-sm);
 		text-align: left;
 		font-size: var(--font-size-sm);
-		cursor: pointer;
 	}
 
 	.character-dropdown-item:hover {

@@ -63,7 +63,15 @@ export function removeToast(id: string) {
 }
 
 // Convenience functions
+// Non-critical toasts without actions route to the status bar for a desktop feel.
 export function showSuccess(message: string, action?: Toast['action']) {
+	if (!action) {
+		// Lazy import to avoid circular dependency
+		import('$lib/stores').then(({ appState }) => {
+			appState.showStatusMessage(message, 'success');
+		});
+		return '';
+	}
 	return showToast({ type: 'success', message, action });
 }
 
@@ -76,5 +84,11 @@ export function showWarning(message: string, action?: Toast['action']) {
 }
 
 export function showInfo(message: string, action?: Toast['action']) {
+	if (!action) {
+		import('$lib/stores').then(({ appState }) => {
+			appState.showStatusMessage(message, 'info');
+		});
+		return '';
+	}
 	return showToast({ type: 'info', message, action });
 }

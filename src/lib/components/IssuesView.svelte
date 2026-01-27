@@ -12,9 +12,25 @@
 	import { type BibleEntry, type Issue, issueApi, type Scene, timelineApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
 	import { getRevisionPass } from '$lib/utils/revision-passes';
 
 	import { Button, EmptyState, FormActions, FormGroup } from './ui';
+	import ContextMenu from './ui/ContextMenu.svelte';
+	import ContextMenuItem from './ui/ContextMenuItem.svelte';
+	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
+
+	// Context menu for issues
+	let issueContextMenu = $state<{ x: number; y: number; issueId: string } | null>(null);
+
+	function handleIssueContextMenu(event: MouseEvent, issueId: string) {
+		event.preventDefault();
+		issueContextMenu = { x: event.clientX, y: event.clientY, issueId };
+	}
+
+	function closeIssueContextMenu() {
+		issueContextMenu = null;
+	}
 
 	let issues = $state<Issue[]>([]);
 	let isLoading = $state(false);
@@ -411,6 +427,7 @@
 						class:resolved={issue.status === 'resolved'}
 						class:ignored={issue.status === 'ignored'}
 						onclick={() => (selectedIssueId = issue.id)}
+						oncontextmenu={(e) => handleIssueContextMenu(e, issue.id)}
 					>
 						<span
 							class="severity-indicator"
@@ -651,6 +668,43 @@
 	</div>
 </div>
 
+{#if issueContextMenu}
+	{@const issue = issues.find((i) => i.id === issueContextMenu!.issueId)}
+	<ContextMenu x={issueContextMenu.x} y={issueContextMenu.y} onclose={closeIssueContextMenu}>
+		<ContextMenuItem
+			label="View Details"
+			onclick={() => {
+				selectedIssueId = issueContextMenu!.issueId;
+				closeIssueContextMenu();
+			}}
+		/>
+		{#if issue && issue.status === 'open'}
+			<ContextMenuItem
+				label="Resolve"
+				onclick={async () => {
+					await issueApi.update(issueContextMenu!.issueId, { status: 'resolved' });
+					await loadIssues();
+					closeIssueContextMenu();
+				}}
+			/>
+		{/if}
+		<ContextMenuSeparator />
+		<ContextMenuItem
+			label="Delete"
+			danger
+			onclick={async () => {
+				if (
+					await nativeConfirm('Delete this issue? This action cannot be undone.', 'Delete Issue')
+				) {
+					await issueApi.delete(issueContextMenu!.issueId);
+					await loadIssues();
+				}
+				closeIssueContextMenu();
+			}}
+		/>
+	</ContextMenu>
+{/if}
+
 <style>
 	.issues-view {
 		display: flex;
@@ -727,7 +781,6 @@
 		border-bottom: 1px solid var(--color-border);
 		text-align: left;
 		background: none;
-		cursor: pointer;
 		transition: background-color var(--transition-fast);
 	}
 
@@ -846,7 +899,6 @@
 		background: none;
 		border: none;
 		padding: 0;
-		cursor: pointer;
 		text-decoration: underline;
 	}
 

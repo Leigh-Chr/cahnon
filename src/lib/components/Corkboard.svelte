@@ -18,6 +18,25 @@
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
 	import { countWords, formatWordCount, sceneStatuses, statusColors } from '$lib/utils';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
+
+	import ContextMenu from './ui/ContextMenu.svelte';
+	import ContextMenuItem from './ui/ContextMenuItem.svelte';
+	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
+
+	// Context menu state for individual cards
+	let cardContextMenu = $state<{ x: number; y: number; sceneId: string; chapterId: string } | null>(
+		null
+	);
+
+	function handleCardContextMenu(event: MouseEvent, sceneId: string, chapterId: string) {
+		event.preventDefault();
+		cardContextMenu = { x: event.clientX, y: event.clientY, sceneId, chapterId };
+	}
+
+	function closeCardContextMenu() {
+		cardContextMenu = null;
+	}
 
 	// Create automatic snapshot before bulk operations
 	async function createPreBulkSnapshot(operation: string) {
@@ -295,7 +314,13 @@
 
 	async function bulkDelete() {
 		if (selectedSceneIds.size === 0) return;
-		if (!confirm(`Delete ${selectedSceneIds.size} scenes? They will be moved to trash.`)) return;
+		if (
+			!(await nativeConfirm(
+				`Delete ${selectedSceneIds.size} scenes? They will be moved to trash.`,
+				'Delete Scenes'
+			))
+		)
+			return;
 		try {
 			// Create snapshot before bulk delete
 			await createPreBulkSnapshot('delete');
@@ -547,6 +572,7 @@
 							class:dragging={draggedSceneId === scene.id}
 							class:drag-over={dragOverSceneId === scene.id}
 							onclick={(e) => selectScene(scene.id, chapterId, e)}
+							oncontextmenu={(e) => handleCardContextMenu(e, scene.id, chapterId)}
 							style="--status-color: {getStatusColor(scene.status)}"
 							draggable={groupBy === 'chapter'}
 							ondragstart={(e) => handleDragStart(e, scene.id)}
@@ -633,6 +659,29 @@
 		{/each}
 	</div>
 </div>
+
+{#if cardContextMenu}
+	<ContextMenu x={cardContextMenu.x} y={cardContextMenu.y} onclose={closeCardContextMenu}>
+		<ContextMenuItem
+			label="Edit in Editor"
+			onclick={() => {
+				appState.selectScene(cardContextMenu!.sceneId, cardContextMenu!.chapterId);
+				appState.setViewMode('editor');
+				closeCardContextMenu();
+			}}
+		/>
+		<ContextMenuSeparator />
+		<ContextMenuItem
+			label="Delete"
+			danger
+			onclick={async () => {
+				const id = cardContextMenu!.sceneId;
+				closeCardContextMenu();
+				await appState.deleteScene(id);
+			}}
+		/>
+	</ContextMenu>
+{/if}
 
 <style>
 	.corkboard {

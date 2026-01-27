@@ -788,7 +788,6 @@
 		background-color: var(--color-bg-secondary);
 		border: 2px solid transparent;
 		border-radius: var(--border-radius-md);
-		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 
@@ -908,13 +907,11 @@
 		gap: var(--spacing-sm);
 		padding: var(--spacing-xs) 0;
 		font-size: var(--font-size-sm);
-		cursor: pointer;
 	}
 
 	.checkbox-option input[type='checkbox'] {
 		width: 16px;
 		height: 16px;
-		cursor: pointer;
 	}
 
 	.section-divider {
@@ -948,11 +945,9 @@
 		align-items: center;
 		gap: var(--spacing-xs);
 		font-size: var(--font-size-sm);
-		cursor: pointer;
 	}
 
 	.radio-option input[type='radio'] {
-		cursor: pointer;
 	}
 
 	.chapter-select {
@@ -976,7 +971,6 @@
 		border: none;
 		color: var(--color-accent);
 		font-size: var(--font-size-xs);
-		cursor: pointer;
 		padding: 0;
 		text-decoration: underline;
 	}
