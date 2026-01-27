@@ -1,7 +1,5 @@
 //! CSV export operations (bible, timeline, review grid, stats)
 
-use rusqlite::params;
-
 use super::Database;
 
 /// A CSV field: either a required string or an optional string.
@@ -188,6 +186,9 @@ impl Database {
             "title,chapter,status,word_count,pov,tension,has_conflict,has_change,setup_for,payoff_of\n",
         );
 
+        // Pre-load all scene titles in one query to avoid N+1
+        let scene_titles = self.get_all_scene_titles()?;
+
         let mut stmt = self
             .conn
             .prepare(
@@ -219,16 +220,43 @@ impl Database {
 
         for row in rows {
             let r = row.map_err(|e| e.to_string())?;
-            output.push_str(&self.format_review_grid_row(&r));
+            output.push_str(&Self::format_review_grid_row(&r, &scene_titles));
         }
 
         Ok(output)
     }
 
-    /// Format a single review grid row as CSV, resolving scene ID references to titles.
-    fn format_review_grid_row(&self, r: &ReviewGridRow) -> String {
-        let setup_for_title = self.resolve_scene_title(&r.setup_for);
-        let payoff_of_title = self.resolve_scene_title(&r.payoff_of);
+    /// Pre-load all scene titles into a HashMap for batch lookups.
+    fn get_all_scene_titles(&self) -> Result<std::collections::HashMap<String, String>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, title FROM scenes WHERE deleted_at IS NULL")
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(rows.into_iter().collect())
+    }
+
+    /// Format a single review grid row as CSV, resolving scene ID references via pre-loaded titles.
+    fn format_review_grid_row(
+        r: &ReviewGridRow,
+        scene_titles: &std::collections::HashMap<String, String>,
+    ) -> String {
+        let setup_for_title = r
+            .setup_for
+            .as_ref()
+            .and_then(|id| scene_titles.get(id).cloned());
+        let payoff_of_title = r
+            .payoff_of
+            .as_ref()
+            .and_then(|id| scene_titles.get(id).cloned());
 
         csv_row(&[
             CsvField::Str(r.title.clone()),
@@ -242,19 +270,6 @@ impl Database {
             CsvField::Opt(setup_for_title),
             CsvField::Opt(payoff_of_title),
         ])
-    }
-
-    /// Resolve an optional scene ID to a scene title.
-    fn resolve_scene_title(&self, scene_id: &Option<String>) -> Option<String> {
-        scene_id.as_ref().and_then(|id| {
-            self.conn
-                .query_row(
-                    "SELECT title FROM scenes WHERE id = ?1 AND deleted_at IS NULL",
-                    params![id],
-                    |row| row.get(0),
-                )
-                .ok()
-        })
     }
 
     /// Export word count stats as CSV.

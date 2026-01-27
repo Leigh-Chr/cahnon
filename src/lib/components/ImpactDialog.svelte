@@ -70,9 +70,8 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="impact-overlay" onclick={oncancel}>
-	<div class="impact-dialog" onclick={(e) => e.stopPropagation()}>
+<div class="impact-overlay" onclick={oncancel} role="presentation">
+	<div class="impact-dialog" onclick={(e) => e.stopPropagation()} role="presentation">
 		<h3>Delete {entityType === 'bible_entry' ? 'entry' : entityType}?</h3>
 		<p class="entity-name">"{entityName}"</p>
 

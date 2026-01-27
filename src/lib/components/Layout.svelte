@@ -494,11 +494,19 @@
 	<ExportDialog isOpen={appState.isExportDialogOpen} onclose={() => appState.closeExportDialog()} />
 
 	{#if appState.isTrashViewOpen}
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="modal-overlay" onclick={() => appState.closeTrashView()} role="presentation">
+		<div
+			class="modal-overlay"
+			onclick={() => appState.closeTrashView()}
+			onkeydown={(e) => {
+				if (e.key === 'Escape') appState.closeTrashView();
+			}}
+			role="presentation"
+			tabindex="-1"
+		>
 			<div
 				class="modal-container"
 				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
 				role="dialog"
 				aria-modal="true"
 				tabindex="-1"

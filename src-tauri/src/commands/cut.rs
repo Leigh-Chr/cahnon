@@ -13,21 +13,21 @@ pub fn create_cut(
         return Err("Cut text cannot be empty".to_string());
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_cut(scene_id.as_deref(), &text)
 }
 
 #[tauri::command]
 pub fn get_cuts(state: State<AppState>) -> Result<Vec<Cut>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_cuts()
 }
 
 #[tauri::command]
 pub fn delete_cut(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_cut(&id)
 }

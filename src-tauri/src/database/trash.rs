@@ -59,17 +59,18 @@ impl Database {
     /// Returns (scenes_purged, chapters_purged).
     pub fn purge_expired_trash(&self) -> Result<(usize, usize), String> {
         let threshold = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
-
         let expired_scene_ids = self.get_expired_scene_ids(&threshold)?;
 
-        for sid in &expired_scene_ids {
-            self.cleanup_scene_junctions_for_purge(sid);
-        }
+        self.run_in_transaction(|| {
+            for sid in &expired_scene_ids {
+                self.cleanup_scene_junctions_for_purge(sid)?;
+            }
 
-        let scenes_purged = self.purge_expired_scenes(&threshold)?;
-        let chapters_purged = self.purge_expired_chapters(&threshold)?;
+            let scenes_purged = self.purge_expired_scenes(&threshold)?;
+            let chapters_purged = self.purge_expired_chapters(&threshold)?;
 
-        Ok((scenes_purged, chapters_purged))
+            Ok((scenes_purged, chapters_purged))
+        })
     }
 
     fn get_expired_scene_ids(&self, threshold: &str) -> Result<Vec<String>, String> {
@@ -86,8 +87,7 @@ impl Database {
     }
 
     /// Removes all junction table entries for a scene being purged.
-    /// Ignores errors since the scene will be deleted anyway.
-    fn cleanup_scene_junctions_for_purge(&self, scene_id: &str) {
+    fn cleanup_scene_junctions_for_purge(&self, scene_id: &str) -> Result<(), String> {
         const JUNCTION_TABLES: &[&str] = &[
             "canonical_associations",
             "scene_arcs",
@@ -98,11 +98,15 @@ impl Database {
             "scene_history",
         ];
         for table in JUNCTION_TABLES {
-            let _ = self.conn.execute(
-                &format!("DELETE FROM {} WHERE scene_id = ?1", table),
-                params![scene_id],
-            );
+            let table = Self::validate_table_name(table)?;
+            self.conn
+                .execute(
+                    &format!("DELETE FROM {} WHERE scene_id = ?1", table),
+                    params![scene_id],
+                )
+                .map_err(|e| e.to_string())?;
         }
+        Ok(())
     }
 
     fn purge_expired_scenes(&self, threshold: &str) -> Result<usize, String> {

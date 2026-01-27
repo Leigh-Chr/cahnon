@@ -3,6 +3,7 @@
 use crate::models::{BibleEntry, CreateEventRequest, Event, Scene, UpdateEventRequest};
 use rusqlite::params;
 
+use super::macros::add_field;
 use super::Database;
 
 impl Database {
@@ -104,22 +105,13 @@ impl Database {
         let mut set_clauses = Vec::new();
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-        }
-
-        add_field!(req.title, "title");
-        add_field!(req.description, "description");
-        add_field!(req.time_point, "time_point");
-        add_field!(req.time_start, "time_start");
-        add_field!(req.time_end, "time_end");
-        add_field!(req.event_type, "event_type");
-        add_field!(req.importance, "importance");
+        add_field!(set_clauses, params_vec, req.title, "title");
+        add_field!(set_clauses, params_vec, req.description, "description");
+        add_field!(set_clauses, params_vec, req.time_point, "time_point");
+        add_field!(set_clauses, params_vec, req.time_start, "time_start");
+        add_field!(set_clauses, params_vec, req.time_end, "time_end");
+        add_field!(set_clauses, params_vec, req.event_type, "event_type");
+        add_field!(set_clauses, params_vec, req.importance, "importance");
 
         if !set_clauses.is_empty() {
             set_clauses.push(format!("updated_at = ?{}", params_vec.len() + 1));
@@ -148,21 +140,23 @@ impl Database {
     pub fn delete_event(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Clean up junction tables to avoid orphaned records
-        self.conn
-            .execute("DELETE FROM event_scenes WHERE event_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM event_bible WHERE event_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        self.run_in_transaction(|| {
+            // Clean up junction tables to avoid orphaned records
+            self.conn
+                .execute("DELETE FROM event_scenes WHERE event_id = ?1", params![id])
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute("DELETE FROM event_bible WHERE event_id = ?1", params![id])
+                .map_err(|e| e.to_string())?;
 
-        self.conn
-            .execute(
-                "UPDATE events SET deleted_at = ?1 WHERE id = ?2",
-                params![now, id],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            self.conn
+                .execute(
+                    "UPDATE events SET deleted_at = ?1 WHERE id = ?2",
+                    params![now, id],
+                )
+                .map_err(|e| e.to_string())?;
+            Ok(())
+        })
     }
 
     // Event-Scene linking

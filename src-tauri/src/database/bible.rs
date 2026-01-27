@@ -7,6 +7,7 @@ use crate::models::{
 };
 use rusqlite::params;
 
+use super::macros::add_field;
 use super::Database;
 
 impl Database {
@@ -255,71 +256,74 @@ impl Database {
         set_clauses: &mut Vec<String>,
         params_vec: &mut Vec<Box<dyn rusqlite::ToSql>>,
     ) {
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-        }
-
-        add_field!(req.name, "name");
-        add_field!(req.aliases, "aliases");
-        add_field!(req.short_description, "short_description");
-        add_field!(req.full_description, "full_description");
-        add_field!(req.status, "status");
-        add_field!(req.tags, "tags");
-        add_field!(req.image_path, "image_path");
-        add_field!(req.notes, "notes");
-        add_field!(req.todos, "todos");
-        add_field!(req.color, "color");
-        add_field!(req.custom_fields, "custom_fields");
+        add_field!(set_clauses, params_vec, req.name, "name");
+        add_field!(set_clauses, params_vec, req.aliases, "aliases");
+        add_field!(
+            set_clauses,
+            params_vec,
+            req.short_description,
+            "short_description"
+        );
+        add_field!(
+            set_clauses,
+            params_vec,
+            req.full_description,
+            "full_description"
+        );
+        add_field!(set_clauses, params_vec, req.status, "status");
+        add_field!(set_clauses, params_vec, req.tags, "tags");
+        add_field!(set_clauses, params_vec, req.image_path, "image_path");
+        add_field!(set_clauses, params_vec, req.notes, "notes");
+        add_field!(set_clauses, params_vec, req.todos, "todos");
+        add_field!(set_clauses, params_vec, req.color, "color");
+        add_field!(set_clauses, params_vec, req.custom_fields, "custom_fields");
     }
 
     pub fn delete_bible_entry(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Clean up junction tables to avoid orphaned records
-        self.conn
-            .execute(
-                "DELETE FROM canonical_associations WHERE bible_entry_id = ?1",
-                params![id],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "DELETE FROM bible_relationships WHERE source_id = ?1 OR target_id = ?1",
-                params![id],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "DELETE FROM event_bible WHERE bible_entry_id = ?1",
-                params![id],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "DELETE FROM issue_bible WHERE bible_entry_id = ?1",
-                params![id],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "DELETE FROM arc_characters WHERE bible_entry_id = ?1",
-                params![id],
-            )
-            .map_err(|e| e.to_string())?;
+        self.run_in_transaction(|| {
+            // Clean up junction tables to avoid orphaned records
+            self.conn
+                .execute(
+                    "DELETE FROM canonical_associations WHERE bible_entry_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM bible_relationships WHERE source_id = ?1 OR target_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM event_bible WHERE bible_entry_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM issue_bible WHERE bible_entry_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM arc_characters WHERE bible_entry_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
 
-        // Soft-delete the entry itself
-        self.conn
-            .execute(
-                "UPDATE bible_entries SET deleted_at = ?1 WHERE id = ?2",
-                params![now, id],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            // Soft-delete the entry itself
+            self.conn
+                .execute(
+                    "UPDATE bible_entries SET deleted_at = ?1 WHERE id = ?2",
+                    params![now, id],
+                )
+                .map_err(|e| e.to_string())?;
+            Ok(())
+        })
     }
 
     pub fn search_bible(&self, query: &str) -> Result<Vec<BibleEntry>, String> {
@@ -583,18 +587,14 @@ impl Database {
         let mut set_clauses = Vec::new();
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-        }
-
-        add_field!(req.relationship_type, "relationship_type");
-        add_field!(req.note, "note");
-        add_field!(req.status, "status");
+        add_field!(
+            set_clauses,
+            params_vec,
+            req.relationship_type,
+            "relationship_type"
+        );
+        add_field!(set_clauses, params_vec, req.note, "note");
+        add_field!(set_clauses, params_vec, req.status, "status");
 
         if !set_clauses.is_empty() {
             let id_param_idx = params_vec.len() + 1;

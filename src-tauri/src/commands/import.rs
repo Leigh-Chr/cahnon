@@ -1,5 +1,7 @@
 use crate::database::Database;
-use crate::models::{CreateChapterRequest, CreateSceneRequest, Scene, UpdateSceneRequest};
+use crate::models::{
+    CreateChapterRequest, CreateSceneRequest, ImportResult, Scene, UpdateSceneRequest,
+};
 use crate::validation::{sanitize_text, MAX_SCENE_TITLE_LENGTH};
 use crate::AppState;
 use tauri::State;
@@ -26,8 +28,8 @@ pub fn import_markdown_as_scene(
         return Err("Scene title cannot be empty".to_string());
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
 
     // Convert markdown to HTML for the editor
     let html = markdown_to_html(&content);
@@ -145,8 +147,8 @@ pub fn import_markdown_structured(
     state: State<AppState>,
     content: String,
 ) -> Result<ImportResult, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
 
     let mut import_state = ImportState::new();
 
@@ -222,8 +224,8 @@ pub fn import_text_as_scene(
         return Err("Scene title cannot be empty".to_string());
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
 
     // Wrap paragraphs in <p> tags
     let html = text_to_html(&content);
@@ -242,12 +244,6 @@ pub fn import_text_as_scene(
         };
         db.update_scene(&scene.id, &update_req)
     })
-}
-
-#[derive(serde::Serialize)]
-pub struct ImportResult {
-    pub chapters_created: i32,
-    pub scenes_created: i32,
 }
 
 /// Simple markdown to HTML converter
@@ -378,8 +374,8 @@ fn text_to_html(text: &str) -> String {
 /// Creates an automatic backup before importing.
 #[tauri::command]
 pub fn import_json_backup(state: State<AppState>, content: String) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.import_json_backup(&content)
 }
 

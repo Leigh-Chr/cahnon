@@ -6,8 +6,8 @@ use tauri::State;
 
 #[tauri::command]
 pub fn get_templates(state: State<AppState>) -> Result<Vec<Template>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_templates()
 }
 
@@ -16,15 +16,15 @@ pub fn get_template_steps(
     template_id: String,
     state: State<AppState>,
 ) -> Result<Vec<TemplateStep>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_template_steps(&template_id)
 }
 
 #[tauri::command]
 pub fn set_active_template(template_id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.set_active_template(&template_id)
 }
 
@@ -34,8 +34,8 @@ pub fn assign_scene_to_step(
     step_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.assign_scene_to_step(&scene_id, &step_id)
 }
 
@@ -44,15 +44,15 @@ pub fn get_scene_step(
     scene_id: String,
     state: State<AppState>,
 ) -> Result<Option<TemplateStep>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_scene_step(&scene_id)
 }
 
 #[tauri::command]
 pub fn init_builtin_templates(state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.init_builtin_templates()
 }
 
@@ -68,8 +68,8 @@ pub fn create_template(
 
     let sanitized_request = CreateTemplateRequest { name };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_template(&sanitized_request)
 }
 
@@ -89,15 +89,15 @@ pub fn update_template(
         }
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_template(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_template(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_template(&id)
 }
 
@@ -127,8 +127,8 @@ pub fn create_template_step(
         color: request.color,
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_template_step(&sanitized_request)
 }
 
@@ -160,14 +160,14 @@ pub fn update_template_step(
         }
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_template_step(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_template_step(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_template_step(&id)
 }

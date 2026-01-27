@@ -3,6 +3,7 @@
 use crate::models::{Chapter, CreateChapterRequest, UpdateChapterRequest};
 use rusqlite::params;
 
+use super::macros::add_field;
 use super::Database;
 
 impl Database {
@@ -93,26 +94,11 @@ impl Database {
         let mut set_clauses = Vec::new();
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-            ($field:expr, $column:literal, int) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val));
-                }
-            };
-        }
-
-        add_field!(req.title, "title");
-        add_field!(req.summary, "summary");
-        add_field!(req.status, "status");
-        add_field!(req.notes, "notes");
-        add_field!(req.position, "position", int);
+        add_field!(set_clauses, params_vec, req.title, "title");
+        add_field!(set_clauses, params_vec, req.summary, "summary");
+        add_field!(set_clauses, params_vec, req.status, "status");
+        add_field!(set_clauses, params_vec, req.notes, "notes");
+        add_field!(set_clauses, params_vec, req.position, "position", int);
 
         if !set_clauses.is_empty() {
             set_clauses.push(format!("updated_at = ?{}", params_vec.len() + 1));
@@ -140,29 +126,30 @@ impl Database {
 
     pub fn delete_chapter(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
-
         let scene_ids = self.get_chapter_scene_ids(id)?;
 
-        for scene_id in &scene_ids {
-            self.cleanup_scene_junctions(scene_id)?;
-        }
+        self.run_in_transaction(|| {
+            for scene_id in &scene_ids {
+                self.cleanup_scene_junctions(scene_id)?;
+            }
 
-        self.conn
-            .execute(
-                "UPDATE chapters SET deleted_at = ?1 WHERE id = ?2",
-                params![now, id],
-            )
-            .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "UPDATE chapters SET deleted_at = ?1 WHERE id = ?2",
+                    params![now, id],
+                )
+                .map_err(|e| e.to_string())?;
 
-        // Soft-delete all scenes in this chapter
-        self.conn
-            .execute(
-                "UPDATE scenes SET deleted_at = ?1 WHERE chapter_id = ?2",
-                params![now, id],
-            )
-            .map_err(|e| e.to_string())?;
+            // Soft-delete all scenes in this chapter
+            self.conn
+                .execute(
+                    "UPDATE scenes SET deleted_at = ?1 WHERE chapter_id = ?2",
+                    params![now, id],
+                )
+                .map_err(|e| e.to_string())?;
 
-        Ok(())
+            Ok(())
+        })
     }
 
     fn get_chapter_scene_ids(&self, chapter_id: &str) -> Result<Vec<String>, String> {
@@ -189,6 +176,7 @@ impl Database {
             "annotations",
         ];
         for table in JUNCTION_TABLES {
+            let table = Self::validate_table_name(table)?;
             self.conn
                 .execute(
                     &format!("DELETE FROM {} WHERE scene_id = ?1", table),

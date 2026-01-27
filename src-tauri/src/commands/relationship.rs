@@ -24,8 +24,8 @@ pub fn create_bible_relationship(
         status: request.status,
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_bible_relationship(&sanitized_request)
 }
 
@@ -34,8 +34,8 @@ pub fn get_bible_relationships(
     entry_id: String,
     state: State<AppState>,
 ) -> Result<Vec<BibleRelationshipWithEntry>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_bible_relationships(&entry_id)
 }
 
@@ -55,14 +55,14 @@ pub fn update_bible_relationship(
         status: request.status,
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_bible_relationship(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_bible_relationship(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_bible_relationship(&id)
 }

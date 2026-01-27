@@ -17,6 +17,7 @@
 	let worldState = $state<WorldState | null>(null);
 	let isLoading = $state(false);
 	let expandedSections = new SvelteSet<string>(['characters', 'arcs']);
+	let loadGeneration = 0;
 
 	let selectedSceneId = $derived(appState.selectedSceneId);
 
@@ -29,14 +30,20 @@
 	});
 
 	async function loadWorldState(sceneId: string) {
+		const gen = ++loadGeneration;
 		isLoading = true;
 		try {
-			worldState = await worldStateApi.getAtScene(sceneId);
+			const result = await worldStateApi.getAtScene(sceneId);
+			if (gen !== loadGeneration) return;
+			worldState = result;
 		} catch (e) {
+			if (gen !== loadGeneration) return;
 			console.error('Failed to load world state:', e);
 			worldState = null;
 		} finally {
-			isLoading = false;
+			if (gen === loadGeneration) {
+				isLoading = false;
+			}
 		}
 	}
 

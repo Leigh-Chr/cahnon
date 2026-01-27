@@ -29,40 +29,48 @@ use database::Database;
 use tauri::menu::{MenuBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::Emitter;
 
+/// Internal project state protected by a single mutex.
+#[derive(Default)]
+pub struct ProjectState {
+    /// The currently open project database, if any.
+    pub db: Option<Database>,
+    /// Path to the currently open `.cahnon` file.
+    pub current_project_path: Option<PathBuf>,
+    /// Last known modification time of the project file for detecting external changes.
+    pub last_file_modified: Option<SystemTime>,
+    /// Whether the currently open project is the embedded demo.
+    pub is_demo: bool,
+}
+
 /// Global application state managed by Tauri.
 ///
 /// This state is shared across all Tauri commands via `State<AppState>`.
-/// It holds the currently open database connection and tracks file state
-/// for external modification detection.
+/// A single mutex protects all project-related fields to prevent
+/// inconsistent state across multiple locks.
 pub struct AppState {
-    /// The currently open project database, if any.
-    pub db: Mutex<Option<Database>>,
-    /// Path to the currently open `.cahnon` file.
-    pub current_project_path: Mutex<Option<PathBuf>>,
-    /// Last known modification time of the project file for detecting external changes.
-    pub last_file_modified: Mutex<Option<SystemTime>>,
-    /// Whether the currently open project is the embedded demo.
-    pub is_demo: Mutex<bool>,
+    pub inner: Mutex<ProjectState>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         Self {
-            db: Mutex::new(None),
-            current_project_path: Mutex::new(None),
-            last_file_modified: Mutex::new(None),
-            is_demo: Mutex::new(false),
+            inner: Mutex::new(ProjectState::default()),
         }
     }
 }
 
 impl AppState {
-    /// Acquires the database lock, handling mutex poisoning gracefully.
-    /// Returns a MutexGuard to the database Option.
-    pub fn get_db(&self) -> Result<std::sync::MutexGuard<'_, Option<Database>>, String> {
-        self.db
+    /// Acquires the project state lock, handling mutex poisoning gracefully.
+    pub fn get_state(&self) -> Result<std::sync::MutexGuard<'_, ProjectState>, String> {
+        self.inner
             .lock()
-            .map_err(|_| "Database lock is poisoned".to_string())
+            .map_err(|_| "State lock is poisoned".to_string())
+    }
+
+    /// Convenience: acquires the lock and returns a guard that provides
+    /// access to the database. Most commands use this pattern.
+    pub fn get_db(&self) -> Result<std::sync::MutexGuard<'_, ProjectState>, String> {
+        self.get_state()
     }
 }
 
@@ -81,15 +89,51 @@ pub fn run() {
             // PredefinedMenuItems keep their OS-level accelerators (Undo, Copy, etc.)
             // since they operate directly on the focused DOM element.
             let file_menu = SubmenuBuilder::new(app, "File")
-                .item(&tauri::menu::MenuItem::with_id(app, "new_project", "New Project", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "open_project", "Open Project…", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "new_project",
+                    "New Project",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "open_project",
+                    "Open Project…",
+                    true,
+                    None::<&str>,
+                )?)
                 .separator()
-                .item(&tauri::menu::MenuItem::with_id(app, "save", "Save", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "save",
+                    "Save",
+                    true,
+                    None::<&str>,
+                )?)
                 .separator()
-                .item(&tauri::menu::MenuItem::with_id(app, "export", "Export…", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "import", "Import…", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "export",
+                    "Export…",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "import",
+                    "Import…",
+                    true,
+                    None::<&str>,
+                )?)
                 .separator()
-                .item(&tauri::menu::MenuItem::with_id(app, "close_project", "Close Project", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "close_project",
+                    "Close Project",
+                    true,
+                    None::<&str>,
+                )?)
                 .build()?;
 
             let edit_menu = SubmenuBuilder::new(app, "Edit")
@@ -103,23 +147,95 @@ pub fn run() {
                 .build()?;
 
             let view_menu = SubmenuBuilder::new(app, "View")
-                .item(&tauri::menu::MenuItem::with_id(app, "view_editor", "Editor", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "view_corkboard", "Corkboard", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "view_timeline", "Timeline", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "view_bible", "Bible", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "view_issues", "Issues", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "view_dashboard", "Dashboard", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "view_editor",
+                    "Editor",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "view_corkboard",
+                    "Corkboard",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "view_timeline",
+                    "Timeline",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "view_bible",
+                    "Bible",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "view_issues",
+                    "Issues",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "view_dashboard",
+                    "Dashboard",
+                    true,
+                    None::<&str>,
+                )?)
                 .separator()
-                .item(&tauri::menu::MenuItem::with_id(app, "toggle_outline", "Toggle Outline", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "toggle_context_panel", "Toggle Context Panel", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "toggle_outline",
+                    "Toggle Outline",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "toggle_context_panel",
+                    "Toggle Context Panel",
+                    true,
+                    None::<&str>,
+                )?)
                 .separator()
-                .item(&tauri::menu::MenuItem::with_id(app, "focus_mode", "Focus Mode", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "review_grid", "Review Grid", true, None::<&str>)?)
-                .item(&tauri::menu::MenuItem::with_id(app, "quick_open", "Quick Open", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "focus_mode",
+                    "Focus Mode",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "review_grid",
+                    "Review Grid",
+                    true,
+                    None::<&str>,
+                )?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "quick_open",
+                    "Quick Open",
+                    true,
+                    None::<&str>,
+                )?)
                 .build()?;
 
             let help_menu = SubmenuBuilder::new(app, "Help")
-                .item(&tauri::menu::MenuItem::with_id(app, "about", "About Cahnon", true, None::<&str>)?)
+                .item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    "about",
+                    "About Cahnon",
+                    true,
+                    None::<&str>,
+                )?)
                 .build()?;
 
             let menu = MenuBuilder::new(app)

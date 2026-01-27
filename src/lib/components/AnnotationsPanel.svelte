@@ -256,7 +256,7 @@
 							</Button>
 						</div>
 						{#if editingAnnotationId === annotation.id}
-							<div class="annotation-edit" onclick={(e) => e.stopPropagation()}>
+							<div class="annotation-edit" onclick={(e) => e.stopPropagation()} role="presentation">
 								<textarea bind:value={editedContent} rows="3" class="annotation-edit-textarea"
 								></textarea>
 								<div class="annotation-edit-actions">

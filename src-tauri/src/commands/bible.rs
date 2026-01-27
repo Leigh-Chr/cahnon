@@ -43,8 +43,8 @@ pub fn create_bible_entry(
         color: request.color,
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_bible_entry(&sanitized_request)
 }
 
@@ -53,15 +53,15 @@ pub fn get_bible_entries(
     entry_type: Option<String>,
     state: State<AppState>,
 ) -> Result<Vec<BibleEntry>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_bible_entries(entry_type.as_deref())
 }
 
 #[tauri::command]
 pub fn get_bible_entry(id: String, state: State<AppState>) -> Result<BibleEntry, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_bible_entry(&id)
 }
 
@@ -135,21 +135,21 @@ pub fn update_bible_entry(
         }
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_bible_entry(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_bible_entry(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_bible_entry(&id)
 }
 
 #[tauri::command]
 pub fn search_bible(query: String, state: State<AppState>) -> Result<Vec<BibleEntry>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.search_bible(&query)
 }

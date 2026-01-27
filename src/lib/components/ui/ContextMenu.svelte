@@ -29,16 +29,16 @@
 		}
 	});
 
-	// Adjust position to stay within viewport
+	// Adjust position to stay within viewport (reactive to resize)
 	let adjustedX = $derived.by(() => {
 		if (!menuRect) return x;
-		const vw = window.innerWidth;
+		const vw = viewportSize.w;
 		return x + menuRect.width > vw ? vw - menuRect.width - 4 : x;
 	});
 
 	let adjustedY = $derived.by(() => {
 		if (!menuRect) return y;
-		const vh = window.innerHeight;
+		const vh = viewportSize.h;
 		return y + menuRect.height > vh ? vh - menuRect.height - 4 : y;
 	});
 
@@ -56,13 +56,21 @@
 		}
 	}
 
+	// Track viewport size for recalculating position on resize
+	let viewportSize = $state({ w: window.innerWidth, h: window.innerHeight });
+	function handleResize() {
+		viewportSize = { w: window.innerWidth, h: window.innerHeight };
+	}
+
 	$effect(() => {
 		// Use capture to intercept before other handlers
 		window.addEventListener('mousedown', handleClickOutside, true);
 		window.addEventListener('keydown', handleKeydown, true);
+		window.addEventListener('resize', handleResize);
 		return () => {
 			window.removeEventListener('mousedown', handleClickOutside, true);
 			window.removeEventListener('keydown', handleKeydown, true);
+			window.removeEventListener('resize', handleResize);
 		};
 	});
 </script>

@@ -3,6 +3,7 @@
 use crate::models::{Arc, CreateArcRequest, Scene, UpdateArcRequest};
 use rusqlite::params;
 
+use super::macros::add_field;
 use super::Database;
 
 impl Database {
@@ -55,11 +56,40 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
+        // Batch-load all arc characters in a single query
+        let char_map = self.get_all_arc_characters_batch()?;
         for arc in &mut arcs {
-            arc.characters = self.get_arc_characters(&arc.id)?;
+            if let Some(chars) = char_map.get(&arc.id) {
+                arc.characters = chars.clone();
+            }
         }
 
         Ok(arcs)
+    }
+
+    /// Loads all arc-character associations in one query, grouped by arc_id.
+    fn get_all_arc_characters_batch(
+        &self,
+    ) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT arc_id, bible_entry_id FROM arc_characters")
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        let mut map: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for (arc_id, bible_entry_id) in rows {
+            map.entry(arc_id).or_default().push(bible_entry_id);
+        }
+        Ok(map)
     }
 
     /// Maps a row (without characters) to an Arc with empty characters vec.
@@ -99,20 +129,11 @@ impl Database {
         let mut set_clauses = Vec::new();
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-        }
-
-        add_field!(req.name, "name");
-        add_field!(req.description, "description");
-        add_field!(req.stakes, "stakes");
-        add_field!(req.status, "status");
-        add_field!(req.color, "color");
+        add_field!(set_clauses, params_vec, req.name, "name");
+        add_field!(set_clauses, params_vec, req.description, "description");
+        add_field!(set_clauses, params_vec, req.stakes, "stakes");
+        add_field!(set_clauses, params_vec, req.status, "status");
+        add_field!(set_clauses, params_vec, req.color, "color");
 
         if !set_clauses.is_empty() {
             set_clauses.push(format!("updated_at = ?{}", params_vec.len() + 1));
@@ -141,21 +162,23 @@ impl Database {
     pub fn delete_arc(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Clean up junction tables to avoid orphaned records
-        self.conn
-            .execute("DELETE FROM scene_arcs WHERE arc_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM arc_characters WHERE arc_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        self.run_in_transaction(|| {
+            // Clean up junction tables to avoid orphaned records
+            self.conn
+                .execute("DELETE FROM scene_arcs WHERE arc_id = ?1", params![id])
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute("DELETE FROM arc_characters WHERE arc_id = ?1", params![id])
+                .map_err(|e| e.to_string())?;
 
-        self.conn
-            .execute(
-                "UPDATE arcs SET deleted_at = ?1 WHERE id = ?2",
-                params![now, id],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            self.conn
+                .execute(
+                    "UPDATE arcs SET deleted_at = ?1 WHERE id = ?2",
+                    params![now, id],
+                )
+                .map_err(|e| e.to_string())?;
+            Ok(())
+        })
     }
 
     pub fn link_scene_to_arc(&self, scene_id: &str, arc_id: &str) -> Result<(), String> {
@@ -198,8 +221,11 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
+        let char_map = self.get_all_arc_characters_batch()?;
         for arc in &mut arcs {
-            arc.characters = self.get_arc_characters(&arc.id)?;
+            if let Some(chars) = char_map.get(&arc.id) {
+                arc.characters = chars.clone();
+            }
         }
 
         Ok(arcs)
@@ -229,25 +255,29 @@ impl Database {
         arc_id: &str,
         character_ids: &[String],
     ) -> Result<Vec<String>, String> {
-        // Remove all existing links
-        self.conn
-            .execute(
-                "DELETE FROM arc_characters WHERE arc_id = ?1",
-                params![arc_id],
-            )
-            .map_err(|e| e.to_string())?;
-
-        // Insert new links
-        let now = chrono::Utc::now().to_rfc3339();
-        for char_id in character_ids {
-            let id = uuid::Uuid::new_v4().to_string();
+        self.run_in_transaction(|| {
+            // Remove all existing links
             self.conn
                 .execute(
-                    "INSERT OR IGNORE INTO arc_characters (id, arc_id, bible_entry_id, created_at) VALUES (?1, ?2, ?3, ?4)",
-                    params![id, arc_id, char_id, now],
+                    "DELETE FROM arc_characters WHERE arc_id = ?1",
+                    params![arc_id],
                 )
                 .map_err(|e| e.to_string())?;
-        }
+
+            // Insert new links
+            let now = chrono::Utc::now().to_rfc3339();
+            for char_id in character_ids {
+                let id = uuid::Uuid::new_v4().to_string();
+                self.conn
+                    .execute(
+                        "INSERT OR IGNORE INTO arc_characters (id, arc_id, bible_entry_id, created_at) VALUES (?1, ?2, ?3, ?4)",
+                        params![id, arc_id, char_id, now],
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+
+            Ok(())
+        })?;
 
         self.get_arc_characters(arc_id)
     }
@@ -295,8 +325,11 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
+        let char_map = self.get_all_arc_characters_batch()?;
         for arc in &mut arcs {
-            arc.characters = self.get_arc_characters(&arc.id)?;
+            if let Some(chars) = char_map.get(&arc.id) {
+                arc.characters = chars.clone();
+            }
         }
 
         Ok(arcs)

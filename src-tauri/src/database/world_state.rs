@@ -18,6 +18,7 @@ struct CharacterRow {
 }
 
 /// Intermediate row for a character's last-scene lookup.
+#[derive(Clone)]
 struct LastSceneInfo {
     scene_id: String,
     scene_title: String,
@@ -75,43 +76,33 @@ impl Database {
         scene_id: &str,
         scene_order: i64,
     ) -> Result<Vec<CharacterPresence>, String> {
-        let total_scenes_before = self.ws_count_scenes_before(scene_order);
         let characters = self.ws_character_rows(scene_id, scene_order)?;
+        let last_scenes = self.ws_last_scenes_batch(scene_order)?;
 
-        let mut presences = Vec::with_capacity(characters.len());
-        for ch in characters {
-            let last = self.ws_last_scene_for_character(
-                &ch.bible_entry_id,
-                scene_order,
-                total_scenes_before,
-            );
-            presences.push(CharacterPresence {
-                bible_entry_id: ch.bible_entry_id,
-                name: ch.name,
-                appearance_count: ch.appearance_count,
-                last_scene_id: last.scene_id,
-                last_scene_title: last.scene_title,
-                gap_scenes: last.gap,
-                present_here: ch.present_here,
-            });
-        }
+        let presences = characters
+            .into_iter()
+            .map(|ch| {
+                let last = last_scenes
+                    .get(&ch.bible_entry_id)
+                    .cloned()
+                    .unwrap_or(LastSceneInfo {
+                        scene_id: String::new(),
+                        scene_title: String::new(),
+                        gap: 0,
+                    });
+                CharacterPresence {
+                    bible_entry_id: ch.bible_entry_id,
+                    name: ch.name,
+                    appearance_count: ch.appearance_count,
+                    last_scene_id: last.scene_id,
+                    last_scene_title: last.scene_title,
+                    gap_scenes: last.gap,
+                    present_here: ch.present_here,
+                }
+            })
+            .collect();
 
         Ok(presences)
-    }
-
-    /// Count all scene positions up to and including `scene_order`.
-    fn ws_count_scenes_before(&self, scene_order: i64) -> i32 {
-        self.conn
-            .query_row(
-                "SELECT COUNT(*)
-                 FROM scenes s
-                 JOIN chapters c ON s.chapter_id = c.id
-                 WHERE s.deleted_at IS NULL AND c.deleted_at IS NULL
-                   AND (c.position * 1000000 + s.position) <= ?1",
-                params![scene_order],
-                |row| row.get(0),
-            )
-            .unwrap_or(0)
     }
 
     /// Aggregated character rows: id, name, appearance count, present-here flag.
@@ -155,46 +146,58 @@ impl Database {
         Ok(rows)
     }
 
-    /// Most recent scene for a character at or before `scene_order`, with gap.
-    fn ws_last_scene_for_character(
+    /// Batch-load the most recent scene for every character at or before `scene_order`.
+    /// Uses a window function to find the latest scene per character in a single query,
+    /// and computes the gap (scenes between last appearance and scene_order) in SQL.
+    fn ws_last_scenes_batch(
         &self,
-        bible_entry_id: &str,
         scene_order: i64,
-        fallback_gap: i32,
-    ) -> LastSceneInfo {
-        self.conn
-            .query_row(
-                "SELECT s.id, s.title,
-                        (SELECT COUNT(*)
-                         FROM scenes s3
-                         JOIN chapters c3 ON s3.chapter_id = c3.id
-                         WHERE s3.deleted_at IS NULL AND c3.deleted_at IS NULL
-                           AND (c3.position * 1000000 + s3.position) > (c2.position * 1000000 + s2.position)
-                           AND (c3.position * 1000000 + s3.position) <= ?3
-                        ) as gap
-                 FROM canonical_associations ca2
-                 JOIN scenes s2 ON ca2.scene_id = s2.id
-                 JOIN chapters c2 ON s2.chapter_id = c2.id
-                 JOIN scenes s ON s.id = s2.id
-                 WHERE ca2.bible_entry_id = ?1
-                   AND s2.deleted_at IS NULL AND c2.deleted_at IS NULL
-                   AND (c2.position * 1000000 + s2.position) <= ?2
-                 ORDER BY (c2.position * 1000000 + s2.position) DESC
-                 LIMIT 1",
-                params![bible_entry_id, scene_order, scene_order],
-                |row| {
-                    Ok(LastSceneInfo {
-                        scene_id: row.get(0)?,
-                        scene_title: row.get(1)?,
-                        gap: row.get(2)?,
-                    })
-                },
+    ) -> Result<std::collections::HashMap<String, LastSceneInfo>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "WITH ranked AS (
+                    SELECT ca.bible_entry_id,
+                           s.id AS scene_id,
+                           s.title AS scene_title,
+                           c.position * 1000000 + s.position AS scene_ord,
+                           ROW_NUMBER() OVER (PARTITION BY ca.bible_entry_id
+                                              ORDER BY c.position * 1000000 + s.position DESC) AS rn
+                    FROM canonical_associations ca
+                    JOIN scenes s ON ca.scene_id = s.id
+                    JOIN chapters c ON s.chapter_id = c.id
+                    WHERE s.deleted_at IS NULL AND c.deleted_at IS NULL
+                      AND (c.position * 1000000 + s.position) <= ?1
+                )
+                SELECT r.bible_entry_id, r.scene_id, r.scene_title,
+                       (SELECT COUNT(*)
+                        FROM scenes s3
+                        JOIN chapters c3 ON s3.chapter_id = c3.id
+                        WHERE s3.deleted_at IS NULL AND c3.deleted_at IS NULL
+                          AND (c3.position * 1000000 + s3.position) > r.scene_ord
+                          AND (c3.position * 1000000 + s3.position) <= ?1
+                       ) AS gap
+                FROM ranked r
+                WHERE r.rn = 1",
             )
-            .unwrap_or(LastSceneInfo {
-                scene_id: String::new(),
-                scene_title: String::new(),
-                gap: fallback_gap,
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map(params![scene_order], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    LastSceneInfo {
+                        scene_id: row.get(1)?,
+                        scene_title: row.get(2)?,
+                        gap: row.get(3)?,
+                    },
+                ))
             })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(rows.into_iter().collect())
     }
 
     // ── Open Setups ──────────────────────────────────────────────────────

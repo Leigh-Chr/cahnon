@@ -33,22 +33,22 @@ pub fn create_event(request: CreateEventRequest, state: State<AppState>) -> Resu
             .map(|i| sanitize_text(&i, MAX_TITLE_LENGTH)),
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_event(&sanitized_request)
 }
 
 #[tauri::command]
 pub fn get_events(state: State<AppState>) -> Result<Vec<Event>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_events()
 }
 
 #[tauri::command]
 pub fn get_event(id: String, state: State<AppState>) -> Result<Event, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_event(&id)
 }
 
@@ -86,29 +86,29 @@ pub fn update_event(
         }
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_event(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_event(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_event(&id)
 }
 
 #[tauri::command]
 pub fn get_timeline_scenes(state: State<AppState>) -> Result<Vec<Scene>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_all_scenes_for_timeline()
 }
 
 #[tauri::command]
 pub fn detect_timeline_conflicts(state: State<AppState>) -> Result<Vec<TimelineConflict>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.detect_timeline_conflicts()
 }
 
@@ -118,8 +118,8 @@ pub fn link_scene_to_event(
     event_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.link_scene_to_event(&scene_id, &event_id)
 }
 
@@ -129,22 +129,22 @@ pub fn unlink_scene_from_event(
     event_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.unlink_scene_from_event(&scene_id, &event_id)
 }
 
 #[tauri::command]
 pub fn get_scene_events(scene_id: String, state: State<AppState>) -> Result<Vec<Event>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_scene_events(&scene_id)
 }
 
 #[tauri::command]
 pub fn get_event_scenes(event_id: String, state: State<AppState>) -> Result<Vec<Scene>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_event_scenes(&event_id)
 }
 
@@ -155,8 +155,8 @@ pub fn link_bible_entry_to_event(
     event_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.link_bible_entry_to_event(&bible_entry_id, &event_id)
 }
 
@@ -166,8 +166,8 @@ pub fn unlink_bible_entry_from_event(
     event_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.unlink_bible_entry_from_event(&bible_entry_id, &event_id)
 }
 
@@ -176,8 +176,8 @@ pub fn get_event_bible_entries(
     event_id: String,
     state: State<AppState>,
 ) -> Result<Vec<BibleEntry>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_event_bible_entries(&event_id)
 }
 
@@ -186,7 +186,7 @@ pub fn get_bible_entry_events(
     bible_entry_id: String,
     state: State<AppState>,
 ) -> Result<Vec<Event>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_bible_entry_events(&bible_entry_id)
 }

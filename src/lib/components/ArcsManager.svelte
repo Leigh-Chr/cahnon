@@ -257,11 +257,19 @@
 </script>
 
 {#if isOpen}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="modal-overlay" onclick={handleOverlayClick} role="presentation">
+	<div
+		class="modal-overlay"
+		onclick={handleOverlayClick}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') onclose();
+		}}
+		role="presentation"
+		tabindex="-1"
+	>
 		<div
 			class="modal-container"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="arcs-title"
@@ -385,7 +393,15 @@
 											bind:value={characterSearch}
 											placeholder="Search characters..."
 											onfocus={() => (showCharacterDropdown = true)}
-											onblur={() => setTimeout(() => (showCharacterDropdown = false), 200)}
+											onfocusout={(e) => {
+												const related = (e as FocusEvent).relatedTarget as Node | null;
+												if (
+													!related ||
+													!(e.currentTarget as HTMLElement).parentElement?.contains(related)
+												) {
+													showCharacterDropdown = false;
+												}
+											}}
 										/>
 										{#if showCharacterDropdown && availableCharacters.length > 0}
 											<div class="character-dropdown">

@@ -204,14 +204,25 @@ impl Database {
         Ok(output)
     }
 
+    /// Loads all non-deleted scenes in a single query, ordered by chapter and position.
+    fn get_all_scenes_for_export(&self) -> Result<Vec<Scene>, String> {
+        let query = format!(
+            "{} FROM scenes WHERE deleted_at IS NULL ORDER BY chapter_id, position",
+            crate::database::scene::crud::SCENE_SELECT
+        );
+        let mut stmt = self.conn.prepare(&query).map_err(|e| e.to_string())?;
+        let scenes = stmt
+            .query_map([], Self::map_scene)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(scenes)
+    }
+
     pub fn export_json_backup(&self) -> Result<String, String> {
         let project = self.get_project()?;
         let chapters = self.get_chapters()?;
-        let mut all_scenes = Vec::new();
-        for chapter in &chapters {
-            let scenes = self.get_scenes(&chapter.id)?;
-            all_scenes.extend(scenes);
-        }
+        let all_scenes = self.get_all_scenes_for_export()?;
         let bible_entries = self.get_bible_entries(None)?;
         let arcs = self.get_arcs()?;
         let events = self.get_events()?;

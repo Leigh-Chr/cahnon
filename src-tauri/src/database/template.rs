@@ -6,6 +6,7 @@ use crate::models::{
 };
 use rusqlite::params;
 
+use super::macros::add_field;
 use super::Database;
 
 impl Database {
@@ -417,7 +418,7 @@ impl Database {
                     req.template_id,
                     req.name,
                     req.description,
-                    req.typical_position.unwrap_or(50.0),
+                    req.typical_position.unwrap_or(0.5),
                     req.color,
                     position
                 ],
@@ -445,32 +446,17 @@ impl Database {
         let mut set_clauses = Vec::new();
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-            ($field:expr, $column:literal, float) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val));
-                }
-            };
-            ($field:expr, $column:literal, int) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val));
-                }
-            };
-        }
-
-        add_field!(req.name, "name");
-        add_field!(req.description, "description");
-        add_field!(req.typical_position, "typical_position", float);
-        add_field!(req.color, "color");
-        add_field!(req.position, "position", int);
+        add_field!(set_clauses, params_vec, req.name, "name");
+        add_field!(set_clauses, params_vec, req.description, "description");
+        add_field!(
+            set_clauses,
+            params_vec,
+            req.typical_position,
+            "typical_position",
+            float
+        );
+        add_field!(set_clauses, params_vec, req.color, "color");
+        add_field!(set_clauses, params_vec, req.position, "position", int);
 
         if !set_clauses.is_empty() {
             let id_param_idx = params_vec.len() + 1;
@@ -500,14 +486,16 @@ impl Database {
             return Err("Cannot delete steps from builtin templates".to_string());
         }
 
-        // Clean up scene assignments for this step
-        self.conn
-            .execute("DELETE FROM scene_steps WHERE step_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        self.run_in_transaction(|| {
+            // Clean up scene assignments for this step
+            self.conn
+                .execute("DELETE FROM scene_steps WHERE step_id = ?1", params![id])
+                .map_err(|e| e.to_string())?;
 
-        self.conn
-            .execute("DELETE FROM template_steps WHERE id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            self.conn
+                .execute("DELETE FROM template_steps WHERE id = ?1", params![id])
+                .map_err(|e| e.to_string())?;
+            Ok(())
+        })
     }
 }

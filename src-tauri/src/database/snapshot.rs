@@ -95,7 +95,7 @@ impl Database {
     fn collect_all_snapshot_entities(&self) -> Result<SnapshotData, String> {
         let project = self.get_project()?;
         let chapters = self.get_chapters()?;
-        let scenes = self.collect_all_scenes(&chapters)?;
+        let scenes = self.collect_all_scenes()?;
         let bible_entries = self.get_bible_entries(None)?;
         let arcs = self.get_arcs()?;
         let events = self.get_events()?;
@@ -256,25 +256,11 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
-            .query_map([], Self::map_issue_row)
+            .query_map([], Self::map_issue)
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         Ok(rows)
-    }
-
-    fn map_issue_row(row: &rusqlite::Row) -> rusqlite::Result<Issue> {
-        Ok(Issue {
-            id: row.get(0)?,
-            issue_type: row.get(1)?,
-            title: row.get(2)?,
-            description: row.get(3)?,
-            severity: row.get(4)?,
-            status: row.get(5)?,
-            resolution_note: row.get(6)?,
-            created_at: row.get(7)?,
-            updated_at: row.get(8)?,
-        })
     }
 
     fn collect_annotations_for_snapshot(&self) -> Result<Vec<Annotation>, String> {
@@ -285,31 +271,14 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
-            .query_map([], Self::map_annotation_row)
+            .query_map([], Self::map_annotation)
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         Ok(rows)
     }
 
-    fn map_annotation_row(row: &rusqlite::Row) -> rusqlite::Result<Annotation> {
-        Ok(Annotation {
-            id: row.get(0)?,
-            scene_id: row.get(1)?,
-            start_offset: row.get(2)?,
-            end_offset: row.get(3)?,
-            annotation_type: row.get(4)?,
-            content: row.get(5)?,
-            status: row.get(6)?,
-            created_at: row.get(7)?,
-            updated_at: row.get(8)?,
-        })
-    }
-
-    fn collect_all_scenes(
-        &self,
-        _chapters: &[crate::models::Chapter],
-    ) -> Result<Vec<crate::models::Scene>, String> {
+    fn collect_all_scenes(&self) -> Result<Vec<crate::models::Scene>, String> {
         let query = format!(
             "{} FROM scenes WHERE deleted_at IS NULL ORDER BY chapter_id, position",
             crate::database::scene::crud::SCENE_SELECT
@@ -570,6 +539,7 @@ impl Database {
             "issues",
         ];
         for table in &tables {
+            let table = Self::validate_table_name(table)?;
             self.conn
                 .execute(&format!("DELETE FROM {}", table), [])
                 .map_err(|e| e.to_string())?;

@@ -134,11 +134,19 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="modal-overlay" onclick={close} role="presentation">
+	<div
+		class="modal-overlay"
+		onclick={close}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') close();
+		}}
+		role="presentation"
+		tabindex="-1"
+	>
 		<div
 			class="modal"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="history-title"

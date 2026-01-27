@@ -145,6 +145,35 @@
 	// Scene issues
 	let sceneIssues = $state<Issue[]>([]);
 
+	// Word target inline editing state
+	let isEditingWordTarget = $state(false);
+	let editedWordTarget = $state('');
+
+	function startEditingWordTarget() {
+		editedWordTarget = selectedScene?.word_target ? String(selectedScene.word_target) : '';
+		isEditingWordTarget = true;
+	}
+
+	async function saveWordTarget() {
+		if (selectedScene) {
+			const trimmed = editedWordTarget.trim();
+			const target = trimmed === '' ? null : parseInt(trimmed);
+			if (target === null || (!isNaN(target) && target > 0)) {
+				try {
+					await appState.updateScene(selectedScene.id, { word_target: target });
+				} catch (e) {
+					console.error('Failed to set word target:', e);
+					showError('Failed to set word target');
+				}
+			}
+		}
+		isEditingWordTarget = false;
+	}
+
+	function cancelEditingWordTarget() {
+		isEditingWordTarget = false;
+	}
+
 	// Timeline editing state
 	let isEditingTimeline = $state(false);
 	let editedOnTimeline = $state(false);
@@ -158,15 +187,18 @@
 		allEvents.filter((ev) => !linkedEvents.some((le) => le.id === ev.id))
 	);
 
+	let loadGeneration = 0;
+
 	$effect(() => {
 		if (selectedSceneId) {
-			loadAssociations();
-			loadSceneArcs();
+			const gen = ++loadGeneration;
+			loadAssociations(gen);
+			loadSceneArcs(gen);
 			loadAllArcs();
-			loadTemplateStep();
-			loadLinkedEvents();
+			loadTemplateStep(gen);
+			loadLinkedEvents(gen);
 			loadAllEvents();
-			loadSceneIssues();
+			loadSceneIssues(gen);
 		}
 	});
 
@@ -180,16 +212,26 @@
 			: []
 	);
 
-	async function loadAssociations() {
+	async function loadAssociations(gen?: number) {
 		if (selectedSceneId) {
-			associations = await associationApi.getByScene(selectedSceneId);
+			try {
+				const result = await associationApi.getByScene(selectedSceneId);
+				if (gen === undefined || gen === loadGeneration) {
+					associations = result;
+				}
+			} catch (e) {
+				console.error('Failed to load associations:', e);
+			}
 		}
 	}
 
-	async function loadSceneArcs() {
+	async function loadSceneArcs(gen?: number) {
 		if (selectedSceneId) {
 			try {
-				sceneArcs = await arcApi.getSceneArcs(selectedSceneId);
+				const result = await arcApi.getSceneArcs(selectedSceneId);
+				if (gen === undefined || gen === loadGeneration) {
+					sceneArcs = result;
+				}
 			} catch (e) {
 				console.error('Failed to load arcs:', e);
 				sceneArcs = [];
@@ -230,17 +272,17 @@
 		}
 	}
 
-	async function loadTemplateStep() {
+	async function loadTemplateStep(gen?: number) {
 		if (selectedSceneId) {
 			try {
-				templateStep = await templateApi.getSceneStep(selectedSceneId);
+				const step = await templateApi.getSceneStep(selectedSceneId);
 				// Also load all available steps from active template
 				const templates = await templateApi.getAll();
 				const activeTemplate = templates.find((t) => t.is_active);
-				if (activeTemplate) {
-					allTemplateSteps = await templateApi.getSteps(activeTemplate.id);
-				} else {
-					allTemplateSteps = [];
+				const steps = activeTemplate ? await templateApi.getSteps(activeTemplate.id) : [];
+				if (gen === undefined || gen === loadGeneration) {
+					templateStep = step;
+					allTemplateSteps = steps;
 				}
 			} catch (e) {
 				console.error('Failed to load template step:', e);
@@ -263,10 +305,13 @@
 		}
 	}
 
-	async function loadLinkedEvents() {
+	async function loadLinkedEvents(gen?: number) {
 		if (selectedSceneId) {
 			try {
-				linkedEvents = await eventApi.getSceneEvents(selectedSceneId);
+				const result = await eventApi.getSceneEvents(selectedSceneId);
+				if (gen === undefined || gen === loadGeneration) {
+					linkedEvents = result;
+				}
 			} catch (e) {
 				console.error('Failed to load linked events:', e);
 				linkedEvents = [];
@@ -307,10 +352,13 @@
 		}
 	}
 
-	async function loadSceneIssues() {
+	async function loadSceneIssues(gen?: number) {
 		if (selectedSceneId) {
 			try {
-				sceneIssues = await issueApi.getSceneIssues(selectedSceneId);
+				const result = await issueApi.getSceneIssues(selectedSceneId);
+				if (gen === undefined || gen === loadGeneration) {
+					sceneIssues = result;
+				}
 			} catch (e) {
 				console.error('Failed to load scene issues:', e);
 				sceneIssues = [];
@@ -447,7 +495,24 @@
 					{/if}
 				</div>
 				<div class="word-target-section">
-					{#if selectedScene.word_target}
+					{#if isEditingWordTarget}
+						<div class="word-target-edit">
+							<input
+								type="number"
+								class="inline-input"
+								placeholder="Word target..."
+								bind:value={editedWordTarget}
+								onkeydown={(e) => {
+									if (e.key === 'Enter') saveWordTarget();
+									if (e.key === 'Escape') cancelEditingWordTarget();
+								}}
+							/>
+							<div class="edit-actions">
+								<Button variant="ghost" size="sm" onclick={cancelEditingWordTarget}>Cancel</Button>
+								<Button variant="primary" size="sm" onclick={saveWordTarget}>Save</Button>
+							</div>
+						</div>
+					{:else if selectedScene.word_target}
 						{@const progress = Math.min(
 							100,
 							(countWords(selectedScene.text) / selectedScene.word_target) * 100
@@ -462,46 +527,14 @@
 							<Button
 								variant="icon"
 								size="sm"
-								onclick={async () => {
-									const newTarget = prompt(
-										'Set word target for this scene:',
-										String(selectedScene?.word_target || '')
-									);
-									if (newTarget !== null && selectedScene) {
-										const target = newTarget.trim() === '' ? null : parseInt(newTarget);
-										if (target === null || !isNaN(target)) {
-											try {
-												await appState.updateScene(selectedScene.id, { word_target: target });
-											} catch (e) {
-												console.error('Failed to set word target:', e);
-												showError('Failed to set word target');
-											}
-										}
-									}
-								}}
+								onclick={startEditingWordTarget}
 								title="Edit word target"
 							>
 								<Icon name="edit" size={12} />
 							</Button>
 						</div>
 					{:else}
-						<button
-							class="set-target-btn"
-							onclick={async () => {
-								const newTarget = prompt('Set word target for this scene:');
-								if (newTarget !== null && selectedScene) {
-									const target = parseInt(newTarget);
-									if (!isNaN(target) && target > 0) {
-										try {
-											await appState.updateScene(selectedScene.id, { word_target: target });
-										} catch (e) {
-											console.error('Failed to set word target:', e);
-											showError('Failed to set word target');
-										}
-									}
-								}
-							}}
-						>
+						<button class="set-target-btn" onclick={startEditingWordTarget}>
 							Set word target
 						</button>
 					{/if}
@@ -1071,6 +1104,12 @@
 	.set-target-btn:hover {
 		background-color: var(--color-bg-hover);
 		border-color: var(--color-accent);
+	}
+
+	.word-target-edit {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
 	}
 
 	.association-search {

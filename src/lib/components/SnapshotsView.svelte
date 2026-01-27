@@ -328,11 +328,19 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="panel-overlay" onclick={close} role="presentation">
+	<div
+		class="panel-overlay"
+		onclick={close}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') close();
+		}}
+		role="presentation"
+		tabindex="-1"
+	>
 		<div
 			class="panel"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="snapshots-title"

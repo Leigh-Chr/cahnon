@@ -6,8 +6,9 @@ use super::Database;
 type MigrationFn = fn(&Database) -> Result<(), String>;
 
 /// Ordered list of migration steps. Each entry is run in sequence when
-/// opening an existing database. Steps must be idempotent (safe to re-run)
-/// because there is no version tracking — every step runs on every open.
+/// opening an existing database. Steps are tracked via the `schema_version`
+/// table and only executed once. For backward compatibility with older
+/// databases that lack the tracking table, all migrations remain idempotent.
 const MIGRATIONS: &[MigrationFn] = &[
     Database::migrate_scene_revision_fields,
     Database::migrate_name_registry_tables,
@@ -41,21 +42,28 @@ impl Database {
     }
 
     /// Returns `true` when `column` already exists in `table`.
-    fn has_column(&self, table: &str, column: &str) -> bool {
-        self.conn
+    /// Validates both identifiers to prevent SQL injection.
+    fn has_column(&self, table: &str, column: &str) -> Result<bool, String> {
+        let table = Self::validate_table_name(table)?;
+        let column = Self::validate_identifier(column)?;
+        Ok(self
+            .conn
             .prepare(&format!("SELECT {column} FROM {table} LIMIT 0"))
-            .is_ok()
+            .is_ok())
     }
 
     /// Adds `column` with the given `col_type` to `table` if it does not
-    /// already exist.
+    /// already exist. Validates all inputs to prevent SQL injection.
     fn add_column_if_missing(
         &self,
         table: &str,
         column: &str,
         col_type: &str,
     ) -> Result<(), String> {
-        if !self.has_column(table, column) {
+        let table = Self::validate_table_name(table)?;
+        let column = Self::validate_identifier(column)?;
+        let col_type = Self::validate_column_type(col_type)?;
+        if !self.has_column(table, column)? {
             self.conn
                 .execute(
                     &format!("ALTER TABLE {table} ADD COLUMN {column} {col_type}"),
@@ -71,9 +79,20 @@ impl Database {
     // ------------------------------------------------------------------
 
     /// Runs migrations to update an existing database to the latest schema.
-    pub(super) fn run_migrations(&self) -> Result<(), String> {
-        for migration in MIGRATIONS {
-            migration(self)?;
+    ///
+    /// Uses the `schema_version` table to track which migrations have already
+    /// been applied. Databases created before version tracking will start at
+    /// version 0 and run all migrations (which are idempotent).
+    pub(crate) fn run_migrations(&self) -> Result<(), String> {
+        self.ensure_schema_version_table()?;
+        let current_version = self.get_schema_version()?;
+
+        for (i, migration) in MIGRATIONS.iter().enumerate() {
+            let version = i as i32 + 1;
+            if version > current_version {
+                migration(self)?;
+                self.set_schema_version(version)?;
+            }
         }
         Ok(())
     }
@@ -82,6 +101,51 @@ impl Database {
     pub(super) fn init_schema(&self) -> Result<(), String> {
         self.conn
             .execute_batch(SCHEMA_SQL)
+            .map_err(|e| e.to_string())?;
+
+        // Mark all migrations as applied since the full schema includes everything
+        self.ensure_schema_version_table()?;
+        self.set_schema_version(MIGRATIONS.len() as i32)?;
+
+        Ok(())
+    }
+
+    fn ensure_schema_version_table(&self) -> Result<(), String> {
+        self.conn
+            .execute(
+                "CREATE TABLE IF NOT EXISTS schema_version (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    version INTEGER NOT NULL DEFAULT 0
+                )",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        // Ensure a row exists
+        self.conn
+            .execute(
+                "INSERT OR IGNORE INTO schema_version (id, version) VALUES (1, 0)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn get_schema_version(&self) -> Result<i32, String> {
+        self.conn
+            .query_row(
+                "SELECT version FROM schema_version WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())
+    }
+
+    fn set_schema_version(&self, version: i32) -> Result<(), String> {
+        self.conn
+            .execute(
+                "UPDATE schema_version SET version = ?1 WHERE id = 1",
+                rusqlite::params![version],
+            )
             .map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -326,7 +390,7 @@ impl Database {
     /// Migrates existing data from the legacy `arcs.characters` CSV column
     /// into the `arc_characters` junction table.
     fn migrate_arc_characters_data(&self) -> Result<(), String> {
-        if !self.has_column("arcs", "characters") {
+        if !self.has_column("arcs", "characters")? {
             return Ok(());
         }
 
@@ -394,7 +458,7 @@ impl Database {
     }
 
     fn migrate_word_count_cache(&self) -> Result<(), String> {
-        if self.has_column("scenes", "word_count") {
+        if self.has_column("scenes", "word_count")? {
             return Ok(());
         }
         self.add_column_if_missing("scenes", "word_count", "INTEGER NOT NULL DEFAULT 0")?;

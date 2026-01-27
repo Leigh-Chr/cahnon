@@ -402,6 +402,7 @@
 					></span>
 
 					{#if editingChapterId === chapter.id && !showChapterDetails}
+						<!-- svelte-ignore a11y_autofocus -->
 						<input
 							type="text"
 							class="inline-rename"
@@ -565,11 +566,19 @@
 	{/if}
 
 	{#if showChapterDetails}
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="chapter-details-overlay" onclick={cancelChapterDetails} role="presentation">
+		<div
+			class="chapter-details-overlay"
+			onclick={cancelChapterDetails}
+			onkeydown={(e) => {
+				if (e.key === 'Escape') cancelChapterDetails();
+			}}
+			role="presentation"
+			tabindex="-1"
+		>
 			<div
 				class="chapter-details-dialog"
 				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
 				role="dialog"
 				aria-modal="true"
 				tabindex="-1"

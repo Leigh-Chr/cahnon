@@ -276,11 +276,19 @@
 </script>
 
 {#if isOpen}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="modal-overlay" onclick={handleOverlayClick} role="presentation">
+	<div
+		class="modal-overlay"
+		onclick={handleOverlayClick}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') onclose();
+		}}
+		role="presentation"
+		tabindex="-1"
+	>
 		<div
 			class="modal-container"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="templates-title"

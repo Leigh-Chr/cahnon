@@ -164,14 +164,21 @@ class AppState {
 	// Derived State (Getters)
 	// -------------------------------------------------------------------------
 
+	/** Index of all scenes by id for O(1) lookup */
+	private _sceneIndex = $derived.by(() => {
+		const index = new SvelteMap<string, Scene>();
+		for (const sceneList of this.scenes.values()) {
+			for (const scene of sceneList) {
+				index.set(scene.id, scene);
+			}
+		}
+		return index;
+	});
+
 	/** Get currently selected scene */
 	get selectedScene(): Scene | null {
 		if (!this.selectedSceneId) return null;
-		for (const sceneList of this.scenes.values()) {
-			const found = sceneList.find((s) => s.id === this.selectedSceneId);
-			if (found) return found;
-		}
-		return null;
+		return this._sceneIndex.get(this.selectedSceneId) ?? null;
 	}
 
 	/** Get currently selected chapter */
@@ -197,6 +204,7 @@ class AppState {
 	private _windowFocusHandler: (() => void) | null = null;
 	private _colorSchemeHandler: ((e: MediaQueryListEvent) => void) | null = null;
 	private _colorSchemeQuery: MediaQueryList | null = null;
+	private _effectCleanup: (() => void) | null = null;
 
 	// -------------------------------------------------------------------------
 	// Initialization
@@ -297,7 +305,7 @@ class AppState {
 
 	private setupStorageSync() {
 		// Use $effect.root for effects outside components
-		$effect.root(() => {
+		this._effectCleanup = $effect.root(() => {
 			// Sync color mode
 			$effect(() => {
 				const mode = this.colorMode;
@@ -438,8 +446,12 @@ class AppState {
 		window.addEventListener('focus', this._windowFocusHandler);
 	}
 
-	/** Clean up all event listeners and timers. */
+	/** Clean up all event listeners, timers, and reactive effects. */
 	destroy() {
+		if (this._effectCleanup) {
+			this._effectCleanup();
+			this._effectCleanup = null;
+		}
 		if (this._autosaveIntervalId !== null) {
 			clearInterval(this._autosaveIntervalId);
 			this._autosaveIntervalId = null;
@@ -922,12 +934,43 @@ class AppState {
 		this._navHistory.push({ type, id: id || '', meta });
 		this._navIndex = this._navHistory.length - 1;
 
+		this._applyNavigation(type, id || '');
+	}
+
+	/** Navigate back in history. */
+	navigateBack() {
+		if (this._navIndex <= 0) return;
+		this._navIndex--;
+		const entry = this._navHistory[this._navIndex];
+		if (entry) {
+			this._applyNavigation(entry.type, entry.id);
+		}
+	}
+
+	/** Navigate forward in history. */
+	navigateForward() {
+		if (this._navIndex >= this._navHistory.length - 1) return;
+		this._navIndex++;
+		const entry = this._navHistory[this._navIndex];
+		if (entry) {
+			this._applyNavigation(entry.type, entry.id);
+		}
+	}
+
+	get canNavigateBack(): boolean {
+		return this._navIndex > 0;
+	}
+
+	get canNavigateForward(): boolean {
+		return this._navIndex < this._navHistory.length - 1;
+	}
+
+	private _applyNavigation(type: string, id: string) {
 		switch (type) {
 			case 'scene':
 				if (id) {
 					for (const [chapterId, scenes] of this.scenes) {
-						const scene = scenes.find((s) => s.id === id);
-						if (scene) {
+						if (scenes.find((s) => s.id === id)) {
 							this.selectedChapterId = chapterId;
 							this.selectedSceneId = id;
 							break;
@@ -950,70 +993,6 @@ class AppState {
 				break;
 			case 'issue':
 				if (id) this.selectedIssueId = id;
-				this.viewMode = 'issues';
-				break;
-			case 'dashboard':
-				this.viewMode = 'dashboard';
-				break;
-		}
-	}
-
-	/** Navigate back in history. */
-	navigateBack() {
-		if (this._navIndex <= 0) return;
-		this._navIndex--;
-		const entry = this._navHistory[this._navIndex];
-		if (entry) {
-			this._applyNavEntry(entry);
-		}
-	}
-
-	/** Navigate forward in history. */
-	navigateForward() {
-		if (this._navIndex >= this._navHistory.length - 1) return;
-		this._navIndex++;
-		const entry = this._navHistory[this._navIndex];
-		if (entry) {
-			this._applyNavEntry(entry);
-		}
-	}
-
-	get canNavigateBack(): boolean {
-		return this._navIndex > 0;
-	}
-
-	get canNavigateForward(): boolean {
-		return this._navIndex < this._navHistory.length - 1;
-	}
-
-	private _applyNavEntry(entry: { type: string; id: string; meta?: Record<string, string> }) {
-		switch (entry.type) {
-			case 'scene':
-				if (entry.id) {
-					for (const [chapterId, scenes] of this.scenes) {
-						if (scenes.find((s) => s.id === entry.id)) {
-							this.selectedChapterId = chapterId;
-							this.selectedSceneId = entry.id;
-							break;
-						}
-					}
-				}
-				this.viewMode = 'editor';
-				break;
-			case 'bible':
-				if (entry.id) this.selectedBibleEntryId = entry.id;
-				this.viewMode = 'bible';
-				break;
-			case 'arc':
-				if (entry.id) this.selectedArcId = entry.id;
-				this.viewMode = 'timeline';
-				break;
-			case 'event':
-				if (entry.id) this.selectedEventId = entry.id;
-				this.viewMode = 'timeline';
-				break;
-			case 'issue':
-				if (entry.id) this.selectedIssueId = entry.id;
 				this.viewMode = 'issues';
 				break;
 			case 'dashboard':

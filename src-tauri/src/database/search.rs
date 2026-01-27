@@ -330,20 +330,7 @@ impl Database {
         scenes: &[(String, String)],
         replace: &str,
     ) -> Result<i32, String> {
-        self.conn.execute("BEGIN", []).map_err(|e| e.to_string())?;
-
-        let result = self.replace_matching_scenes(re, scenes, replace);
-
-        match result {
-            Ok(count) => {
-                self.conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-                Ok(count)
-            }
-            Err(e) => {
-                let _ = self.conn.execute("ROLLBACK", []);
-                Err(e)
-            }
-        }
+        self.run_in_transaction(|| self.replace_matching_scenes(re, scenes, replace))
     }
 
     /// Iterate over scenes and update those where the regex matches text content.

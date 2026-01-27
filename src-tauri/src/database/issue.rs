@@ -1,5 +1,6 @@
 //! Issue tracking database operations.
 
+use super::macros::add_field;
 use super::Database;
 
 impl Database {
@@ -55,7 +56,7 @@ impl Database {
         Ok(issues)
     }
 
-    fn map_issue(row: &rusqlite::Row) -> rusqlite::Result<crate::models::Issue> {
+    pub(crate) fn map_issue(row: &rusqlite::Row) -> rusqlite::Result<crate::models::Issue> {
         let (id, issue_type, title, description, severity) = Self::map_issue_core(row)?;
         let (status, resolution_note, created_at, updated_at) = Self::map_issue_meta(row)?;
         Ok(crate::models::Issue {
@@ -113,20 +114,16 @@ impl Database {
         let mut set_clauses = Vec::new();
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-        }
-
-        add_field!(req.status, "status");
-        add_field!(req.resolution_note, "resolution_note");
-        add_field!(req.title, "title");
-        add_field!(req.description, "description");
-        add_field!(req.severity, "severity");
+        add_field!(set_clauses, params_vec, req.status, "status");
+        add_field!(
+            set_clauses,
+            params_vec,
+            req.resolution_note,
+            "resolution_note"
+        );
+        add_field!(set_clauses, params_vec, req.title, "title");
+        add_field!(set_clauses, params_vec, req.description, "description");
+        add_field!(set_clauses, params_vec, req.severity, "severity");
 
         if !set_clauses.is_empty() {
             set_clauses.push(format!("updated_at = ?{}", params_vec.len() + 1));
@@ -257,29 +254,31 @@ impl Database {
 
     /// Deletes an issue and its links to scenes and bible entries.
     pub fn delete_issue(&self, id: &str) -> Result<(), String> {
-        // Clean up junction tables first
-        self.conn
-            .execute(
-                "DELETE FROM issue_scenes WHERE issue_id = ?1",
-                rusqlite::params![id],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "DELETE FROM issue_bible WHERE issue_id = ?1",
-                rusqlite::params![id],
-            )
-            .map_err(|e| e.to_string())?;
+        self.run_in_transaction(|| {
+            // Clean up junction tables first
+            self.conn
+                .execute(
+                    "DELETE FROM issue_scenes WHERE issue_id = ?1",
+                    rusqlite::params![id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM issue_bible WHERE issue_id = ?1",
+                    rusqlite::params![id],
+                )
+                .map_err(|e| e.to_string())?;
 
-        let rows = self
-            .conn
-            .execute("DELETE FROM issues WHERE id = ?1", rusqlite::params![id])
-            .map_err(|e| e.to_string())?;
+            let rows = self
+                .conn
+                .execute("DELETE FROM issues WHERE id = ?1", rusqlite::params![id])
+                .map_err(|e| e.to_string())?;
 
-        if rows == 0 {
-            return Err("Issue not found".to_string());
-        }
-        Ok(())
+            if rows == 0 {
+                return Err("Issue not found".to_string());
+            }
+            Ok(())
+        })
     }
 
     /// Gets all bible entries linked to an issue.
@@ -309,25 +308,56 @@ impl Database {
         Ok(entries)
     }
 
+    /// Gets status and resolution_note for all auto-detected issues, keyed by `issue_type:title`.
+    pub fn get_auto_issue_states(
+        &self,
+    ) -> Result<std::collections::HashMap<String, (String, Option<String>)>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT issue_type, title, status, resolution_note FROM issues WHERE issue_type LIKE 'auto_%'",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let issue_type: String = row.get(0)?;
+                let title: String = row.get(1)?;
+                let status: String = row.get(2)?;
+                let resolution_note: Option<String> = row.get(3)?;
+                Ok((
+                    format!("{}:{}", issue_type, title),
+                    (status, resolution_note),
+                ))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(rows.into_iter().collect())
+    }
+
     /// Deletes all auto-detected issues (issue_type starts with "auto_").
     pub fn delete_auto_detected_issues(&self) -> Result<(), String> {
-        // Clean junction tables
-        self.conn
-            .execute(
-                "DELETE FROM issue_scenes WHERE issue_id IN (SELECT id FROM issues WHERE issue_type LIKE 'auto_%')",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute(
-                "DELETE FROM issue_bible WHERE issue_id IN (SELECT id FROM issues WHERE issue_type LIKE 'auto_%')",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM issues WHERE issue_type LIKE 'auto_%'", [])
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        self.run_in_transaction(|| {
+            // Clean junction tables
+            self.conn
+                .execute(
+                    "DELETE FROM issue_scenes WHERE issue_id IN (SELECT id FROM issues WHERE issue_type LIKE 'auto_%')",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
+                    "DELETE FROM issue_bible WHERE issue_id IN (SELECT id FROM issues WHERE issue_type LIKE 'auto_%')",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute("DELETE FROM issues WHERE issue_type LIKE 'auto_%'", [])
+                .map_err(|e| e.to_string())?;
+            Ok(())
+        })
     }
 
     /// Creates an issue from a detection result and links scenes/bible entries.

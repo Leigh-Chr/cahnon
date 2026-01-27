@@ -48,6 +48,7 @@
 			disabled={!appState.canNavigateBack}
 			onclick={() => appState.navigateBack()}
 			title="Navigate Back (Alt+Left)"
+			aria-label="Navigate Back"
 		>
 			<svg
 				width="18"
@@ -65,6 +66,7 @@
 			disabled={!appState.canNavigateForward}
 			onclick={() => appState.navigateForward()}
 			title="Navigate Forward (Alt+Right)"
+			aria-label="Navigate Forward"
 		>
 			<svg
 				width="18"
@@ -85,6 +87,7 @@
 			class:active={appState.showOutline}
 			onclick={() => appState.toggleOutline()}
 			title="Toggle Outline ({formatShortcut('\\')})"
+			aria-label="Toggle Outline"
 		>
 			<svg
 				width="18"
@@ -162,6 +165,7 @@
 			class="toolbar-btn icon-btn"
 			onclick={() => onOpenReviewGrid?.()}
 			title="Review Grid ({formatShortcut('G')})"
+			aria-label="Review Grid"
 		>
 			<svg
 				width="18"
@@ -184,6 +188,7 @@
 			class="toolbar-btn icon-btn"
 			onclick={() => onOpenImportDialog?.()}
 			title="Import Content ({formatShortcut('I')})"
+			aria-label="Import Content"
 		>
 			<svg
 				width="18"
@@ -203,6 +208,7 @@
 			class="toolbar-btn icon-btn"
 			onclick={() => appState.openExportDialog()}
 			title="Export Project ({formatShortcut('E')})"
+			aria-label="Export Project"
 		>
 			<svg
 				width="18"
@@ -218,7 +224,12 @@
 			</svg>
 		</button>
 
-		<button class="toolbar-btn icon-btn" onclick={() => onOpenSnapshots?.()} title="Snapshots">
+		<button
+			class="toolbar-btn icon-btn"
+			onclick={() => onOpenSnapshots?.()}
+			title="Snapshots"
+			aria-label="Snapshots"
+		>
 			<svg
 				width="18"
 				height="18"
@@ -233,7 +244,12 @@
 			</svg>
 		</button>
 
-		<button class="toolbar-btn icon-btn" onclick={() => appState.openTrashView()} title="Trash">
+		<button
+			class="toolbar-btn icon-btn"
+			onclick={() => appState.openTrashView()}
+			title="Trash"
+			aria-label="Trash"
+		>
 			<svg
 				width="18"
 				height="18"
@@ -247,7 +263,12 @@
 			</svg>
 		</button>
 
-		<button class="toolbar-btn icon-btn" onclick={() => onOpenSettings?.()} title="Settings">
+		<button
+			class="toolbar-btn icon-btn"
+			onclick={() => onOpenSettings?.()}
+			title="Settings"
+			aria-label="Settings"
+		>
 			<svg
 				width="18"
 				height="18"
@@ -270,6 +291,7 @@
 			class:active={appState.showContextPanel}
 			onclick={() => appState.toggleContextPanel()}
 			title="Toggle Context Panel ({formatShortcut('\\', true, true)})"
+			aria-label="Toggle Context Panel"
 		>
 			<svg
 				width="18"

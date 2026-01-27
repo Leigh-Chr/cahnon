@@ -1,6 +1,5 @@
 pnpm lint-staged
 
-cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings
-cd ..
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
 pnpm knip

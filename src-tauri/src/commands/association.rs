@@ -6,8 +6,8 @@ pub fn create_association(
     request: CreateAssociationRequest,
     state: State<AppState>,
 ) -> Result<CanonicalAssociation, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_association(&request)
 }
 
@@ -16,8 +16,8 @@ pub fn get_scene_associations(
     scene_id: String,
     state: State<AppState>,
 ) -> Result<Vec<BibleEntry>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_scene_associations(&scene_id)
 }
 
@@ -27,8 +27,8 @@ pub fn delete_association(
     bible_entry_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_association(&scene_id, &bible_entry_id)
 }
 
@@ -37,7 +37,7 @@ pub fn get_bible_entry_scenes(
     bible_entry_id: String,
     state: State<AppState>,
 ) -> Result<Vec<Scene>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_bible_entry_scenes(&bible_entry_id)
 }

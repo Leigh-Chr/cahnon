@@ -154,6 +154,7 @@
 		query = '';
 		localResults = [];
 		results = [];
+		searchRemote.cancel();
 	}
 
 	function handleBackdropClick(event: MouseEvent) {

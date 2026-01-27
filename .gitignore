@@ -1,5 +1,6 @@
 # OS
 .DS_Store
+Thumbs.db
 
 # Dependencies
 node_modules
@@ -8,6 +9,7 @@ node_modules
 /build
 /.svelte-kit
 /package
+src-tauri/target/
 
 # Environment
 .env
@@ -20,7 +22,15 @@ vite.config.ts.timestamp-*
 
 # User data files
 *.cahnon
+*.cahnon.lock
+
+# E2E test artifacts
+tests/e2e/screenshots/
 
 # IDE and tool config
 .claude/
 .codacy/
+.vscode/
+.idea/
+*.swp
+*.swo

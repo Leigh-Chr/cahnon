@@ -26,8 +26,8 @@ pub fn create_annotation(
         return Err("Annotation content cannot be empty".to_string());
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_annotation(&sanitized_request)
 }
 
@@ -36,8 +36,8 @@ pub fn get_annotations(
     scene_id: String,
     state: State<AppState>,
 ) -> Result<Vec<Annotation>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_annotations(&scene_id)
 }
 
@@ -54,14 +54,14 @@ pub fn update_annotation(
         status: request.status,
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_annotation(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_annotation(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_annotation(&id)
 }

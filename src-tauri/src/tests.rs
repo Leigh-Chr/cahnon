@@ -17776,4 +17776,946 @@ mod tests {
 
         println!("Seed file generated: {}", output_path.display());
     }
+
+    // ========================================================================
+    // Transaction & RAII Guard Tests
+    // ========================================================================
+
+    #[test]
+    fn test_transaction_commit_on_success() {
+        let (db, _temp_dir) = create_test_db();
+
+        let req = CreateProjectRequest {
+            title: "Transaction Test".to_string(),
+            author: None,
+            description: None,
+        };
+        db.create_project(&req).unwrap();
+
+        // Create a chapter inside a transaction that succeeds
+        let result: Result<String, String> = db.run_in_transaction(|| {
+            let ch = db
+                .create_chapter(&CreateChapterRequest {
+                    title: "Chapter In Transaction".to_string(),
+                    summary: None,
+                    position: None,
+                })
+                .unwrap();
+            Ok(ch.id)
+        });
+
+        assert!(result.is_ok());
+        let chapters = db.get_chapters().unwrap();
+        assert_eq!(chapters.len(), 1);
+        assert_eq!(chapters[0].title, "Chapter In Transaction");
+    }
+
+    #[test]
+    fn test_transaction_rollback_on_error() {
+        let (db, _temp_dir) = create_test_db();
+
+        let req = CreateProjectRequest {
+            title: "Rollback Test".to_string(),
+            author: None,
+            description: None,
+        };
+        db.create_project(&req).unwrap();
+
+        // Create a chapter, then fail the transaction — should rollback
+        let result: Result<(), String> = db.run_in_transaction(|| {
+            db.create_chapter(&CreateChapterRequest {
+                title: "Should Be Rolled Back".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+            Err("deliberate failure".to_string())
+        });
+
+        assert!(result.is_err());
+        let chapters = db.get_chapters().unwrap();
+        assert_eq!(chapters.len(), 0, "Chapter should have been rolled back");
+    }
+
+    #[test]
+    fn test_transaction_returns_value() {
+        let (db, _temp_dir) = create_test_db();
+
+        let req = CreateProjectRequest {
+            title: "Generic Transaction".to_string(),
+            author: None,
+            description: None,
+        };
+        db.create_project(&req).unwrap();
+
+        let result: Result<(usize, String), String> = db.run_in_transaction(|| {
+            let ch = db
+                .create_chapter(&CreateChapterRequest {
+                    title: "Return Value Test".to_string(),
+                    summary: None,
+                    position: None,
+                })
+                .unwrap();
+            Ok((42, ch.id))
+        });
+
+        let (count, id) = result.unwrap();
+        assert_eq!(count, 42);
+        assert!(!id.is_empty());
+    }
+
+    // ========================================================================
+    // Schema Version Tracking Tests
+    // ========================================================================
+
+    #[test]
+    fn test_schema_version_set_on_new_db() {
+        let (db, _temp_dir) = create_test_db();
+
+        // A freshly-created DB should have a schema_version table
+        // with the version equal to the number of migrations
+        let version: i32 = db
+            .conn
+            .query_row("SELECT version FROM schema_version", [], |row| row.get(0))
+            .unwrap();
+
+        assert!(
+            version >= 0,
+            "Schema version should be non-negative, got {}",
+            version
+        );
+    }
+
+    #[test]
+    fn test_migrations_are_idempotent() {
+        let (db, _temp_dir) = create_test_db();
+
+        // Get the current version
+        let version_before: i32 = db
+            .conn
+            .query_row("SELECT version FROM schema_version", [], |row| row.get(0))
+            .unwrap();
+
+        // Run migrations again — should be a no-op
+        db.run_migrations().unwrap();
+
+        let version_after: i32 = db
+            .conn
+            .query_row("SELECT version FROM schema_version", [], |row| row.get(0))
+            .unwrap();
+
+        assert_eq!(
+            version_before, version_after,
+            "Running migrations again should not change the version"
+        );
+    }
+
+    // ========================================================================
+    // Table Name Validation Tests
+    // ========================================================================
+
+    #[test]
+    fn test_validate_known_table_name() {
+        let result = Database::validate_table_name("chapters");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "chapters");
+    }
+
+    #[test]
+    fn test_validate_unknown_table_name() {
+        let result = Database::validate_table_name("evil_table; DROP TABLE chapters;");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknown table name"));
+    }
+
+    // ========================================================================
+    // N+1 Batch Loading Tests
+    // ========================================================================
+
+    #[test]
+    fn test_batch_arc_characters_loading() {
+        let (db, _temp_dir) = create_test_db();
+
+        let req = CreateProjectRequest {
+            title: "Batch Test".to_string(),
+            author: None,
+            description: None,
+        };
+        db.create_project(&req).unwrap();
+
+        // Create two arcs and a character
+        let arc1 = db
+            .create_arc(&CreateArcRequest {
+                name: "Arc 1".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
+        let arc2 = db
+            .create_arc(&CreateArcRequest {
+                name: "Arc 2".to_string(),
+                description: None,
+                stakes: None,
+                status: None,
+                color: None,
+            })
+            .unwrap();
+
+        let char1 = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                name: "Hero".to_string(),
+                entry_type: "character".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .unwrap();
+
+        // Link character to both arcs
+        db.set_arc_characters(&arc1.id, std::slice::from_ref(&char1.id))
+            .unwrap();
+        db.set_arc_characters(&arc2.id, std::slice::from_ref(&char1.id))
+            .unwrap();
+
+        // get_arcs should use batch loading and include characters
+        let arcs = db.get_arcs().unwrap();
+        assert_eq!(arcs.len(), 2);
+
+        let a1 = arcs.iter().find(|a| a.id == arc1.id).unwrap();
+        let a2 = arcs.iter().find(|a| a.id == arc2.id).unwrap();
+        assert_eq!(a1.characters, vec![char1.id.clone()]);
+        assert_eq!(a2.characters, vec![char1.id]);
+    }
+
+    // ========================================================================
+    // Snapshot Tests
+    // ========================================================================
+
+    #[test]
+    fn test_snapshot_create_and_get() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Snapshot Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        db.create_scene(&CreateSceneRequest {
+            chapter_id: chapter.id.clone(),
+            title: "Scene 1".to_string(),
+            summary: None,
+            position: None,
+        })
+        .unwrap();
+
+        let snapshot = db
+            .create_snapshot("Test snapshot", Some("description"), "manual")
+            .expect("Failed to create snapshot");
+
+        assert_eq!(snapshot.name, "Test snapshot");
+        assert_eq!(snapshot.description, Some("description".to_string()));
+        assert_eq!(snapshot.snapshot_type, "manual");
+        assert!(!snapshot.id.is_empty());
+        assert!(!snapshot.data.is_empty());
+
+        // Verify it appears in the list
+        let snapshots = db.get_snapshots().unwrap();
+        assert_eq!(snapshots.len(), 1);
+        assert_eq!(snapshots[0].id, snapshot.id);
+
+        // Verify we can get it back by ID
+        let fetched = db.get_snapshot(&snapshot.id).unwrap();
+        assert_eq!(fetched.name, "Test snapshot");
+        assert_eq!(fetched.description, Some("description".to_string()));
+    }
+
+    #[test]
+    fn test_snapshot_delete() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Snapshot Delete Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let snapshot = db.create_snapshot("To Delete", None, "manual").unwrap();
+
+        // Verify it exists
+        let snapshots = db.get_snapshots().unwrap();
+        assert_eq!(snapshots.len(), 1);
+
+        // Delete it
+        db.delete_snapshot(&snapshot.id).unwrap();
+
+        // Verify it's gone
+        let snapshots = db.get_snapshots().unwrap();
+        assert!(snapshots.is_empty());
+
+        // Verify getting by ID fails
+        let result = db.get_snapshot(&snapshot.id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_snapshot_scenes() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Snapshot Scenes Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Captured Scene".to_string(),
+                summary: Some("A scene to capture".to_string()),
+                position: None,
+            })
+            .unwrap();
+
+        let snapshot = db
+            .create_snapshot("Scene Snapshot", None, "manual")
+            .unwrap();
+
+        let snapshot_scenes = db.get_snapshot_scenes(&snapshot.id).unwrap();
+        assert_eq!(snapshot_scenes.len(), 1);
+        assert_eq!(snapshot_scenes[0].id, scene.id);
+        assert_eq!(snapshot_scenes[0].title, "Captured Scene");
+    }
+
+    // ========================================================================
+    // Search Tests
+    // ========================================================================
+
+    #[test]
+    fn test_global_search() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Search Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "The Dragon Quest".to_string(),
+                summary: Some("A hero searches for unicorns".to_string()),
+                position: None,
+            })
+            .unwrap();
+
+        // Set text on the scene
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                title: None,
+                summary: None,
+                text: Some(
+                    "The brave knight encountered a mysterious xylophone in the forest."
+                        .to_string(),
+                ),
+                status: None,
+                pov: None,
+                tags: None,
+                notes: None,
+                todos: None,
+                word_target: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                on_timeline: None,
+                position: None,
+                pov_goal: None,
+                has_conflict: None,
+                has_change: None,
+                tension: None,
+                setup_for_scene_id: None,
+                payoff_of_scene_id: None,
+                revision_notes: None,
+                revision_checklist: None,
+            },
+        )
+        .unwrap();
+
+        // Search for a term in the scene title/text (FTS searches title, summary, text)
+        let results = db.global_search("dragon", None).unwrap();
+        assert!(
+            !results.is_empty(),
+            "Search for 'dragon' should find the scene"
+        );
+        assert_eq!(results[0].result_type, "scene");
+    }
+
+    #[test]
+    fn test_find_replace_in_scenes() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Find Replace Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        let scene1 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        let scene2 = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 2".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        // Set text containing the word to replace
+        for scene_id in [&scene1.id, &scene2.id] {
+            db.update_scene(
+                scene_id,
+                &UpdateSceneRequest {
+                    title: None,
+                    summary: None,
+                    text: Some("The old_word appears in this old_word scene.".to_string()),
+                    status: None,
+                    pov: None,
+                    tags: None,
+                    notes: None,
+                    todos: None,
+                    word_target: None,
+                    time_point: None,
+                    time_start: None,
+                    time_end: None,
+                    on_timeline: None,
+                    position: None,
+                    pov_goal: None,
+                    has_conflict: None,
+                    has_change: None,
+                    tension: None,
+                    setup_for_scene_id: None,
+                    payoff_of_scene_id: None,
+                    revision_notes: None,
+                    revision_checklist: None,
+                },
+            )
+            .unwrap();
+        }
+
+        // Find and replace across all scenes (case_sensitive=true, whole_word=false, no chapter filter)
+        let count = db
+            .find_replace_in_scenes("old_word", "new_word", true, false, None)
+            .unwrap();
+        assert_eq!(count, 2, "Should have modified 2 scenes");
+
+        // Verify the replacement happened
+        let updated_scene = db.get_scene(&scene1.id).unwrap();
+        assert!(
+            updated_scene.text.contains("new_word"),
+            "Scene text should contain 'new_word'"
+        );
+        assert!(
+            !updated_scene.text.contains("old_word"),
+            "Scene text should no longer contain 'old_word'"
+        );
+    }
+
+    // ========================================================================
+    // Export Tests
+    // ========================================================================
+
+    #[test]
+    fn test_export_markdown_full_pipeline() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Export Test Novel".to_string(),
+            author: Some("Test Author".to_string()),
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "The Beginning".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Opening Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                title: None,
+                summary: None,
+                text: Some("<p>It was a dark and stormy night.</p>".to_string()),
+                status: None,
+                pov: None,
+                tags: None,
+                notes: None,
+                todos: None,
+                word_target: None,
+                time_point: None,
+                time_start: None,
+                time_end: None,
+                on_timeline: None,
+                position: None,
+                pov_goal: None,
+                has_conflict: None,
+                has_change: None,
+                tension: None,
+                setup_for_scene_id: None,
+                payoff_of_scene_id: None,
+                revision_notes: None,
+                revision_checklist: None,
+            },
+        )
+        .unwrap();
+
+        let markdown = db.export_markdown().unwrap();
+
+        assert!(
+            markdown.contains("# Export Test Novel"),
+            "Should contain project title"
+        );
+        assert!(
+            markdown.contains("## The Beginning"),
+            "Should contain chapter title"
+        );
+        assert!(
+            markdown.contains("Opening Scene"),
+            "Should contain scene title"
+        );
+        assert!(
+            markdown.contains("dark and stormy night"),
+            "Should contain scene text"
+        );
+    }
+
+    #[test]
+    fn test_export_json_backup_with_scene() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "JSON Backup Test".to_string(),
+            author: Some("Author".to_string()),
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        db.create_scene(&CreateSceneRequest {
+            chapter_id: chapter.id.clone(),
+            title: "Scene 1".to_string(),
+            summary: None,
+            position: None,
+        })
+        .unwrap();
+
+        let json_str = db.export_json_backup().unwrap();
+
+        // Verify it's valid JSON
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json_str).expect("Should be valid JSON");
+
+        assert_eq!(parsed["version"], "1.0");
+        assert!(parsed["project"]["title"].is_string());
+        assert_eq!(parsed["project"]["title"], "JSON Backup Test");
+        assert!(parsed["chapters"].is_array());
+        assert_eq!(parsed["chapters"].as_array().unwrap().len(), 1);
+        assert!(parsed["scenes"].is_array());
+        assert_eq!(parsed["scenes"].as_array().unwrap().len(), 1);
+        assert!(parsed["exported_at"].is_string());
+    }
+
+    // ========================================================================
+    // Trash Tests
+    // ========================================================================
+
+    #[test]
+    fn test_trash_scene_and_restore() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Trash Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Trashable Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        // Delete the scene (soft-delete)
+        db.delete_scene(&scene.id).unwrap();
+
+        // Verify it's gone from active scenes
+        let active_scenes = db.get_scenes(&chapter.id).unwrap();
+        assert!(
+            active_scenes.is_empty(),
+            "Scene should not be in active list"
+        );
+
+        // Verify it appears in trash
+        let deleted_scenes = db.get_deleted_scenes().unwrap();
+        assert_eq!(deleted_scenes.len(), 1);
+        assert_eq!(deleted_scenes[0].id, scene.id);
+
+        // Restore it
+        let restored = db.restore_scene(&scene.id).unwrap();
+        assert_eq!(restored.id, scene.id);
+        assert_eq!(restored.title, "Trashable Scene");
+
+        // Verify it's back in active scenes
+        let active_scenes = db.get_scenes(&chapter.id).unwrap();
+        assert_eq!(active_scenes.len(), 1);
+        assert_eq!(active_scenes[0].id, scene.id);
+
+        // Verify trash is now empty
+        let deleted_scenes = db.get_deleted_scenes().unwrap();
+        assert!(deleted_scenes.is_empty());
+    }
+
+    #[test]
+    fn test_trash_chapter_and_restore() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Trash Chapter Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Trashable Chapter".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        // Add a scene so we can verify cascade behavior
+        db.create_scene(&CreateSceneRequest {
+            chapter_id: chapter.id.clone(),
+            title: "Scene In Chapter".to_string(),
+            summary: None,
+            position: None,
+        })
+        .unwrap();
+
+        // Delete the chapter (soft-delete, cascades to scenes)
+        db.delete_chapter(&chapter.id).unwrap();
+
+        // Verify chapter is gone from active list
+        let chapters = db.get_chapters().unwrap();
+        assert!(chapters.is_empty(), "Chapter should not be in active list");
+
+        // Verify chapter appears in trash
+        let deleted_chapters = db.get_deleted_chapters().unwrap();
+        assert_eq!(deleted_chapters.len(), 1);
+        assert_eq!(deleted_chapters[0].id, chapter.id);
+
+        // Restore the chapter
+        let restored = db.restore_chapter(&chapter.id).unwrap();
+        assert_eq!(restored.id, chapter.id);
+        assert_eq!(restored.title, "Trashable Chapter");
+
+        // Verify chapter is back
+        let chapters = db.get_chapters().unwrap();
+        assert_eq!(chapters.len(), 1);
+
+        // Verify scene is also restored (cascade restore)
+        let scenes = db.get_scenes(&chapter.id).unwrap();
+        assert_eq!(scenes.len(), 1);
+        assert_eq!(scenes[0].title, "Scene In Chapter");
+    }
+
+    #[test]
+    fn test_purge_expired_trash() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Purge Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Purgeable Scene".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        // Delete the scene
+        db.delete_scene(&scene.id).unwrap();
+
+        // Verify it's in trash
+        let deleted = db.get_deleted_scenes().unwrap();
+        assert_eq!(deleted.len(), 1);
+
+        // Manually set deleted_at to 31 days ago so purge will pick it up
+        let old_date = (chrono::Utc::now() - chrono::Duration::days(31)).to_rfc3339();
+        db.conn
+            .execute(
+                "UPDATE scenes SET deleted_at = ?1 WHERE id = ?2",
+                rusqlite::params![old_date, scene.id],
+            )
+            .unwrap();
+
+        // Purge expired trash (default 30-day threshold)
+        let (scenes_purged, _chapters_purged) = db.purge_expired_trash().unwrap();
+        assert_eq!(scenes_purged, 1, "Should have purged 1 scene");
+
+        // Verify scene is permanently gone (not in trash, not in active)
+        let deleted = db.get_deleted_scenes().unwrap();
+        assert!(deleted.is_empty(), "Trash should be empty after purge");
+
+        let active_scenes = db.get_scenes(&chapter.id).unwrap();
+        assert!(active_scenes.is_empty(), "Scene should be permanently gone");
+    }
+
+    // ========================================================================
+    // Identifier / Column Type Validation Tests
+    // ========================================================================
+
+    #[test]
+    fn test_validate_identifier_valid() {
+        let result = Database::validate_identifier("word_count");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "word_count");
+    }
+
+    #[test]
+    fn test_validate_identifier_invalid() {
+        let result = Database::validate_identifier("word; DROP TABLE");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("Invalid identifier"),
+            "Error should mention invalid identifier: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_column_type_valid() {
+        let result = Database::validate_column_type("INTEGER NOT NULL DEFAULT 0");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "INTEGER NOT NULL DEFAULT 0");
+    }
+
+    #[test]
+    fn test_validate_column_type_injection() {
+        let result = Database::validate_column_type("INTEGER; DROP TABLE scenes");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("Invalid column type"),
+            "Error should mention invalid column type: {}",
+            err
+        );
+    }
+
+    // ========================================================================
+    // CSV Export Tests
+    // ========================================================================
+
+    #[test]
+    fn test_export_bible_csv() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "CSV Bible Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        db.create_bible_entry(&CreateBibleEntryRequest {
+            name: "Aragorn".to_string(),
+            entry_type: "character".to_string(),
+            aliases: Some("Strider".to_string()),
+            short_description: Some("A ranger from the north".to_string()),
+            full_description: None,
+            status: None,
+            tags: Some("hero,ranger".to_string()),
+            color: None,
+        })
+        .unwrap();
+
+        db.create_bible_entry(&CreateBibleEntryRequest {
+            name: "Rivendell".to_string(),
+            entry_type: "location".to_string(),
+            aliases: None,
+            short_description: Some("Elven valley".to_string()),
+            full_description: None,
+            status: None,
+            tags: None,
+            color: None,
+        })
+        .unwrap();
+
+        let csv = db.export_bible_csv().unwrap();
+
+        // Verify header row
+        assert!(
+            csv.starts_with("id,name,type,aliases,short_description,status,tags\n"),
+            "CSV should start with header"
+        );
+
+        // Verify data rows
+        assert!(csv.contains("Aragorn"), "Should contain Aragorn");
+        assert!(csv.contains("character"), "Should contain character type");
+        assert!(csv.contains("Strider"), "Should contain alias");
+        assert!(csv.contains("Rivendell"), "Should contain Rivendell");
+        assert!(csv.contains("location"), "Should contain location type");
+
+        // Count data rows (header + 2 entries)
+        let line_count = csv.lines().count();
+        assert_eq!(line_count, 3, "Should have header + 2 data rows");
+    }
+
+    #[test]
+    fn test_export_stats_csv() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "CSV Stats Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .unwrap();
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .unwrap();
+
+        db.create_scene(&CreateSceneRequest {
+            chapter_id: chapter.id.clone(),
+            title: "Scene 1".to_string(),
+            summary: None,
+            position: None,
+        })
+        .unwrap();
+
+        let csv = db.export_stats_csv().unwrap();
+
+        // Verify header row
+        assert!(
+            csv.starts_with("section,label,word_count,scene_count\n"),
+            "CSV should start with header"
+        );
+
+        // Verify we have by_chapter data
+        assert!(
+            csv.contains("by_chapter"),
+            "Should contain by_chapter section"
+        );
+        assert!(csv.contains("Chapter 1"), "Should reference chapter name");
+
+        // Verify we have by_status data
+        assert!(
+            csv.contains("by_status"),
+            "Should contain by_status section"
+        );
+    }
 }

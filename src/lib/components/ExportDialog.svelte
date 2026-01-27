@@ -269,11 +269,19 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="dialog-overlay" onclick={handleOverlayClick} role="presentation">
+	<div
+		class="dialog-overlay"
+		onclick={handleOverlayClick}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') close();
+		}}
+		role="presentation"
+		tabindex="-1"
+	>
 		<div
 			class="dialog"
 			onclick={handleDialogClick}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="export-title"
@@ -945,9 +953,6 @@
 		align-items: center;
 		gap: var(--spacing-xs);
 		font-size: var(--font-size-sm);
-	}
-
-	.radio-option input[type='radio'] {
 	}
 
 	.chapter-select {

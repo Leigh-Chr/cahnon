@@ -23,22 +23,22 @@ pub fn create_arc(request: CreateArcRequest, state: State<AppState>) -> Result<A
         color: request.color,
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_arc(&sanitized_request)
 }
 
 #[tauri::command]
 pub fn get_arcs(state: State<AppState>) -> Result<Vec<Arc>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_arcs()
 }
 
 #[tauri::command]
 pub fn get_arc(id: String, state: State<AppState>) -> Result<Arc, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_arc(&id)
 }
 
@@ -66,15 +66,15 @@ pub fn update_arc(
         }
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_arc(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_arc(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_arc(&id)
 }
 
@@ -84,8 +84,8 @@ pub fn link_scene_to_arc(
     arc_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.link_scene_to_arc(&scene_id, &arc_id)
 }
 
@@ -95,15 +95,15 @@ pub fn unlink_scene_from_arc(
     arc_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.unlink_scene_from_arc(&scene_id, &arc_id)
 }
 
 #[tauri::command]
 pub fn get_scene_arcs(scene_id: String, state: State<AppState>) -> Result<Vec<Arc>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_scene_arcs(&scene_id)
 }
 
@@ -113,15 +113,15 @@ pub fn set_arc_characters(
     character_ids: Vec<String>,
     state: State<AppState>,
 ) -> Result<Vec<String>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.set_arc_characters(&arc_id, &character_ids)
 }
 
 #[tauri::command]
 pub fn get_arc_scenes(arc_id: String, state: State<AppState>) -> Result<Vec<Scene>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_arc_scenes(&arc_id)
 }
 
@@ -130,7 +130,7 @@ pub fn get_character_arcs(
     bible_entry_id: String,
     state: State<AppState>,
 ) -> Result<Vec<Arc>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_character_arcs(&bible_entry_id)
 }

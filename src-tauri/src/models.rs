@@ -840,3 +840,35 @@ pub struct ImpactItem {
     pub entity_id: Option<String>,
     pub entity_name: Option<String>,
 }
+
+// ============================================================================
+// File Locking & Status
+// ============================================================================
+
+/// Information about a file lock, used to detect if a project is open elsewhere.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LockInfo {
+    pub machine_name: String,
+    pub timestamp: String,
+    pub pid: u32,
+}
+
+/// Status of a project file on disk.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileStatus {
+    pub has_lock: bool,
+    pub lock_info: Option<LockInfo>,
+    pub is_modified_externally: bool,
+    pub has_conflict_files: Vec<String>,
+}
+
+// ============================================================================
+// Import
+// ============================================================================
+
+/// Result of a structured import operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportResult {
+    pub chapters_created: i32,
+    pub scenes_created: i32,
+}

@@ -3,6 +3,8 @@
 use crate::models::{CreateSceneRequest, Scene, UpdateSceneRequest};
 use rusqlite::params;
 
+use crate::database::macros::add_field;
+
 use super::super::Database;
 
 /// SQL query for selecting all scene fields.
@@ -108,18 +110,9 @@ impl Database {
         set_clauses: &mut Vec<String>,
         params: &mut Vec<Box<dyn rusqlite::ToSql>>,
     ) {
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val.clone()));
-                }
-            };
-        }
-
-        add_field!(req.title, "title");
-        add_field!(req.summary, "summary");
-        add_field!(req.text, "text");
+        add_field!(set_clauses, params, req.title, "title");
+        add_field!(set_clauses, params, req.summary, "summary");
+        add_field!(set_clauses, params, req.text, "text");
 
         // Cache word count when text changes
         if let Some(text) = &req.text {
@@ -135,38 +128,17 @@ impl Database {
         set_clauses: &mut Vec<String>,
         params: &mut Vec<Box<dyn rusqlite::ToSql>>,
     ) {
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val.clone()));
-                }
-            };
-            ($field:expr, $column:literal, bool) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val as i32));
-                }
-            };
-            ($field:expr, $column:literal, int) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val));
-                }
-            };
-        }
-
-        add_field!(req.status, "status");
-        add_field!(req.pov, "pov");
-        add_field!(req.tags, "tags");
-        add_field!(req.notes, "notes");
-        add_field!(req.todos, "todos");
-        add_field!(req.word_target, "word_target", int);
-        add_field!(req.time_point, "time_point");
-        add_field!(req.time_start, "time_start");
-        add_field!(req.time_end, "time_end");
-        add_field!(req.on_timeline, "on_timeline", bool);
-        add_field!(req.position, "position", int);
+        add_field!(set_clauses, params, req.status, "status");
+        add_field!(set_clauses, params, req.pov, "pov");
+        add_field!(set_clauses, params, req.tags, "tags");
+        add_field!(set_clauses, params, req.notes, "notes");
+        add_field!(set_clauses, params, req.todos, "todos");
+        add_field!(set_clauses, params, req.word_target, "word_target", int);
+        add_field!(set_clauses, params, req.time_point, "time_point");
+        add_field!(set_clauses, params, req.time_start, "time_start");
+        add_field!(set_clauses, params, req.time_end, "time_end");
+        add_field!(set_clauses, params, req.on_timeline, "on_timeline", bool);
+        add_field!(set_clauses, params, req.position, "position", int);
     }
 
     fn collect_scene_revision_fields(
@@ -174,45 +146,47 @@ impl Database {
         set_clauses: &mut Vec<String>,
         params: &mut Vec<Box<dyn rusqlite::ToSql>>,
     ) {
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val.clone()));
-                }
-            };
-            ($field:expr, $column:literal, bool) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params.len() + 1));
-                    params.push(Box::new(val as i32));
-                }
-            };
-        }
-
-        add_field!(req.pov_goal, "pov_goal");
-        add_field!(req.has_conflict, "has_conflict", bool);
-        add_field!(req.has_change, "has_change", bool);
-        add_field!(req.tension, "tension");
-        add_field!(req.setup_for_scene_id, "setup_for_scene_id");
-        add_field!(req.payoff_of_scene_id, "payoff_of_scene_id");
-        add_field!(req.revision_notes, "revision_notes");
-        add_field!(req.revision_checklist, "revision_checklist");
+        add_field!(set_clauses, params, req.pov_goal, "pov_goal");
+        add_field!(set_clauses, params, req.has_conflict, "has_conflict", bool);
+        add_field!(set_clauses, params, req.has_change, "has_change", bool);
+        add_field!(set_clauses, params, req.tension, "tension");
+        add_field!(
+            set_clauses,
+            params,
+            req.setup_for_scene_id,
+            "setup_for_scene_id"
+        );
+        add_field!(
+            set_clauses,
+            params,
+            req.payoff_of_scene_id,
+            "payoff_of_scene_id"
+        );
+        add_field!(set_clauses, params, req.revision_notes, "revision_notes");
+        add_field!(
+            set_clauses,
+            params,
+            req.revision_checklist,
+            "revision_checklist"
+        );
     }
 
     pub fn delete_scene(&self, id: &str) -> Result<(), String> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Clean up junction tables to avoid orphaned records
-        self.cleanup_scene_junctions(id)?;
+        self.run_in_transaction(|| {
+            // Clean up junction tables to avoid orphaned records
+            self.cleanup_scene_junctions(id)?;
 
-        // Soft-delete the scene itself
-        self.conn
-            .execute(
-                "UPDATE scenes SET deleted_at = ?1 WHERE id = ?2",
-                params![now, id],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
+            // Soft-delete the scene itself
+            self.conn
+                .execute(
+                    "UPDATE scenes SET deleted_at = ?1 WHERE id = ?2",
+                    params![now, id],
+                )
+                .map_err(|e| e.to_string())?;
+            Ok(())
+        })
     }
 
     pub fn reorder_scenes(&self, chapter_id: &str, ids: &[String]) -> Result<(), String> {

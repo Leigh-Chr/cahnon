@@ -5,7 +5,6 @@
 
 use crate::{database::Database, models::*, AppState};
 use hostname;
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
@@ -14,22 +13,6 @@ use crate::validation::{
     sanitize_multiline_text, sanitize_text, MAX_AUTHOR_LENGTH, MAX_DESCRIPTION_LENGTH,
     MAX_TITLE_LENGTH,
 };
-
-/// Information about a file lock, used to detect if a project is open elsewhere.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LockInfo {
-    pub machine_name: String,
-    pub timestamp: String,
-    pub pid: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileStatus {
-    pub has_lock: bool,
-    pub lock_info: Option<LockInfo>,
-    pub is_modified_externally: bool,
-    pub has_conflict_files: Vec<String>,
-}
 
 /// Creates a new Cahnon project at the specified path.
 ///
@@ -82,14 +65,11 @@ pub fn create_project(
     let project = db.create_project(&sanitized_request)?;
 
     // Store database and path
-    *state
-        .db
-        .lock()
-        .map_err(|_| "Database lock poisoned".to_string())? = Some(db);
-    *state
-        .current_project_path
-        .lock()
-        .map_err(|_| "Path lock poisoned".to_string())? = Some(path.clone());
+    {
+        let mut guard = state.get_state()?;
+        guard.db = Some(db);
+        guard.current_project_path = Some(path.clone());
+    }
 
     // Update recent projects
     update_recent_projects(&path, &project.title);
@@ -128,24 +108,17 @@ pub fn open_project(path: String, state: State<AppState>) -> Result<Project, Str
     // Create lock file
     create_lock_file(&path)?;
 
-    // Track file modification time
-    if let Ok(metadata) = fs::metadata(&path) {
-        if let Ok(modified) = metadata.modified() {
-            *state
-                .last_file_modified
-                .lock()
-                .map_err(|_| "Lock poisoned".to_string())? = Some(modified);
+    // Store database, path, and track file modification time
+    {
+        let mut guard = state.get_state()?;
+        if let Ok(metadata) = fs::metadata(&path) {
+            if let Ok(modified) = metadata.modified() {
+                guard.last_file_modified = Some(modified);
+            }
         }
+        guard.db = Some(db);
+        guard.current_project_path = Some(path.clone());
     }
-
-    *state
-        .db
-        .lock()
-        .map_err(|_| "Database lock poisoned".to_string())? = Some(db);
-    *state
-        .current_project_path
-        .lock()
-        .map_err(|_| "Path lock poisoned".to_string())? = Some(path.clone());
 
     // Update recent projects
     update_recent_projects(&path, &project.title);
@@ -155,20 +128,15 @@ pub fn open_project(path: String, state: State<AppState>) -> Result<Project, Str
 
 #[tauri::command]
 pub fn close_project(state: State<AppState>) -> Result<(), String> {
-    let is_demo = *state
-        .is_demo
-        .lock()
-        .map_err(|_| "Lock poisoned".to_string())?;
-
-    // Release database first, then file lock (consistent ordering)
-    *state.db.lock().map_err(|_| "Lock poisoned".to_string())? = None;
-
-    // Now release lock file and clear path
-    let path = state
-        .current_project_path
-        .lock()
-        .map_err(|_| "Lock poisoned".to_string())?
-        .take();
+    let (is_demo, path) = {
+        let mut guard = state.get_state()?;
+        let is_demo = guard.is_demo;
+        guard.db = None;
+        let path = guard.current_project_path.take();
+        guard.is_demo = false;
+        guard.last_file_modified = None;
+        (is_demo, path)
+    };
 
     if let Some(ref path) = path {
         if is_demo {
@@ -179,23 +147,13 @@ pub fn close_project(state: State<AppState>) -> Result<(), String> {
         }
     }
 
-    // Reset demo flag
-    *state
-        .is_demo
-        .lock()
-        .map_err(|_| "Lock poisoned".to_string())? = false;
-
-    *state
-        .last_file_modified
-        .lock()
-        .map_err(|_| "Lock poisoned".to_string())? = None;
     Ok(())
 }
 
 #[tauri::command]
 pub fn get_project(state: State<AppState>) -> Result<Project, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_project()
 }
 
@@ -222,8 +180,8 @@ pub fn update_project(
         }
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_project(&sanitized_request)
 }
 
@@ -259,10 +217,22 @@ fn update_recent_projects(path: &Path, title: &str) {
 
         let recent_file = config_path.join("recent_projects.json");
         let mut projects: Vec<RecentProject> = if recent_file.exists() {
-            fs::read_to_string(&recent_file)
-                .ok()
-                .and_then(|c| serde_json::from_str(&c).ok())
-                .unwrap_or_default()
+            match fs::read_to_string(&recent_file) {
+                Ok(content) => match serde_json::from_str(&content) {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: recent_projects.json is corrupted ({}), resetting",
+                            e
+                        );
+                        Vec::new()
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Warning: could not read recent_projects.json ({})", e);
+                    Vec::new()
+                }
+            }
         } else {
             Vec::new()
         };
@@ -395,11 +365,8 @@ pub fn check_file_status(path: String, state: State<AppState>) -> Result<FileSta
 
     // Check for external modifications
     let is_modified_externally = {
-        let last_modified = state
-            .last_file_modified
-            .lock()
-            .map_err(|_| "Lock poisoned".to_string())?;
-        if let Some(last_mod) = *last_modified {
+        let guard = state.get_state()?;
+        if let Some(last_mod) = guard.last_file_modified {
             if let Ok(metadata) = fs::metadata(&path) {
                 if let Ok(modified) = metadata.modified() {
                     modified > last_mod
@@ -449,8 +416,8 @@ pub fn force_acquire_lock(path: String) -> Result<(), String> {
 /// Returns Ok(true) if healthy, or an error if corrupted.
 #[tauri::command]
 pub fn check_database_integrity(state: State<AppState>) -> Result<bool, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.check_integrity()
 }
 
@@ -492,18 +459,12 @@ pub fn open_demo_project(state: State<AppState>) -> Result<Project, String> {
     let db = Database::open(&temp_path)?;
     let project = db.get_project()?;
 
-    *state
-        .db
-        .lock()
-        .map_err(|_| "Database lock poisoned".to_string())? = Some(db);
-    *state
-        .current_project_path
-        .lock()
-        .map_err(|_| "Path lock poisoned".to_string())? = Some(temp_path);
-    *state
-        .is_demo
-        .lock()
-        .map_err(|_| "Lock poisoned".to_string())? = true;
+    {
+        let mut guard = state.get_state()?;
+        guard.db = Some(db);
+        guard.current_project_path = Some(temp_path);
+        guard.is_demo = true;
+    }
 
     Ok(project)
 }
@@ -511,10 +472,8 @@ pub fn open_demo_project(state: State<AppState>) -> Result<Project, String> {
 /// Returns whether the currently open project is the demo.
 #[tauri::command]
 pub fn get_is_demo(state: State<AppState>) -> Result<bool, String> {
-    Ok(*state
-        .is_demo
-        .lock()
-        .map_err(|_| "Lock poisoned".to_string())?)
+    let guard = state.get_state()?;
+    Ok(guard.is_demo)
 }
 
 #[cfg(test)]

@@ -59,7 +59,7 @@ impl Database {
         Ok(annotations)
     }
 
-    fn map_annotation(row: &rusqlite::Row) -> rusqlite::Result<Annotation> {
+    pub(crate) fn map_annotation(row: &rusqlite::Row) -> rusqlite::Result<Annotation> {
         let (id, scene_id, start_offset, end_offset) = Self::map_annotation_location(row)?;
         let (annotation_type, content, status, created_at, updated_at) =
             Self::map_annotation_content(row)?;

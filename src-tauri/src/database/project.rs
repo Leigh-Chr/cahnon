@@ -3,6 +3,7 @@
 use crate::models::{CreateProjectRequest, Project, UpdateProjectRequest};
 use rusqlite::params;
 
+use super::macros::add_field;
 use super::Database;
 
 impl Database {
@@ -78,26 +79,17 @@ impl Database {
         let mut set_clauses = Vec::new();
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-        macro_rules! add_field {
-            ($field:expr, $column:literal) => {
-                if let Some(val) = &$field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val.clone()));
-                }
-            };
-            ($field:expr, $column:literal, int) => {
-                if let Some(val) = $field {
-                    set_clauses.push(format!("{} = ?{}", $column, params_vec.len() + 1));
-                    params_vec.push(Box::new(val));
-                }
-            };
-        }
-
-        add_field!(req.title, "title");
-        add_field!(req.author, "author");
-        add_field!(req.description, "description");
-        add_field!(req.word_target, "word_target", int);
-        add_field!(req.daily_word_target, "daily_word_target", int);
+        add_field!(set_clauses, params_vec, req.title, "title");
+        add_field!(set_clauses, params_vec, req.author, "author");
+        add_field!(set_clauses, params_vec, req.description, "description");
+        add_field!(set_clauses, params_vec, req.word_target, "word_target", int);
+        add_field!(
+            set_clauses,
+            params_vec,
+            req.daily_word_target,
+            "daily_word_target",
+            int
+        );
 
         if !set_clauses.is_empty() {
             set_clauses.push(format!("updated_at = ?{}", params_vec.len() + 1));

@@ -100,7 +100,7 @@ const PAYOFF_DIRECTION: RefDirection = RefDirection {
 
 /// Computes a global ordering value from chapter position and scene position.
 fn global_position(chapter_pos: i32, scene_pos: i32) -> i64 {
-    chapter_pos as i64 * 100_000 + scene_pos as i64
+    chapter_pos as i64 * 1_000_000 + scene_pos as i64
 }
 
 impl Database {

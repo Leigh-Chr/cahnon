@@ -169,7 +169,7 @@
 	}
 
 	const saveScene = debounce(async (sceneId: string, text: string, saveVersion?: number) => {
-		if (!isUpdating) {
+		if (!isUpdating && sceneId === currentSceneId) {
 			// Save recovery draft to localStorage (in case of crash)
 			saveRecoveryDraft(sceneId, text);
 			const saved = await appState.saveWithRetry(async () => {
@@ -933,17 +933,20 @@
 			onclose={handleFindClose}
 		/>
 		{#if showQuickAddBible}
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<div
 				class="quick-add-overlay"
 				onclick={() => (showQuickAddBible = false)}
+				onkeydown={(e) => {
+					if (e.key === 'Escape') showQuickAddBible = false;
+				}}
 				role="presentation"
+				tabindex="-1"
 			>
-				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<div
 					class="quick-add-popup"
 					style="left: {quickAddPosition.x}px; top: {quickAddPosition.y}px;"
 					onclick={(e) => e.stopPropagation()}
+					onkeydown={(e) => e.stopPropagation()}
 					role="dialog"
 					tabindex="-1"
 				>

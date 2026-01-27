@@ -22,22 +22,22 @@ pub fn create_issue(request: CreateIssueRequest, state: State<AppState>) -> Resu
             .map(|s| sanitize_text(&s, MAX_TITLE_LENGTH)),
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_issue(&sanitized_request)
 }
 
 #[tauri::command]
 pub fn get_issues(status: Option<String>, state: State<AppState>) -> Result<Vec<Issue>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_issues(status.as_deref())
 }
 
 #[tauri::command]
 pub fn get_issue(id: String, state: State<AppState>) -> Result<Issue, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_issue(&id)
 }
 
@@ -59,15 +59,15 @@ pub fn update_issue(
         severity: request.severity,
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_issue(&id, &sanitized_request)
 }
 
 #[tauri::command]
 pub fn delete_issue(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_issue(&id)
 }
 
@@ -78,8 +78,8 @@ pub fn link_scene_to_issue(
     issue_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.link_scene_to_issue(&scene_id, &issue_id)
 }
 
@@ -89,22 +89,22 @@ pub fn unlink_scene_from_issue(
     issue_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.unlink_scene_from_issue(&scene_id, &issue_id)
 }
 
 #[tauri::command]
 pub fn get_issue_scenes(issue_id: String, state: State<AppState>) -> Result<Vec<Scene>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_issue_scenes(&issue_id)
 }
 
 #[tauri::command]
 pub fn get_scene_issues(scene_id: String, state: State<AppState>) -> Result<Vec<Issue>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_scene_issues(&scene_id)
 }
 
@@ -115,8 +115,8 @@ pub fn link_bible_entry_to_issue(
     issue_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.link_bible_entry_to_issue(&bible_entry_id, &issue_id)
 }
 
@@ -126,8 +126,8 @@ pub fn unlink_bible_entry_from_issue(
     issue_id: String,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.unlink_bible_entry_from_issue(&bible_entry_id, &issue_id)
 }
 
@@ -136,8 +136,8 @@ pub fn get_issue_bible_entries(
     issue_id: String,
     state: State<AppState>,
 ) -> Result<Vec<BibleEntry>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_issue_bible_entries(&issue_id)
 }
 
@@ -146,7 +146,7 @@ pub fn get_bible_entry_issues(
     bible_entry_id: String,
     state: State<AppState>,
 ) -> Result<Vec<Issue>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_bible_entry_issues(&bible_entry_id)
 }

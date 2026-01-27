@@ -18,8 +18,8 @@ pub fn split_scene(
     request: SplitSceneRequest,
     state: State<AppState>,
 ) -> Result<SplitSceneResult, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     let (first, second) = db.split_scene(
         &request.scene_id,
         request.split_position,
@@ -37,8 +37,8 @@ pub fn split_scene(
 /// kept and updated; others are deleted.
 #[tauri::command]
 pub fn merge_scenes(request: MergeScenesRequest, state: State<AppState>) -> Result<Scene, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.merge_scenes(&request.scene_ids)
 }
 
@@ -59,24 +59,24 @@ pub fn create_scene(request: CreateSceneRequest, state: State<AppState>) -> Resu
         position: request.position,
     };
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.create_scene(&sanitized_request)
 }
 
 /// Gets all scenes in a chapter, ordered by position.
 #[tauri::command]
 pub fn get_scenes(chapter_id: String, state: State<AppState>) -> Result<Vec<Scene>, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_scenes(&chapter_id)
 }
 
 /// Gets a single scene by ID.
 #[tauri::command]
 pub fn get_scene(id: String, state: State<AppState>) -> Result<Scene, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.get_scene(&id)
 }
 
@@ -146,16 +146,16 @@ pub fn update_scene(
         }
     }
 
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.update_scene(&id, &sanitized_request)
 }
 
 /// Soft-deletes a scene (moves to trash for 30 days).
 #[tauri::command]
 pub fn delete_scene(id: String, state: State<AppState>) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_scene(&id)
 }
 
@@ -166,8 +166,8 @@ pub fn reorder_scenes(
     ids: Vec<String>,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.reorder_scenes(&chapter_id, &ids)
 }
 
@@ -179,7 +179,7 @@ pub fn move_scene_to_chapter(
     position: i32,
     state: State<AppState>,
 ) -> Result<Scene, String> {
-    let db = state.get_db()?;
-    let db = db.as_ref().ok_or("No project open")?;
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
     db.move_scene_to_chapter(&scene_id, &target_chapter_id, position)
 }
