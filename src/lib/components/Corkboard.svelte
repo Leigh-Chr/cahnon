@@ -14,8 +14,7 @@
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 	import type { Arc, Scene } from '$lib/api';
-	import type { SavedFilter } from '$lib/api';
-	import { arcApi, savedFilterApi, sceneApi, snapshotApi } from '$lib/api';
+	import { arcApi, sceneApi, snapshotApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
 	import { countWords, formatWordCount, sceneStatuses, statusColors } from '$lib/utils';
@@ -43,6 +42,7 @@
 	let filterPov = $state('');
 	let filterTag = $state('');
 	let filterArc = $state('');
+	let filterHealth = $state('');
 
 	// Arc data for filtering and display
 	let allArcs = $state<Arc[]>([]);
@@ -87,6 +87,7 @@
 		pov: filterPov,
 		tag: filterTag,
 		arc: filterArc,
+		health: filterHealth,
 	});
 
 	let allScenes = $derived(getAllScenes(appState.chapters, appState.scenes));
@@ -143,6 +144,11 @@
 			if (filters.arc) {
 				const arcs = sceneArcMap.get(scene.id);
 				if (!arcs || !arcs.some((a) => a.id === filters.arc)) return false;
+			}
+			if (filters.health) {
+				const health = appState.sceneHealthMap.get(scene.id);
+				if (filters.health === 'clean' && (!health || health.score < 1.0)) return false;
+				if (filters.health === 'problems' && (!health || health.score >= 1.0)) return false;
 			}
 			return true;
 		});
@@ -207,73 +213,12 @@
 		filterPov = '';
 		filterTag = '';
 		filterArc = '';
+		filterHealth = '';
 	}
 
-	let hasActiveFilters = $derived(filterStatus || filterPov || filterTag || filterArc);
-
-	// Saved filters
-	let savedFilters = $state<SavedFilter[]>([]);
-	let showSaveFilterInput = $state(false);
-	let newFilterName = $state('');
-
-	$effect(() => {
-		if (appState.project) {
-			loadSavedFilters();
-		}
-	});
-
-	async function loadSavedFilters() {
-		try {
-			savedFilters = await savedFilterApi.getAll('corkboard');
-		} catch {
-			// Non-critical
-		}
-	}
-
-	async function saveCurrentFilter() {
-		if (!newFilterName.trim() || !hasActiveFilters) return;
-		try {
-			const filterData = JSON.stringify({
-				status: filterStatus,
-				pov: filterPov,
-				tag: filterTag,
-				arc: filterArc,
-			});
-			await savedFilterApi.create({
-				name: newFilterName.trim(),
-				filter_type: 'corkboard',
-				filter_data: filterData,
-			});
-			await loadSavedFilters();
-			showSaveFilterInput = false;
-			newFilterName = '';
-			showSuccess('Filter saved');
-		} catch {
-			showError('Failed to save filter');
-		}
-	}
-
-	function applySavedFilter(filter: SavedFilter) {
-		try {
-			const data = JSON.parse(filter.filter_data);
-			filterStatus = data.status || '';
-			filterPov = data.pov || '';
-			filterTag = data.tag || '';
-			filterArc = data.arc || '';
-		} catch {
-			showError('Invalid filter data');
-		}
-	}
-
-	async function deleteSavedFilter(id: string) {
-		try {
-			await savedFilterApi.delete(id);
-			await loadSavedFilters();
-			showSuccess('Filter deleted');
-		} catch {
-			showError('Failed to delete filter');
-		}
-	}
+	let hasActiveFilters = $derived(
+		filterStatus || filterPov || filterTag || filterArc || filterHealth
+	);
 
 	// Clear selection when filters change
 	$effect(() => {
@@ -573,97 +518,18 @@
 						</select>
 					</div>
 				{/if}
+				<div class="filter-group">
+					<label for="filter-health">Problems</label>
+					<select id="filter-health" bind:value={filterHealth}>
+						<option value="">All</option>
+						<option value="clean">Clean</option>
+						<option value="problems">Has problems</option>
+					</select>
+				</div>
 				{#if hasActiveFilters}
 					<button class="clear-filters-btn" onclick={clearFilters}>Clear</button>
-					<button
-						class="save-filter-btn"
-						onclick={() => (showSaveFilterInput = !showSaveFilterInput)}
-						title="Save current filter"
-					>
-						<svg
-							width="14"
-							height="14"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-							<polyline points="17 21 17 13 7 13 7 21" />
-							<polyline points="7 3 7 8 15 8" />
-						</svg>
-						Save
-					</button>
 				{/if}
 			</div>
-
-			{#if showSaveFilterInput}
-				<div class="save-filter-row">
-					<input
-						type="text"
-						class="save-filter-input"
-						placeholder="Filter name..."
-						bind:value={newFilterName}
-						onkeydown={(e) => {
-							if (e.key === 'Enter') saveCurrentFilter();
-							if (e.key === 'Escape') {
-								showSaveFilterInput = false;
-								newFilterName = '';
-							}
-						}}
-					/>
-					<button
-						class="save-filter-confirm"
-						onclick={saveCurrentFilter}
-						disabled={!newFilterName.trim()}
-					>
-						Save
-					</button>
-					<button
-						class="save-filter-cancel"
-						onclick={() => {
-							showSaveFilterInput = false;
-							newFilterName = '';
-						}}
-					>
-						Cancel
-					</button>
-				</div>
-			{/if}
-
-			{#if savedFilters.length > 0}
-				<div class="saved-filters-row">
-					<span class="saved-filters-label">Saved:</span>
-					{#each savedFilters as filter (filter.id)}
-						<span class="saved-filter-chip">
-							<button
-								class="saved-filter-name"
-								onclick={() => applySavedFilter(filter)}
-								title="Apply filter: {filter.name}"
-							>
-								{filter.name}
-							</button>
-							<button
-								class="saved-filter-delete"
-								onclick={() => deleteSavedFilter(filter.id)}
-								title="Delete filter"
-							>
-								<svg
-									width="10"
-									height="10"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<line x1="18" y1="6" x2="6" y2="18" />
-									<line x1="6" y1="6" x2="18" y2="18" />
-								</svg>
-							</button>
-						</span>
-					{/each}
-				</div>
-			{/if}
 		</div>
 	{/if}
 
@@ -1210,109 +1076,5 @@
 	.empty-corkboard .hint {
 		font-size: var(--font-size-sm);
 		margin-top: var(--spacing-sm);
-	}
-
-	.save-filter-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.save-filter-btn:hover {
-		background-color: var(--color-bg-hover);
-		color: var(--color-accent);
-	}
-
-	.save-filter-row {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-sm);
-		padding: var(--spacing-sm) var(--spacing-lg);
-		border-bottom: 1px solid var(--color-border);
-		background-color: var(--color-accent-light);
-	}
-
-	.save-filter-input {
-		flex: 1;
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-sm);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-sm);
-		background-color: var(--color-bg-primary);
-	}
-
-	.save-filter-confirm {
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-sm);
-		color: var(--text-on-accent);
-		background-color: var(--color-accent);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.save-filter-confirm:disabled {
-		opacity: 0.5;
-	}
-
-	.save-filter-cancel {
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-		border-radius: var(--border-radius-sm);
-	}
-
-	.save-filter-cancel:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.saved-filters-row {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-sm);
-		padding: var(--spacing-sm) var(--spacing-lg);
-		border-bottom: 1px solid var(--color-border);
-		flex-wrap: wrap;
-	}
-
-	.saved-filters-label {
-		font-size: var(--font-size-xs);
-		font-weight: 500;
-		color: var(--color-text-muted);
-	}
-
-	.saved-filter-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 2px;
-		background-color: var(--color-bg-secondary);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-sm);
-		overflow: hidden;
-	}
-
-	.saved-filter-name {
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
-	}
-
-	.saved-filter-name:hover {
-		background-color: var(--color-accent-light);
-		color: var(--color-accent);
-	}
-
-	.saved-filter-delete {
-		padding: var(--spacing-xs);
-		color: var(--color-text-muted);
-		display: flex;
-		align-items: center;
-	}
-
-	.saved-filter-delete:hover {
-		background-color: var(--danger-subtle);
-		color: var(--color-error);
 	}
 </style>

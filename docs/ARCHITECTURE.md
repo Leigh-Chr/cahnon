@@ -47,20 +47,29 @@ cahnon/
 ├── src/                           # Frontend
 │   ├── lib/
 │   │   ├── api/
-│   │   │   └── index.ts          # TypeScript types + Tauri invoke wrappers
+│   │   │   ├── index.ts          # Re-exports all API modules
+│   │   │   ├── types/            # Shared TypeScript types
+│   │   │   ├── project.ts        # Project CRUD
+│   │   │   ├── manuscript.ts     # Chapter/scene operations
+│   │   │   ├── bible.ts          # Bible entries, associations, relationships
+│   │   │   ├── timeline.ts       # Events, arcs
+│   │   │   ├── content.ts        # Annotations, cuts, templates, snapshots
+│   │   │   └── ...               # 17 domain modules total
 │   │   ├── components/
 │   │   │   ├── Layout.svelte     # Main app container
 │   │   │   ├── Editor.svelte     # TipTap text editor
 │   │   │   ├── Outline.svelte    # Chapter/scene tree
-│   │   │   ├── Corkboard.svelte  # Card grid view
-│   │   │   ├── BibleView.svelte  # Bible browser
-│   │   │   ├── TimelineView.svelte
-│   │   │   ├── ContextPanel.svelte
-│   │   │   └── ...               # 30 components total
+│   │   │   ├── Dashboard.svelte  # Project dashboard
+│   │   │   ├── ui/               # Reusable primitives (Button, Icon, etc.)
+│   │   │   └── ...               # ~46 components total
 │   │   ├── stores/
-│   │   │   └── index.ts          # Svelte stores + actions
+│   │   │   ├── app-state.svelte.ts  # Main AppState class (Svelte 5 runes)
+│   │   │   ├── types.ts             # Store type definitions
+│   │   │   ├── recovery.ts          # Crash recovery utilities
+│   │   │   └── index.svelte.ts      # Re-exports
 │   │   └── utils/
-│   │       └── index.ts          # Helper functions
+│   │       ├── index.ts          # Helper functions
+│   │       └── revision-passes.ts
 │   └── routes/
 │       └── +page.svelte          # Entry point
 │
@@ -79,7 +88,11 @@ cahnon/
 │   │       ├── arc.rs            # Plot arcs
 │   │       ├── event.rs          # Timeline events
 │   │       ├── export.rs         # Export handlers
-│   │       └── ...               # 22 modules total
+│   │       ├── health.rs         # Scene health scoring
+│   │       ├── fact.rs           # Story facts tracking
+│   │       ├── world_state.rs    # Narrative context at scene level
+│   │       ├── writing_session.rs # Session tracking
+│   │       └── ...               # 29 modules total
 │   └── Cargo.toml
 │
 ├── docs/
@@ -138,9 +151,17 @@ Project (1 per .cahnon file)
 │   ├── Concepts
 │   └── Glossary terms
 ├── Arcs (plot threads)
+│   └── Arc ↔ Character (junction table)
 ├── Events (timeline)
 ├── Templates (narrative structures)
 ├── Snapshots (point-in-time backups)
+├── Annotations (text comments)
+├── Cuts (deleted text library)
+├── Issues (consistency problems)
+├── Facts (story facts with character links)
+├── Name Registry (proper noun tracking with mentions)
+├── Writing Sessions (session tracking)
+├── Saved Filters (named filter collections)
 └── Settings (word targets, etc.)
 
 Relationships (N:M):
@@ -148,6 +169,9 @@ Relationships (N:M):
 - Scene ↔ Arc (arc membership)
 - Scene ↔ Event (timeline links)
 - Bible Entry ↔ Bible Entry (relationships)
+- Arc ↔ Character (arc_characters)
+- Event ↔ Bible Entry (event_bible)
+- Issue ↔ Scene, Issue ↔ Bible Entry
 ```
 
 ## Key Patterns
@@ -186,15 +210,20 @@ Components access state directly via `appState`. No direct API calls from compon
 
 ### API Layer
 
-TypeScript wrappers provide type safety over Tauri IPC:
+TypeScript wrappers provide type safety over Tauri IPC, organized into domain modules:
 
 ```typescript
-// src/lib/api/index.ts
+// src/lib/api/manuscript.ts
 export const sceneApi = {
 	get: (id: string) => invoke<Scene>('get_scene', { id }),
-
 	update: (id: string, request: Partial<Scene>) => invoke<Scene>('update_scene', { id, request }),
 };
+
+// src/lib/api/index.ts re-exports all modules
+export * from './manuscript';
+export * from './bible';
+export * from './timeline';
+// ...
 ```
 
 ### Tauri Commands
@@ -220,7 +249,7 @@ Commands are registered in `lib.rs`:
 ```rust
 .invoke_handler(tauri::generate_handler![
     commands::scene::update_scene,
-    // ... 75+ commands
+    // ... 170+ commands
 ])
 ```
 
@@ -350,6 +379,6 @@ Components follow a consistent Svelte 5 pattern with runes:
 
 - Scenes are loaded per-chapter to avoid loading entire manuscript
 - Editor debounces saves (2 seconds)
-- Word counts are calculated on-demand, not stored
+- Word counts are cached in the database and updated on scene save
 - SQLite indexes on foreign keys and frequently queried columns
 - TipTap document is serialized to HTML only on save

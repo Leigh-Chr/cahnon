@@ -326,103 +326,6 @@ export interface VersionDiff {
 }
 
 // =============================================================================
-// Name Registry Types
-// =============================================================================
-
-export interface NameRegistryEntry {
-	id: string;
-	canonical_name: string;
-	/** Type: character, location */
-	name_type: string;
-	bible_entry_id: string | null;
-	/** Comma-separated aliases */
-	aliases: string | null;
-	is_confirmed: boolean;
-	created_at: string;
-	updated_at: string;
-}
-
-export interface NameMention {
-	id: string;
-	name_registry_id: string;
-	scene_id: string;
-	mention_text: string;
-	start_offset: number;
-	end_offset: number;
-	/** Status: pending, accepted, ignored */
-	status: string;
-	created_at: string;
-}
-
-// =============================================================================
-// Saved Filter Types
-// =============================================================================
-
-export interface SavedFilter {
-	id: string;
-	name: string;
-	/** Type: outline, corkboard, timeline */
-	filter_type: string;
-	/** JSON-encoded filter configuration */
-	filter_data: string;
-	created_at: string;
-	updated_at: string;
-}
-
-// =============================================================================
-// Writing Session Types
-// =============================================================================
-
-export interface WritingSession {
-	id: string;
-	date: string;
-	words_start: number;
-	words_end: number;
-	duration_minutes: number;
-	scenes_edited: string;
-	created_at: string;
-}
-
-// =============================================================================
-// Fact / Revelation Types
-// =============================================================================
-
-export interface Fact {
-	id: string;
-	content: string;
-	category: string;
-	revealed_in_scene_id: string | null;
-	status: string;
-	created_at: string;
-	updated_at: string;
-}
-
-export interface FactCharacter {
-	id: string;
-	fact_id: string;
-	bible_entry_id: string;
-	learned_in_scene_id: string | null;
-	created_at: string;
-}
-
-// =============================================================================
-// Name Registry Scan Types
-// =============================================================================
-
-export interface AssociationSuggestion {
-	scene_id: string;
-	bible_entry_id: string;
-	bible_entry_name: string;
-	scene_title: string;
-}
-
-export interface ScanResult {
-	new_entries: number;
-	new_mentions: number;
-	suggestions: AssociationSuggestion[];
-}
-
-// =============================================================================
 // Scene Health Types (Narrative GPS)
 // =============================================================================
 
@@ -446,11 +349,8 @@ export interface HealthCheck {
 export interface WorldState {
 	scene_id: string;
 	character_presences: CharacterPresence[];
-	character_knowledge: CharacterKnowledgeState[];
 	open_setups: OpenSetup[];
 	active_arcs: ActiveArcState[];
-	dramatic_irony: DramaticIronyItem[];
-	location_history: LocationHistoryItem[];
 }
 
 export interface CharacterPresence {
@@ -461,12 +361,6 @@ export interface CharacterPresence {
 	last_scene_title: string;
 	gap_scenes: number;
 	present_here: boolean;
-}
-
-export interface CharacterKnowledgeState {
-	bible_entry_id: string;
-	name: string;
-	known_facts: string[];
 }
 
 export interface OpenSetup {
@@ -484,60 +378,6 @@ export interface ActiveArcState {
 	last_scene_title: string;
 }
 
-export interface DramaticIronyItem {
-	fact_content: string;
-	character_name: string;
-	revealed_in_scene_title: string;
-}
-
-export interface LocationHistoryItem {
-	scene_id: string;
-	scene_title: string;
-	chapter_title: string;
-}
-
-// =============================================================================
-// Scene Context Types ("Previously On...")
-// =============================================================================
-
-export interface SceneContext {
-	scene_id: string;
-	previous_scenes: PreviousSceneSummary[];
-	present_characters: PresentCharacter[];
-	nearby_issues: NearbyIssue[];
-	todos: string[];
-	last_session: LastSessionInfo | null;
-}
-
-export interface PreviousSceneSummary {
-	scene_id: string;
-	title: string;
-	summary: string | null;
-	pov: string | null;
-	word_count: number;
-}
-
-export interface PresentCharacter {
-	bible_entry_id: string;
-	name: string;
-	short_description: string | null;
-	entry_type: string;
-}
-
-export interface NearbyIssue {
-	issue_id: string;
-	title: string;
-	severity: string;
-	status: string;
-	linked_scene_id: string;
-}
-
-export interface LastSessionInfo {
-	date: string;
-	words_written: number;
-	duration_minutes: number;
-}
-
 // =============================================================================
 // Impact Preview Types
 // =============================================================================
@@ -552,4 +392,27 @@ export interface ImpactItem {
 	description: string;
 	entity_id: string | null;
 	entity_name: string | null;
+}
+
+// =============================================================================
+// Character Thread Types
+// =============================================================================
+
+export interface CharacterThread {
+	bible_entry_id: string;
+	character_name: string;
+	scenes: CharacterThreadScene[];
+}
+
+export interface CharacterThreadScene {
+	scene_id: string;
+	scene_title: string;
+	chapter_title: string;
+	chapter_id: string;
+	position_index: number;
+	pov: string | null;
+	tension: string | null;
+	summary: string | null;
+	other_characters: string[];
+	gap_from_previous: number;
 }

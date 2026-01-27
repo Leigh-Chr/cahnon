@@ -1,9 +1,8 @@
 //! Snapshot operations
 
 use crate::models::{
-    Annotation, Arc, BibleEntry, BibleRelationship, Chapter, Event, Fact, FactCharacter, Issue,
-    IssueJunctionRow, JunctionRow, NameMention, NameRegistryEntry, Project, Scene, Snapshot,
-    WritingSession,
+    Annotation, Arc, BibleEntry, BibleRelationship, Chapter, Event, Issue, IssueJunctionRow,
+    JunctionRow, Project, Scene, Snapshot,
 };
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -44,16 +43,6 @@ pub struct SnapshotData {
     pub scene_steps: Vec<JunctionRow>,
     #[serde(default)]
     pub annotations: Vec<Annotation>,
-    #[serde(default)]
-    pub name_registry: Vec<NameRegistryEntry>,
-    #[serde(default)]
-    pub name_mentions: Vec<NameMention>,
-    #[serde(default)]
-    pub facts: Vec<Fact>,
-    #[serde(default)]
-    pub fact_characters: Vec<FactCharacter>,
-    #[serde(default)]
-    pub writing_sessions: Vec<WritingSession>,
 }
 
 impl Database {
@@ -110,11 +99,6 @@ impl Database {
         let scene_steps = self
             .collect_junction_rows("SELECT id, scene_id, step_id, created_at FROM scene_steps")?;
         let annotations = self.collect_annotations_for_snapshot()?;
-        let name_registry = self.collect_name_registry_for_snapshot()?;
-        let name_mentions = self.collect_name_mentions_for_snapshot()?;
-        let facts = self.collect_facts_for_snapshot()?;
-        let fact_characters = self.collect_fact_characters_for_snapshot()?;
-        let writing_sessions = self.collect_writing_sessions_for_snapshot()?;
 
         let data = SnapshotData {
             project,
@@ -134,11 +118,6 @@ impl Database {
             issue_bible,
             scene_steps,
             annotations,
-            name_registry,
-            name_mentions,
-            facts,
-            fact_characters,
-            writing_sessions,
         };
 
         let json = serde_json::json!({
@@ -159,11 +138,6 @@ impl Database {
             "issue_bible": data.issue_bible,
             "scene_steps": data.scene_steps,
             "annotations": data.annotations,
-            "name_registry": data.name_registry,
-            "name_mentions": data.name_mentions,
-            "facts": data.facts,
-            "fact_characters": data.fact_characters,
-            "writing_sessions": data.writing_sessions,
             "created_at": timestamp,
         });
 
@@ -274,58 +248,6 @@ impl Database {
                     status: row.get(6)?,
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
-                })
-            })
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        Ok(rows)
-    }
-
-    fn collect_name_registry_for_snapshot(&self) -> Result<Vec<NameRegistryEntry>, String> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, canonical_name, name_type, bible_entry_id, aliases, is_confirmed, created_at, updated_at FROM name_registry",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(NameRegistryEntry {
-                    id: row.get(0)?,
-                    canonical_name: row.get(1)?,
-                    name_type: row.get(2)?,
-                    bible_entry_id: row.get(3)?,
-                    aliases: row.get(4)?,
-                    is_confirmed: row.get::<_, i32>(5)? != 0,
-                    created_at: row.get(6)?,
-                    updated_at: row.get(7)?,
-                })
-            })
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        Ok(rows)
-    }
-
-    fn collect_name_mentions_for_snapshot(&self) -> Result<Vec<NameMention>, String> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, name_registry_id, scene_id, mention_text, start_offset, end_offset, status, created_at FROM name_mentions",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(NameMention {
-                    id: row.get(0)?,
-                    name_registry_id: row.get(1)?,
-                    scene_id: row.get(2)?,
-                    mention_text: row.get(3)?,
-                    start_offset: row.get(4)?,
-                    end_offset: row.get(5)?,
-                    status: row.get(6)?,
-                    created_at: row.get(7)?,
                 })
             })
             .map_err(|e| e.to_string())?
@@ -480,11 +402,6 @@ impl Database {
             )?;
             self.restore_junction_rows("scene_steps", "scene_id", "step_id", &data.scene_steps)?;
             self.restore_annotations_from_snapshot(&data.annotations)?;
-            self.restore_name_registry_from_snapshot(&data.name_registry)?;
-            self.restore_name_mentions_from_snapshot(&data.name_mentions)?;
-            self.restore_facts_from_snapshot(&data.facts)?;
-            self.restore_fact_characters_from_snapshot(&data.fact_characters)?;
-            self.restore_writing_sessions_from_snapshot(&data.writing_sessions)?;
             Ok(())
         })();
 
@@ -564,11 +481,6 @@ impl Database {
             )?;
             self.restore_junction_rows("scene_steps", "scene_id", "step_id", &data.scene_steps)?;
             self.restore_annotations_from_snapshot(&data.annotations)?;
-            self.restore_name_registry_from_snapshot(&data.name_registry)?;
-            self.restore_name_mentions_from_snapshot(&data.name_mentions)?;
-            self.restore_facts_from_snapshot(&data.facts)?;
-            self.restore_fact_characters_from_snapshot(&data.fact_characters)?;
-            self.restore_writing_sessions_from_snapshot(&data.writing_sessions)?;
             Ok(())
         })();
 
@@ -664,19 +576,14 @@ impl Database {
             "issue_bible",
             "scene_steps",
             "annotations",
-            "name_mentions",
-            "fact_characters",
             "scene_history",
             // Main tables restored from snapshot
-            "facts",
-            "writing_sessions",
             "scenes",
             "chapters",
             "bible_entries",
             "arcs",
             "events",
             "issues",
-            "name_registry",
         ];
         for table in &tables {
             self.conn
@@ -963,193 +870,6 @@ impl Database {
                         ann.status,
                         ann.created_at,
                         ann.updated_at
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    }
-
-    fn restore_name_registry_from_snapshot(
-        &self,
-        entries: &[NameRegistryEntry],
-    ) -> Result<(), String> {
-        for entry in entries {
-            self.conn
-                .execute(
-                    "INSERT INTO name_registry (id, canonical_name, name_type, bible_entry_id, aliases, is_confirmed, created_at, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                    params![
-                        entry.id,
-                        entry.canonical_name,
-                        entry.name_type,
-                        entry.bible_entry_id,
-                        entry.aliases,
-                        entry.is_confirmed as i32,
-                        entry.created_at,
-                        entry.updated_at
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    }
-
-    fn restore_name_mentions_from_snapshot(&self, mentions: &[NameMention]) -> Result<(), String> {
-        for mention in mentions {
-            self.conn
-                .execute(
-                    "INSERT INTO name_mentions (id, name_registry_id, scene_id, mention_text, start_offset, end_offset, status, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                    params![
-                        mention.id,
-                        mention.name_registry_id,
-                        mention.scene_id,
-                        mention.mention_text,
-                        mention.start_offset,
-                        mention.end_offset,
-                        mention.status,
-                        mention.created_at
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    }
-
-    fn collect_facts_for_snapshot(&self) -> Result<Vec<Fact>, String> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, content, category, revealed_in_scene_id, status, created_at, updated_at FROM facts",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(Fact {
-                    id: row.get(0)?,
-                    content: row.get(1)?,
-                    category: row.get(2)?,
-                    revealed_in_scene_id: row.get(3)?,
-                    status: row.get(4)?,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
-                })
-            })
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        Ok(rows)
-    }
-
-    fn collect_fact_characters_for_snapshot(&self) -> Result<Vec<FactCharacter>, String> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, fact_id, bible_entry_id, learned_in_scene_id, created_at FROM fact_characters",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(FactCharacter {
-                    id: row.get(0)?,
-                    fact_id: row.get(1)?,
-                    bible_entry_id: row.get(2)?,
-                    learned_in_scene_id: row.get(3)?,
-                    created_at: row.get(4)?,
-                })
-            })
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        Ok(rows)
-    }
-
-    fn collect_writing_sessions_for_snapshot(&self) -> Result<Vec<WritingSession>, String> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, date, words_start, words_end, duration_minutes, scenes_edited, created_at FROM writing_sessions",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(WritingSession {
-                    id: row.get(0)?,
-                    date: row.get(1)?,
-                    words_start: row.get(2)?,
-                    words_end: row.get(3)?,
-                    duration_minutes: row.get(4)?,
-                    scenes_edited: row.get(5)?,
-                    created_at: row.get(6)?,
-                })
-            })
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        Ok(rows)
-    }
-
-    fn restore_facts_from_snapshot(&self, facts: &[Fact]) -> Result<(), String> {
-        for fact in facts {
-            self.conn
-                .execute(
-                    "INSERT INTO facts (id, content, category, revealed_in_scene_id, status, created_at, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![
-                        fact.id,
-                        fact.content,
-                        fact.category,
-                        fact.revealed_in_scene_id,
-                        fact.status,
-                        fact.created_at,
-                        fact.updated_at
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    }
-
-    fn restore_fact_characters_from_snapshot(
-        &self,
-        fact_chars: &[FactCharacter],
-    ) -> Result<(), String> {
-        for fc in fact_chars {
-            self.conn
-                .execute(
-                    "INSERT INTO fact_characters (id, fact_id, bible_entry_id, learned_in_scene_id, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![
-                        fc.id,
-                        fc.fact_id,
-                        fc.bible_entry_id,
-                        fc.learned_in_scene_id,
-                        fc.created_at
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    }
-
-    fn restore_writing_sessions_from_snapshot(
-        &self,
-        sessions: &[WritingSession],
-    ) -> Result<(), String> {
-        for session in sessions {
-            self.conn
-                .execute(
-                    "INSERT INTO writing_sessions (id, date, words_start, words_end, duration_minutes, scenes_edited, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![
-                        session.id,
-                        session.date,
-                        session.words_start,
-                        session.words_end,
-                        session.duration_minutes,
-                        session.scenes_edited,
-                        session.created_at
                     ],
                 )
                 .map_err(|e| e.to_string())?;

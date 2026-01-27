@@ -94,10 +94,6 @@ impl Database {
                 .conn
                 .execute("DELETE FROM annotations WHERE scene_id = ?1", params![sid]);
             let _ = self.conn.execute(
-                "DELETE FROM name_mentions WHERE scene_id = ?1",
-                params![sid],
-            );
-            let _ = self.conn.execute(
                 "DELETE FROM scene_history WHERE scene_id = ?1",
                 params![sid],
             );

@@ -31,43 +31,25 @@ export type {
 	Annotation,
 	// Arc & Timeline
 	Arc,
-	// Name Registry Scan
-	AssociationSuggestion,
 	// Bible
 	BibleEntry,
 	BibleRelationshipWithEntry,
 	Chapter,
-	CharacterKnowledgeState,
 	CharacterPresence,
+	CharacterThread,
+	CharacterThreadScene,
 	Cut,
-	DramaticIronyItem,
-	// Facts
-	Fact,
-	FactCharacter,
 	// Health
 	HealthCheck,
 	// Impact
 	ImpactItem,
 	ImpactPreview,
 	Issue,
-	// Scene Context
-	LastSessionInfo,
-	LocationHistoryItem,
-	NameMention,
-	// Name Registry
-	NameRegistryEntry,
-	NearbyIssue,
 	OpenSetup,
-	PresentCharacter,
-	PreviousSceneSummary,
 	// Project & Manuscript
 	Project,
 	RecentProject,
-	// Saved Filters
-	SavedFilter,
-	ScanResult,
 	Scene,
-	SceneContext,
 	SceneHealth,
 	SceneHistoryEntry,
 	// Search & Stats
@@ -80,27 +62,18 @@ export type {
 	TimelineEvent,
 	WordCounts,
 	WorldState,
-	// Writing Session
-	WritingSession,
 } from './types';
 
 // =============================================================================
 // API Objects
 // =============================================================================
 
+export { healthApi, impactApi, worldStateApi } from './analytics';
 export { associationApi, bibleApi, relationshipApi } from './bible';
 export { annotationApi, cutApi, snapshotApi, templateApi, trashApi } from './content';
 export { exportApi, importApi } from './export';
-export { factApi } from './fact';
-export { healthApi } from './health';
-export { impactApi } from './impact';
 export { issueApi } from './issue';
 export { chapterApi, historyApi, sceneApi } from './manuscript';
-export { nameMentionApi, nameRegistryApi } from './name-registry';
 export { projectApi } from './project';
-export { savedFilterApi } from './saved-filter';
-export { sceneContextApi } from './scene-context';
 export { searchApi, statsApi } from './search';
 export { arcApi, eventApi, timelineApi } from './timeline';
-export { worldStateApi } from './world-state';
-export { writingSessionApi } from './writing-session';

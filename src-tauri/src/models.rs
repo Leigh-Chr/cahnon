@@ -696,83 +696,6 @@ pub struct VersionDiff {
 }
 
 // ============================================================================
-// Name Registry
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NameRegistryEntry {
-    pub id: String,
-    pub canonical_name: String,
-    pub name_type: String,
-    pub bible_entry_id: Option<String>,
-    pub aliases: Option<String>,
-    pub is_confirmed: bool,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateNameRegistryRequest {
-    pub canonical_name: String,
-    pub name_type: Option<String>,
-    pub bible_entry_id: Option<String>,
-    pub aliases: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateNameRegistryRequest {
-    pub canonical_name: Option<String>,
-    pub name_type: Option<String>,
-    pub bible_entry_id: Option<String>,
-    pub aliases: Option<String>,
-    pub is_confirmed: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NameMention {
-    pub id: String,
-    pub name_registry_id: String,
-    pub scene_id: String,
-    pub mention_text: String,
-    pub start_offset: i32,
-    pub end_offset: i32,
-    pub status: String,
-    pub created_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateNameMentionRequest {
-    pub status: String,
-}
-
-// ============================================================================
-// Saved Filters
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SavedFilter {
-    pub id: String,
-    pub name: String,
-    pub filter_type: String,
-    pub filter_data: String,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateSavedFilterRequest {
-    pub name: String,
-    pub filter_type: String,
-    pub filter_data: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateSavedFilterRequest {
-    pub name: Option<String>,
-    pub filter_data: Option<String>,
-}
-
-// ============================================================================
 // Junction Row (generic row for snapshot serialization)
 // ============================================================================
 
@@ -795,74 +718,6 @@ pub struct IssueJunctionRow {
 }
 
 // ============================================================================
-// Writing Session
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WritingSession {
-    pub id: String,
-    pub date: String,
-    pub words_start: i32,
-    pub words_end: i32,
-    pub duration_minutes: i32,
-    pub scenes_edited: String,
-    pub created_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateWritingSessionRequest {
-    pub date: String,
-    pub words_start: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateWritingSessionRequest {
-    pub words_end: Option<i32>,
-    pub duration_minutes: Option<i32>,
-    pub scenes_edited: Option<String>,
-}
-
-// ============================================================================
-// Fact (narrative revelations)
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Fact {
-    pub id: String,
-    pub content: String,
-    pub category: String,
-    pub revealed_in_scene_id: Option<String>,
-    pub status: String,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FactCharacter {
-    pub id: String,
-    pub fact_id: String,
-    pub bible_entry_id: String,
-    pub learned_in_scene_id: Option<String>,
-    pub created_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateFactRequest {
-    pub content: String,
-    pub category: Option<String>,
-    pub revealed_in_scene_id: Option<String>,
-    pub status: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateFactRequest {
-    pub content: Option<String>,
-    pub category: Option<String>,
-    pub revealed_in_scene_id: Option<String>,
-    pub status: Option<String>,
-}
-
-// ============================================================================
 // Detection
 // ============================================================================
 
@@ -877,31 +732,28 @@ pub struct DetectedIssue {
 }
 
 // ============================================================================
-// Association Suggestion (Name Registry)
+// Character Thread
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssociationSuggestion {
-    pub scene_id: String,
+pub struct CharacterThread {
     pub bible_entry_id: String,
-    pub bible_entry_name: String,
-    pub scene_title: String,
+    pub character_name: String,
+    pub scenes: Vec<CharacterThreadScene>,
 }
 
-// ============================================================================
-// Scan Result (Name Registry)
-// ============================================================================
-
-/// Result of a name scan operation.
-///
-/// Contains counts of new entries and mentions created, plus any
-/// association suggestions where a confirmed name was found in a scene
-/// that has no canonical association for the corresponding bible entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScanResult {
-    pub new_entries: i32,
-    pub new_mentions: i32,
-    pub suggestions: Vec<AssociationSuggestion>,
+pub struct CharacterThreadScene {
+    pub scene_id: String,
+    pub scene_title: String,
+    pub chapter_title: String,
+    pub chapter_id: String,
+    pub position_index: i32,
+    pub pov: Option<String>,
+    pub tension: Option<String>,
+    pub summary: Option<String>,
+    pub other_characters: Vec<String>,
+    pub gap_from_previous: i32,
 }
 
 // ============================================================================
@@ -934,11 +786,8 @@ pub struct HealthCheck {
 pub struct WorldState {
     pub scene_id: String,
     pub character_presences: Vec<CharacterPresence>,
-    pub character_knowledge: Vec<CharacterKnowledgeState>,
     pub open_setups: Vec<OpenSetup>,
     pub active_arcs: Vec<ActiveArcState>,
-    pub dramatic_irony: Vec<DramaticIronyItem>,
-    pub location_history: Vec<LocationHistoryItem>,
 }
 
 /// Tracking a character's presence up to a point in the manuscript.
@@ -951,14 +800,6 @@ pub struct CharacterPresence {
     pub last_scene_title: String,
     pub gap_scenes: i32,
     pub present_here: bool,
-}
-
-/// Facts known by a character at a given point.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CharacterKnowledgeState {
-    pub bible_entry_id: String,
-    pub name: String,
-    pub known_facts: Vec<String>,
 }
 
 /// A setup scene that has no payoff yet at this point.
@@ -978,74 +819,6 @@ pub struct ActiveArcState {
     pub scenes_before: i32,
     pub scenes_total: i32,
     pub last_scene_title: String,
-}
-
-/// A fact the reader knows but a present character doesn't.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DramaticIronyItem {
-    pub fact_content: String,
-    pub character_name: String,
-    pub revealed_in_scene_title: String,
-}
-
-/// A previous scene at the same location.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocationHistoryItem {
-    pub scene_id: String,
-    pub scene_title: String,
-    pub chapter_title: String,
-}
-
-// ============================================================================
-// Scene Context ("Previously On...")
-// ============================================================================
-
-/// Context information for a scene to help the writer resume.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SceneContext {
-    pub scene_id: String,
-    pub previous_scenes: Vec<PreviousSceneSummary>,
-    pub present_characters: Vec<PresentCharacter>,
-    pub nearby_issues: Vec<NearbyIssue>,
-    pub todos: Vec<String>,
-    pub last_session: Option<LastSessionInfo>,
-}
-
-/// Summary of a preceding scene in the same chapter.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PreviousSceneSummary {
-    pub scene_id: String,
-    pub title: String,
-    pub summary: Option<String>,
-    pub pov: Option<String>,
-    pub word_count: i32,
-}
-
-/// A character present in this scene with brief info.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PresentCharacter {
-    pub bible_entry_id: String,
-    pub name: String,
-    pub short_description: Option<String>,
-    pub entry_type: String,
-}
-
-/// An issue near this scene (linked to this or adjacent scenes).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NearbyIssue {
-    pub issue_id: String,
-    pub title: String,
-    pub severity: String,
-    pub status: String,
-    pub linked_scene_id: String,
-}
-
-/// Info about the last writing session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LastSessionInfo {
-    pub date: String,
-    pub words_written: i32,
-    pub duration_minutes: i32,
 }
 
 // ============================================================================

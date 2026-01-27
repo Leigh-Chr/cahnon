@@ -4,11 +4,8 @@
 
   Features:
   - Character presences with appearance count and gap indicator
-  - Character knowledge states (facts known)
   - Open setups (unfired Chekhov's guns)
   - Active arcs with progress
-  - Dramatic irony (reader knows, character doesn't)
-  - Location history (previous scenes at same location)
 -->
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
@@ -66,10 +63,13 @@
 				<div class="accordion-body">
 					{#each worldState.character_presences as char (char.bible_entry_id)}
 						<div class="character-row" class:present-here={char.present_here}>
-							<span class="char-name">
+							<button
+								class="char-name"
+								onclick={() => appState.showCharacterThread(char.bible_entry_id)}
+							>
 								{char.name}
 								{#if char.present_here}<span class="here-badge">here</span>{/if}
-							</span>
+							</button>
 							<span class="char-meta">
 								{char.appearance_count} scene{char.appearance_count !== 1 ? 's' : ''}
 								{#if char.gap_scenes > 0 && !char.present_here}
@@ -85,32 +85,6 @@
 				</div>
 			{/if}
 		</div>
-
-		<!-- Character Knowledge -->
-		{#if worldState.character_knowledge.length > 0}
-			<div class="accordion-section">
-				<button class="accordion-header" onclick={() => toggleSection('knowledge')}>
-					<span class="accordion-icon">{expandedSections.has('knowledge') ? '▾' : '▸'}</span>
-					<span class="accordion-title">Knowledge</span>
-				</button>
-				{#if expandedSections.has('knowledge')}
-					<div class="accordion-body">
-						{#each worldState.character_knowledge as ck (ck.bible_entry_id)}
-							{#if ck.known_facts.length > 0}
-								<div class="knowledge-group">
-									<span class="knowledge-name">{ck.name}</span>
-									<ul class="fact-list">
-										{#each ck.known_facts as fact, i (i)}
-											<li>{fact}</li>
-										{/each}
-									</ul>
-								</div>
-							{/if}
-						{/each}
-					</div>
-				{/if}
-			</div>
-		{/if}
 
 		<!-- Open Setups -->
 		{#if worldState.open_setups.length > 0}
@@ -155,51 +129,6 @@
 				</div>
 			{/if}
 		</div>
-
-		<!-- Dramatic Irony -->
-		{#if worldState.dramatic_irony.length > 0}
-			<div class="accordion-section">
-				<button class="accordion-header" onclick={() => toggleSection('irony')}>
-					<span class="accordion-icon">{expandedSections.has('irony') ? '▾' : '▸'}</span>
-					<span class="accordion-title">Dramatic Irony ({worldState.dramatic_irony.length})</span>
-				</button>
-				{#if expandedSections.has('irony')}
-					<div class="accordion-body">
-						{#each worldState.dramatic_irony as item, i (i)}
-							<div class="irony-item">
-								<span class="irony-fact">{item.fact_content}</span>
-								<span class="irony-meta">
-									{item.character_name} doesn't know
-									<span class="irony-source">(revealed in "{item.revealed_in_scene_title}")</span>
-								</span>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
-		{/if}
-
-		<!-- Location History -->
-		{#if worldState.location_history.length > 0}
-			<div class="accordion-section">
-				<button class="accordion-header" onclick={() => toggleSection('location')}>
-					<span class="accordion-icon">{expandedSections.has('location') ? '▾' : '▸'}</span>
-					<span class="accordion-title"
-						>Location History ({worldState.location_history.length})</span
-					>
-				</button>
-				{#if expandedSections.has('location')}
-					<div class="accordion-body">
-						{#each worldState.location_history as loc (loc.scene_id)}
-							<div class="location-item">
-								<span class="loc-title">{loc.scene_title}</span>
-								<span class="loc-chapter">{loc.chapter_title}</span>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
-		{/if}
 	{:else}
 		<p class="empty">Select a scene to view world state</p>
 	{/if}
@@ -286,6 +215,16 @@
 		gap: var(--spacing-xs);
 		color: var(--color-text-primary);
 		font-weight: 500;
+		cursor: pointer;
+		background: none;
+		border: none;
+		padding: 0;
+		font-size: inherit;
+		text-align: left;
+	}
+
+	.char-name:hover {
+		color: var(--color-accent);
 	}
 
 	.here-badge {
@@ -304,28 +243,6 @@
 
 	.gap-indicator {
 		color: var(--color-warning);
-	}
-
-	/* Knowledge */
-	.knowledge-group {
-		padding: var(--spacing-xs) 0;
-	}
-
-	.knowledge-name {
-		font-size: var(--font-size-sm);
-		font-weight: 500;
-		color: var(--color-text-primary);
-	}
-
-	.fact-list {
-		margin: 2px 0 0;
-		padding-left: var(--spacing-md);
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
-	}
-
-	.fact-list li {
-		margin-bottom: 1px;
 	}
 
 	/* Setup items */
@@ -371,48 +288,6 @@
 	}
 
 	.arc-progress {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
-	}
-
-	/* Dramatic irony */
-	.irony-item {
-		display: flex;
-		flex-direction: column;
-		padding: var(--spacing-xs);
-		background-color: var(--color-bg-primary);
-		border-radius: var(--border-radius-sm);
-		border-left: 3px solid var(--color-info);
-	}
-
-	.irony-fact {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-primary);
-		font-style: italic;
-	}
-
-	.irony-meta {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
-	}
-
-	.irony-source {
-		font-style: italic;
-	}
-
-	/* Location history */
-	.location-item {
-		display: flex;
-		justify-content: space-between;
-		padding: 3px var(--spacing-xs);
-		font-size: var(--font-size-sm);
-	}
-
-	.loc-title {
-		color: var(--color-text-primary);
-	}
-
-	.loc-chapter {
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
 	}

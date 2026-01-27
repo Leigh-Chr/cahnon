@@ -6,13 +6,11 @@
   b. Issues Summary: count by severity, open vs resolved
   c. Tension Curve: embedded visualization
   d. Manuscript Distribution: embedded visualization
-  e. Character Heatmap: shown in revision work mode
 -->
 <script lang="ts">
 	import { type Issue, issueApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 
-	import CharacterHeatmap from './CharacterHeatmap.svelte';
 	import ManuscriptDistribution from './ManuscriptDistribution.svelte';
 	import TensionCurve from './TensionCurve.svelte';
 
@@ -65,9 +63,6 @@
 	let draftScenes = $derived(statusData.find((s) => s.status === 'draft')?.scene_count || 0);
 	let revisionScenes = $derived(statusData.find((s) => s.status === 'revision')?.scene_count || 0);
 	let doneScenes = $derived(statusData.find((s) => s.status === 'done')?.scene_count || 0);
-
-	// Show heatmap only in revision mode
-	let showHeatmap = $derived(appState.workMode === 'revision');
 
 	function formatNumber(n: number): string {
 		return n.toLocaleString();
@@ -186,14 +181,6 @@
 			<h3>Manuscript Distribution</h3>
 			<ManuscriptDistribution />
 		</div>
-
-		<!-- Character Heatmap Card (revision mode only) -->
-		{#if showHeatmap}
-			<div class="card wide-card">
-				<h3>Character Appearances (POV)</h3>
-				<CharacterHeatmap />
-			</div>
-		{/if}
 	</div>
 </div>
 

@@ -1,73 +1,25 @@
 <script lang="ts">
-	import { writingSessionApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { countWords, formatWordCount } from '$lib/utils';
 
-	// Session tracking
+	// Session tracking (in-memory only, resets on app restart)
 	let sessionStartWordCount = $state(0);
 	let sessionInitialized = $state(false);
 
-	// Today's writing session (persisted via backend)
-	let todayStartWordCount = $state(0);
-	let todaySessionId = $state<string | null>(null);
-
-	function getTodayKey(): string {
-		return new Date().toISOString().split('T')[0];
-	}
-
-	async function initTodaySession(currentTotal: number): Promise<number> {
-		try {
-			const today = getTodayKey();
-			const existing = await writingSessionApi.getByDate(today);
-			if (existing) {
-				todaySessionId = existing.id;
-				return existing.words_start;
-			}
-			// Create new session for today
-			const session = await writingSessionApi.create(today, currentTotal);
-			todaySessionId = session.id;
-			return currentTotal;
-		} catch {
-			// Fallback: use current total as start
-			return currentTotal;
-		}
-	}
-
-	// Initialize session and today counts when wordCounts becomes available
+	// Initialize session count when wordCounts becomes available
 	$effect(() => {
 		if (appState.wordCounts && !sessionInitialized) {
 			sessionStartWordCount = appState.wordCounts.total;
-			const total = appState.wordCounts.total;
 			sessionInitialized = true;
-			initTodaySession(total).then((start) => {
-				todayStartWordCount = start;
-			});
 		}
-	});
-
-	// Periodically update the writing session with current word count
-	$effect(() => {
-		if (!todaySessionId || !appState.wordCounts) return;
-		const id = todaySessionId;
-		const wordsEnd = appState.wordCounts.total;
-		// Fire-and-forget update
-		writingSessionApi.update(id, { words_end: wordsEnd }).catch(() => {});
 	});
 
 	let sessionWordCount = $derived(
 		appState.wordCounts ? Math.max(0, appState.wordCounts.total - sessionStartWordCount) : 0
 	);
-	let todayWordCount = $derived(
-		appState.wordCounts ? Math.max(0, appState.wordCounts.total - todayStartWordCount) : 0
-	);
 	let progressPercent = $derived(
 		appState.project?.word_target && appState.wordCounts
 			? Math.min(100, Math.round((appState.wordCounts.total / appState.project.word_target) * 100))
-			: 0
-	);
-	let dailyProgressPercent = $derived(
-		appState.project?.daily_word_target && todayWordCount
-			? Math.min(100, Math.round((todayWordCount / appState.project.daily_word_target) * 100))
 			: 0
 	);
 </script>
@@ -101,25 +53,6 @@
 			<span class="word-stat session">
 				<span class="label">Session:</span>
 				<span class="value">+{formatWordCount(sessionWordCount)}</span>
-			</span>
-			<span class="separator">|</span>
-		{/if}
-
-		{#if todayWordCount > 0 || appState.project?.daily_word_target}
-			<span class="word-stat today">
-				<span class="label">Today:</span>
-				<span class="value">+{formatWordCount(todayWordCount)}</span>
-				{#if appState.project?.daily_word_target}
-					<span
-						class="daily-progress"
-						title="{todayWordCount} / {appState.project.daily_word_target} words"
-					>
-						<span class="mini-progress-bar">
-							<span class="mini-progress-fill" style="width: {dailyProgressPercent}%"></span>
-						</span>
-						<span class="daily-percent">{dailyProgressPercent}%</span>
-					</span>
-				{/if}
 			</span>
 			<span class="separator">|</span>
 		{/if}
@@ -226,38 +159,6 @@
 
 	.word-stat.session .value {
 		color: var(--color-accent);
-	}
-
-	.word-stat.today .value {
-		color: var(--color-success);
-	}
-
-	.daily-progress {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		margin-left: var(--spacing-xs);
-	}
-
-	.mini-progress-bar {
-		width: 40px;
-		height: 4px;
-		background-color: var(--color-bg-secondary);
-		border-radius: 2px;
-		overflow: hidden;
-	}
-
-	.mini-progress-fill {
-		height: 100%;
-		background-color: var(--color-success);
-		border-radius: 2px;
-		transition: width var(--transition-normal);
-	}
-
-	.daily-percent {
-		font-size: var(--font-size-xs);
-		color: var(--color-success);
-		min-width: 28px;
 	}
 
 	.progress-indicator {

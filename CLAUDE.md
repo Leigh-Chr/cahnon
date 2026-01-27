@@ -38,25 +38,27 @@ UI Component → Svelte Store → API Layer (invoke) → Tauri IPC → Rust Comm
 
 ### Frontend (`src/`)
 
-- **`lib/api/index.ts`** - TypeScript types and Tauri invoke wrappers for all 75+ commands
-- **`lib/stores/index.ts`** - Svelte stores for state + `actions` object for mutations
-- **`lib/components/`** - 30 Svelte components (Layout, Editor, Outline, Corkboard, BibleView, etc.)
+- **`lib/api/`** - TypeScript types and Tauri invoke wrappers, split into domain modules (project, bible, timeline, health, etc.) with `index.ts` re-exporting all APIs
+- **`lib/stores/`** - Svelte 5 runes-based `AppState` class (`app-state.svelte.ts`) + types, recovery utilities
+- **`lib/components/`** - ~46 Svelte components (Layout, Editor, Outline, Corkboard, BibleView, Dashboard, etc.) + `ui/` subdir for reusable primitives (Button, Icon, EmptyState, etc.)
 
 ### Backend (`src-tauri/src/`)
 
 - **`lib.rs`** - AppState, plugin setup, command registration via `generate_handler![]`
 - **`models.rs`** - All data structures and request/response types
 - **`database.rs`** - SQLite operations (schema init, migrations, CRUD)
-- **`commands/`** - 22 modules: project, chapter, scene, bible, arc, event, export, etc.
+- **`validation.rs`** - Input validation
+- **`commands/`** - 29 modules: project, chapter, scene, bible, arc, event, export, fact, health, impact, issue, name_registry, world_state, writing_session, etc.
 
 ### Data Model
 
 Projects are single `.cahnon` SQLite files containing:
 
-- Chapters → Scenes (with text, status, POV, tags, timeline info)
+- Chapters → Scenes (with text, status, POV, tags, timeline info, cached word count)
 - Bible entries (character, location, object, faction, concept, glossary)
-- Arcs, Events, Templates, Snapshots
-- N:M relationships: Scene↔BibleEntry, Scene↔Arc, Scene↔Event, BibleEntry↔BibleEntry
+- Arcs, Events, Templates, Snapshots, Annotations
+- Facts, Writing Sessions, Name Registry, Cuts, Issues, Saved Filters
+- N:M relationships: Scene↔BibleEntry, Scene↔Arc, Scene↔Event, BibleEntry↔BibleEntry, Arc↔Character, Issue↔Scene, Issue↔BibleEntry
 
 ## Key Patterns
 
@@ -66,8 +68,8 @@ Projects are single `.cahnon` SQLite files containing:
 2. Add database operations in `src-tauri/src/database.rs`
 3. Create Tauri commands in `src-tauri/src/commands/`
 4. Register commands in `src-tauri/src/lib.rs` (`generate_handler![]`)
-5. Add TypeScript types and API wrapper in `src/lib/api/index.ts`
-6. Update stores if needed in `src/lib/stores/index.ts`
+5. Add TypeScript types in `src/lib/api/types/` and API wrapper in `src/lib/api/` (create a domain module or add to existing one, re-export from `index.ts`)
+6. Update stores if needed in `src/lib/stores/app-state.svelte.ts`
 7. Build UI components in `src/lib/components/`
 
 ### State Management

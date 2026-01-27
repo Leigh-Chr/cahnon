@@ -14,17 +14,20 @@
 		x: number;
 		y: number;
 		title: string;
+		sceneId: string;
 		chapterId: string;
 		tension: string | null;
 	}
 
 	// Ordered list of all scenes across chapters
 	let orderedScenes = $derived.by(() => {
-		const result: Array<{ title: string; tension: string | null; chapterId: string }> = [];
+		const result: Array<{ id: string; title: string; tension: string | null; chapterId: string }> =
+			[];
 		for (const chapter of appState.chapters) {
 			const chapterScenes = appState.scenes.get(chapter.id) || [];
 			for (const scene of chapterScenes) {
 				result.push({
+					id: scene.id,
 					title: scene.title,
 					tension: scene.tension,
 					chapterId: chapter.id,
@@ -68,6 +71,7 @@
 				x,
 				y,
 				title: scene.title,
+				sceneId: scene.id,
 				chapterId: scene.chapterId,
 				tension: scene.tension,
 			};
@@ -110,6 +114,11 @@
 
 	// Tooltip
 	let hoveredIndex = $state<number | null>(null);
+
+	function handlePointClick(point: ScenePoint) {
+		appState.selectScene(point.sceneId, point.chapterId);
+		appState.setViewMode('editor');
+	}
 </script>
 
 <div class="tension-curve">
@@ -169,7 +178,10 @@
 					class:hovered={hoveredIndex === i}
 					onmouseenter={() => (hoveredIndex = i)}
 					onmouseleave={() => (hoveredIndex = null)}
-					role="presentation"
+					onclick={() => handlePointClick(point)}
+					onkeydown={(e) => e.key === 'Enter' && handlePointClick(point)}
+					role="button"
+					tabindex="0"
 				>
 					<title>{point.title} ({point.tension || 'low'})</title>
 				</circle>

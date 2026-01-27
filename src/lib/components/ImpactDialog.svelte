@@ -53,9 +53,6 @@
 				return '📅';
 			case 'broken_setup_payoff':
 				return '🔗';
-			case 'facts_revealed':
-			case 'facts_affected':
-				return '🔍';
 			case 'associations_lost':
 			case 'scenes_lose_association':
 				return '🏷️';
@@ -65,8 +62,6 @@
 				return '🤝';
 			case 'arc_character_lost':
 				return '👤';
-			case 'fact_knowledge_lost':
-				return '🧠';
 			case 'scenes_deleted':
 				return '📄';
 			default:

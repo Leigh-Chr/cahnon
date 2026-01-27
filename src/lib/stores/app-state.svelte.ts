@@ -15,6 +15,7 @@ import {
 	bibleApi,
 	chapterApi,
 	healthApi,
+	issueApi,
 	projectApi,
 	sceneApi,
 	snapshotApi,
@@ -124,6 +125,11 @@ class AppState {
 	// Search
 	// -------------------------------------------------------------------------
 	searchQuery = $state('');
+
+	// -------------------------------------------------------------------------
+	// Character Thread
+	// -------------------------------------------------------------------------
+	characterThreadId = $state<string | null>(null);
 
 	// -------------------------------------------------------------------------
 	// UI State - Dialogs
@@ -516,6 +522,7 @@ class AppState {
 			await this.loadBible();
 			await this.loadStats();
 			this.loadSceneHealth(); // Non-blocking
+			this.runDetections(); // Non-blocking
 			this.hasUnsavedChanges = false;
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
@@ -594,6 +601,7 @@ class AppState {
 			await this.loadBible();
 			await this.loadStats();
 			this.loadSceneHealth(); // Non-blocking
+			this.runDetections(); // Non-blocking
 			this.hasUnsavedChanges = false;
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
@@ -651,6 +659,15 @@ class AppState {
 			this.sceneHealthMap = map;
 		} catch (e) {
 			console.error('Failed to load scene health:', e);
+		}
+	}
+
+	/** Run issue detections in background (non-blocking). */
+	async runDetections() {
+		try {
+			await issueApi.runDetections();
+		} catch (e) {
+			console.warn('Background detection failed:', e);
 		}
 	}
 
@@ -962,6 +979,14 @@ class AppState {
 			return window.matchMedia('(prefers-color-scheme: dark)').matches;
 		}
 		return this.colorMode === 'dark';
+	}
+
+	showCharacterThread(bibleEntryId: string) {
+		this.characterThreadId = bibleEntryId;
+	}
+
+	closeCharacterThread() {
+		this.characterThreadId = null;
 	}
 
 	openExportDialog() {

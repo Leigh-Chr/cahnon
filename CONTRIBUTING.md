@@ -40,16 +40,20 @@ Thank you for your interest in contributing to Cahnon! This document provides gu
 cahnon/
 ├── src/                        # Frontend (Svelte/TypeScript)
 │   ├── lib/
-│   │   ├── api/               # Tauri IPC wrappers and types
-│   │   ├── components/        # Svelte components
-│   │   ├── stores/            # Svelte stores (state management)
+│   │   ├── api/               # Tauri IPC wrappers, split into domain modules
+│   │   │   ├── types/         # Shared TypeScript types
+│   │   │   └── *.ts           # Domain modules (project, bible, timeline, etc.)
+│   │   ├── components/        # Svelte components (~46)
+│   │   │   └── ui/            # Reusable UI primitives (Button, Icon, etc.)
+│   │   ├── stores/            # Svelte 5 runes-based state management
 │   │   └── utils/             # Utility functions
 │   └── routes/                # SvelteKit routes
 ├── src-tauri/                 # Backend (Rust)
 │   ├── src/
-│   │   ├── commands/          # Tauri command handlers
+│   │   ├── commands/          # Tauri command handlers (29 modules)
 │   │   ├── database.rs        # SQLite operations
 │   │   ├── models.rs          # Data structures
+│   │   ├── validation.rs      # Input validation
 │   │   └── lib.rs             # App entry and command registration
 │   └── Cargo.toml
 ├── docs/                      # Documentation
@@ -191,8 +195,8 @@ All state mutations go through this flow. The frontend never accesses the databa
 2. **Add database operations** in `src-tauri/src/database.rs`
 3. **Create Tauri commands** in `src-tauri/src/commands/`
 4. **Register commands** in `src-tauri/src/lib.rs`
-5. **Add TypeScript types and API wrapper** in `src/lib/api/index.ts`
-6. **Update stores** if needed in `src/lib/stores/index.ts`
+5. **Add TypeScript types and API wrapper** in `src/lib/api/` (create or extend a domain module, re-export from `index.ts`)
+6. **Update stores** if needed in `src/lib/stores/app-state.svelte.ts`
 7. **Build the UI** in `src/lib/components/`
 
 ## Questions?

@@ -180,9 +180,6 @@ impl Database {
         self.conn
             .execute("DELETE FROM annotations WHERE scene_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM name_mentions WHERE scene_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
 
         // Soft-delete the scene itself
         self.conn

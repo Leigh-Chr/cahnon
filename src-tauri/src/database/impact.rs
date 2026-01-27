@@ -95,29 +95,7 @@ impl Database {
             });
         }
 
-        // 4. Facts revealed in this scene
-        let fact_count: i32 = self
-            .conn
-            .query_row(
-                "SELECT COUNT(*) FROM facts WHERE revealed_in_scene_id = ?1",
-                params![scene_id],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
-
-        if fact_count > 0 {
-            items.push(ImpactItem {
-                impact_type: "facts_revealed".to_string(),
-                description: format!(
-                    "{} fact(s) revealed in this scene will lose their revelation point",
-                    fact_count
-                ),
-                entity_id: None,
-                entity_name: None,
-            });
-        }
-
-        // 5. Canonical associations
+        // 4. Canonical associations
         let assoc_count: i32 = self
             .conn
             .query_row(
@@ -245,31 +223,7 @@ impl Database {
             });
         }
 
-        // 4. Fact character links
-        let fact_char_count: i32 = self
-            .conn
-            .query_row(
-                "SELECT COUNT(*)
-                 FROM fact_characters
-                 WHERE bible_entry_id = ?1",
-                params![bible_entry_id],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
-
-        if fact_char_count > 0 {
-            items.push(ImpactItem {
-                impact_type: "fact_knowledge_lost".to_string(),
-                description: format!(
-                    "Character's knowledge of {} fact(s) will be lost",
-                    fact_char_count
-                ),
-                entity_id: None,
-                entity_name: None,
-            });
-        }
-
-        // 5. Issues linked to this bible entry
+        // 4. Issues linked to this bible entry
         let issue_count: i32 = self
             .conn
             .query_row(
@@ -324,7 +278,6 @@ impl Database {
         let mut arc_ids = std::collections::HashSet::new();
         let mut orphan_event_count = 0;
         let mut setup_payoff_count = 0;
-        let mut total_facts = 0;
         let mut total_associations = 0;
 
         for sid in &scene_ids {
@@ -338,7 +291,6 @@ impl Database {
                     }
                     "orphan_event" => orphan_event_count += 1,
                     "broken_setup_payoff" => setup_payoff_count += 1,
-                    "facts_revealed" => total_facts += 1,
                     "associations_lost" => total_associations += 1,
                     _ => {}
                 }
@@ -365,14 +317,6 @@ impl Database {
             all_items.push(ImpactItem {
                 impact_type: "broken_setup_payoff".to_string(),
                 description: format!("{} setup/payoff link(s) will break", setup_payoff_count),
-                entity_id: None,
-                entity_name: None,
-            });
-        }
-        if total_facts > 0 {
-            all_items.push(ImpactItem {
-                impact_type: "facts_affected".to_string(),
-                description: format!("{} fact revelation(s) will be lost", total_facts),
                 entity_id: None,
                 entity_name: None,
             });

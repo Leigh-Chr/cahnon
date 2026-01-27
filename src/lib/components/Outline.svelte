@@ -464,13 +464,13 @@
 										'var(--color-text-muted)'}"
 								></span>
 								<span class="scene-title truncate">{scene.title}</span>
-								{#if health}
+								{#if health && health.score < 1.0}
 									<span
 										class="health-dot"
-										class:health-good={health.score >= 0.8}
-										class:health-warning={health.score >= 0.5 && health.score < 0.8}
-										class:health-bad={health.score < 0.5}
-										title="Health: {Math.round(health.score * 100)}%"
+										title={health.checks
+											.filter((c) => !c.passed)
+											.map((c) => c.label)
+											.join('\n')}
 									></span>
 								{/if}
 								<span class="word-count">{formatWordCount(countWords(scene.text))}</span>
@@ -712,18 +712,7 @@
 		height: 6px;
 		border-radius: 50%;
 		flex-shrink: 0;
-	}
-
-	.health-dot.health-good {
-		background-color: var(--color-success, #22c55e);
-	}
-
-	.health-dot.health-warning {
 		background-color: var(--color-warning);
-	}
-
-	.health-dot.health-bad {
-		background-color: var(--color-error);
 	}
 
 	.chapter-title,

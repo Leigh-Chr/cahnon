@@ -19,7 +19,6 @@
 	import ExportDialog from './ExportDialog.svelte';
 	import ImportDialog from './ImportDialog.svelte';
 	import IssuesView from './IssuesView.svelte';
-	import NameRegistryView from './NameRegistryView.svelte';
 	import Outline from './Outline.svelte';
 	import QuickOpen from './QuickOpen.svelte';
 	import ReviewGrid from './ReviewGrid.svelte';
@@ -67,18 +66,9 @@
 			'viewTimeline',
 			'viewBible',
 			'viewIssues',
-			'viewNames',
 			'viewDashboard',
 		] as const;
-		const viewModes = [
-			'editor',
-			'corkboard',
-			'timeline',
-			'bible',
-			'issues',
-			'names',
-			'dashboard',
-		] as const;
+		const viewModes = ['editor', 'corkboard', 'timeline', 'bible', 'issues', 'dashboard'] as const;
 		for (let i = 0; i < viewActions.length; i++) {
 			if (appState.matchesShortcut(event, viewActions[i])) {
 				event.preventDefault();
@@ -262,8 +252,6 @@
 				<TimelineView />
 			{:else if appState.viewMode === 'issues'}
 				<IssuesView />
-			{:else if appState.viewMode === 'names'}
-				<NameRegistryView />
 			{:else if appState.viewMode === 'dashboard'}
 				<Dashboard />
 			{/if}

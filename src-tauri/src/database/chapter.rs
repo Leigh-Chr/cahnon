@@ -193,12 +193,6 @@ impl Database {
                     params![scene_id],
                 )
                 .map_err(|e| e.to_string())?;
-            self.conn
-                .execute(
-                    "DELETE FROM name_mentions WHERE scene_id = ?1",
-                    params![scene_id],
-                )
-                .map_err(|e| e.to_string())?;
         }
 
         self.conn

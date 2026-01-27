@@ -1,20 +1,16 @@
 //! World State at Scene N.
 //!
-//! For a given scene, computes the complete narrative world state:
-//! character presences, knowledge states, open setups, active arcs,
-//! dramatic irony, and location history. All queries use manuscript
-//! ordering: `chapter.position * 1000000 + scene.position`.
+//! For a given scene, computes the narrative world state:
+//! character presences, open setups, and active arcs.
+//! All queries use manuscript ordering: `chapter.position * 1000000 + scene.position`.
 
-use crate::models::{
-    ActiveArcState, CharacterKnowledgeState, CharacterPresence, DramaticIronyItem,
-    LocationHistoryItem, OpenSetup, WorldState,
-};
+use crate::models::{ActiveArcState, CharacterPresence, OpenSetup, WorldState};
 use rusqlite::params;
 
 use super::Database;
 
 impl Database {
-    /// Returns the complete world state at the given scene point.
+    /// Returns the world state at the given scene point.
     pub fn get_world_state_at_scene(&self, scene_id: &str) -> Result<WorldState, String> {
         // Get the manuscript order position of the target scene
         let scene_order: i64 = self
@@ -30,20 +26,14 @@ impl Database {
             .map_err(|e| format!("Scene not found: {}", e))?;
 
         let character_presences = self.ws_character_presences(scene_id, scene_order)?;
-        let character_knowledge = self.ws_character_knowledge(scene_id, scene_order)?;
         let open_setups = self.ws_open_setups(scene_order)?;
         let active_arcs = self.ws_active_arcs(scene_id, scene_order)?;
-        let dramatic_irony = self.ws_dramatic_irony(scene_id, scene_order)?;
-        let location_history = self.ws_location_history(scene_id)?;
 
         Ok(WorldState {
             scene_id: scene_id.to_string(),
             character_presences,
-            character_knowledge,
             open_setups,
             active_arcs,
-            dramatic_irony,
-            location_history,
         })
     }
 
@@ -136,71 +126,6 @@ impl Database {
         }
 
         Ok(presences)
-    }
-
-    /// Facts known by characters present in this scene.
-    fn ws_character_knowledge(
-        &self,
-        scene_id: &str,
-        scene_order: i64,
-    ) -> Result<Vec<CharacterKnowledgeState>, String> {
-        // Get characters present in this scene
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT be.id, be.name
-                 FROM canonical_associations ca
-                 JOIN bible_entries be ON ca.bible_entry_id = be.id
-                 WHERE ca.scene_id = ?1
-                   AND be.entry_type = 'character'
-                   AND be.deleted_at IS NULL",
-            )
-            .map_err(|e| e.to_string())?;
-
-        let characters: Vec<(String, String)> = stmt
-            .query_map(params![scene_id], |row| Ok((row.get(0)?, row.get(1)?)))
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-
-        let mut knowledge_states = Vec::with_capacity(characters.len());
-
-        for (be_id, name) in characters {
-            // Facts this character knows at this point
-            let mut fact_stmt = self
-                .conn
-                .prepare(
-                    "SELECT f.content
-                     FROM facts f
-                     JOIN fact_characters fc ON f.id = fc.fact_id
-                     WHERE fc.bible_entry_id = ?1
-                       AND (
-                         fc.learned_in_scene_id IS NULL
-                         OR (
-                           SELECT c.position * 1000000 + s.position
-                           FROM scenes s
-                           JOIN chapters c ON s.chapter_id = c.id
-                           WHERE s.id = fc.learned_in_scene_id
-                             AND s.deleted_at IS NULL AND c.deleted_at IS NULL
-                         ) <= ?2
-                       )",
-                )
-                .map_err(|e| e.to_string())?;
-
-            let facts: Vec<String> = fact_stmt
-                .query_map(params![be_id, scene_order], |row| row.get(0))
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-
-            knowledge_states.push(CharacterKnowledgeState {
-                bible_entry_id: be_id,
-                name,
-                known_facts: facts,
-            });
-        }
-
-        Ok(knowledge_states)
     }
 
     /// Scenes that set up something but whose payoff hasn't occurred yet.
@@ -304,98 +229,141 @@ impl Database {
         Ok(results)
     }
 
-    /// Facts the reader knows but characters present in this scene don't.
-    fn ws_dramatic_irony(
+    /// Returns the character thread: all scenes where a character appears, in order.
+    pub fn get_character_thread(
         &self,
-        scene_id: &str,
-        scene_order: i64,
-    ) -> Result<Vec<DramaticIronyItem>, String> {
-        // Facts revealed to reader (via scenes) before or at this point,
-        // but NOT known by characters present in this scene
+        bible_entry_id: &str,
+    ) -> Result<crate::models::CharacterThread, String> {
+        // Get character name
+        let character_name: String = self
+            .conn
+            .query_row(
+                "SELECT name FROM bible_entries WHERE id = ?1 AND deleted_at IS NULL",
+                params![bible_entry_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Character not found: {}", e))?;
+
+        // Get all scenes where this character appears, in manuscript order
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT f.content, be.name, rev_s.title
-                 FROM facts f
-                 JOIN scenes rev_s ON f.revealed_in_scene_id = rev_s.id
-                 JOIN chapters rev_c ON rev_s.chapter_id = rev_c.id
-                 -- Characters present in the target scene
-                 JOIN canonical_associations ca ON ca.scene_id = ?1
-                 JOIN bible_entries be ON ca.bible_entry_id = be.id AND be.entry_type = 'character'
-                 WHERE f.revealed_in_scene_id IS NOT NULL
-                   AND rev_s.deleted_at IS NULL AND rev_c.deleted_at IS NULL
-                   AND be.deleted_at IS NULL
-                   -- Fact was revealed before or at this scene
-                   AND (rev_c.position * 1000000 + rev_s.position) <= ?2
-                   -- Character does NOT know this fact yet
-                   AND NOT EXISTS (
-                     SELECT 1 FROM fact_characters fc
-                     WHERE fc.fact_id = f.id
-                       AND fc.bible_entry_id = be.id
-                       AND (
-                         fc.learned_in_scene_id IS NULL
-                         OR (
-                           SELECT c3.position * 1000000 + s3.position
-                           FROM scenes s3
-                           JOIN chapters c3 ON s3.chapter_id = c3.id
-                           WHERE s3.id = fc.learned_in_scene_id
-                             AND s3.deleted_at IS NULL AND c3.deleted_at IS NULL
-                         ) <= ?2
-                       )
-                   )
-                 ORDER BY (rev_c.position * 1000000 + rev_s.position)",
+                "SELECT s.id, s.title, c.title, c.id, s.pov, s.tension, s.summary,
+                        c.position * 1000000 + s.position as scene_order
+                 FROM canonical_associations ca
+                 JOIN scenes s ON ca.scene_id = s.id
+                 JOIN chapters c ON s.chapter_id = c.id
+                 WHERE ca.bible_entry_id = ?1
+                   AND s.deleted_at IS NULL AND c.deleted_at IS NULL
+                 ORDER BY scene_order",
             )
             .map_err(|e| e.to_string())?;
 
-        let results = stmt
-            .query_map(params![scene_id, scene_order], |row| {
-                Ok(DramaticIronyItem {
-                    fact_content: row.get(0)?,
-                    character_name: row.get(1)?,
-                    revealed_in_scene_title: row.get(2)?,
-                })
+        #[allow(clippy::type_complexity)]
+        let rows: Vec<(
+            String,
+            String,
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            i64,
+        )> = stmt
+            .query_map(params![bible_entry_id], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                ))
             })
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
-        Ok(results)
-    }
 
-    /// Previous scenes at the same location as this scene.
-    fn ws_location_history(&self, scene_id: &str) -> Result<Vec<LocationHistoryItem>, String> {
-        // Find location associations for this scene, then find other scenes at same locations
-        let mut stmt = self
+        // Get all scene positions for gap calculation
+        let mut all_pos_stmt = self
             .conn
             .prepare(
-                "SELECT DISTINCT s2.id, s2.title, ch2.title
-                 FROM canonical_associations ca1
-                 JOIN bible_entries be ON ca1.bible_entry_id = be.id
-                 JOIN canonical_associations ca2 ON ca2.bible_entry_id = be.id
-                 JOIN scenes s2 ON ca2.scene_id = s2.id
-                 JOIN chapters ch2 ON s2.chapter_id = ch2.id
-                 JOIN scenes s1 ON ca1.scene_id = s1.id
-                 JOIN chapters ch1 ON s1.chapter_id = ch1.id
-                 WHERE ca1.scene_id = ?1
-                   AND be.entry_type = 'location'
-                   AND be.deleted_at IS NULL
-                   AND s2.id != ?1
-                   AND s2.deleted_at IS NULL AND ch2.deleted_at IS NULL
-                   AND (ch2.position * 1000000 + s2.position) < (ch1.position * 1000000 + s1.position)
-                 ORDER BY ch2.position, s2.position",
+                "SELECT c.position * 1000000 + s.position as scene_order
+                 FROM scenes s
+                 JOIN chapters c ON s.chapter_id = c.id
+                 WHERE s.deleted_at IS NULL AND c.deleted_at IS NULL
+                 ORDER BY scene_order",
             )
             .map_err(|e| e.to_string())?;
 
-        let results = stmt
-            .query_map(params![scene_id], |row| {
-                Ok(LocationHistoryItem {
-                    scene_id: row.get(0)?,
-                    scene_title: row.get(1)?,
-                    chapter_title: row.get(2)?,
-                })
-            })
+        let all_positions: Vec<i64> = all_pos_stmt
+            .query_map([], |row| row.get(0))
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
-        Ok(results)
+
+        let mut scenes = Vec::with_capacity(rows.len());
+        let mut prev_order: Option<i64> = None;
+
+        for (
+            i,
+            (scene_id, scene_title, chapter_title, chapter_id, pov, tension, summary, scene_order),
+        ) in rows.iter().enumerate()
+        {
+            // Calculate gap from previous appearance
+            let gap = if let Some(prev) = prev_order {
+                let prev_idx = all_positions.iter().position(|&p| p == prev).unwrap_or(0);
+                let curr_idx = all_positions
+                    .iter()
+                    .position(|&p| p == *scene_order)
+                    .unwrap_or(0);
+                curr_idx.saturating_sub(prev_idx) as i32
+            } else {
+                0
+            };
+            prev_order = Some(*scene_order);
+
+            // Get other characters in this scene
+            let mut other_stmt = self
+                .conn
+                .prepare(
+                    "SELECT be.name
+                     FROM canonical_associations ca
+                     JOIN bible_entries be ON ca.bible_entry_id = be.id
+                     WHERE ca.scene_id = ?1
+                       AND be.entry_type = 'character'
+                       AND be.id != ?2
+                       AND be.deleted_at IS NULL
+                     ORDER BY be.name",
+                )
+                .map_err(|e| e.to_string())?;
+
+            let other_characters: Vec<String> = other_stmt
+                .query_map(params![scene_id, bible_entry_id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+
+            scenes.push(crate::models::CharacterThreadScene {
+                scene_id: scene_id.clone(),
+                scene_title: scene_title.clone(),
+                chapter_title: chapter_title.clone(),
+                chapter_id: chapter_id.clone(),
+                position_index: i as i32,
+                pov: pov.clone(),
+                tension: tension.clone(),
+                summary: summary.clone(),
+                other_characters,
+                gap_from_previous: gap,
+            });
+        }
+
+        Ok(crate::models::CharacterThread {
+            bible_entry_id: bible_entry_id.to_string(),
+            character_name,
+            scenes,
+        })
     }
 }

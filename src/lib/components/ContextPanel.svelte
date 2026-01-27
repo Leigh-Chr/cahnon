@@ -32,11 +32,9 @@
 	import { getRevisionPass } from '$lib/utils/revision-passes';
 
 	import AnnotationsPanel from './AnnotationsPanel.svelte';
-	import FactsPanel from './FactsPanel.svelte';
+	import CharacterThread from './CharacterThread.svelte';
 	import NarrativeContext from './NarrativeContext.svelte';
 	import RevisionChecklist from './RevisionChecklist.svelte';
-	import SceneContextPanel from './SceneContextPanel.svelte';
-	import StatusChart from './StatusChart.svelte';
 	import { Button, Icon } from './ui';
 
 	interface Props {
@@ -63,6 +61,15 @@
 	}
 
 	let annotationsPanel = $state<AnnotationsPanel | null>(null);
+
+	// World State collapsible toggle (defaults closed, auto-opens in revision mode)
+	let worldStateExpanded = $state(false);
+
+	$effect(() => {
+		if (appState.workMode === 'revision') {
+			worldStateExpanded = true;
+		}
+	});
 
 	// Editable fields state
 	let isEditingNotes = $state(false);
@@ -397,33 +404,14 @@
 	{#if selectedScene}
 		{@const sceneWords = countWords(selectedScene.text)}
 
-		<!-- Scene Context ("Previously On...") -->
-		<section class="panel-section">
-			<SceneContextPanel />
-		</section>
-
-		<!-- Health Score Section -->
-		{#if sceneHealth}
+		<!-- Health Section — only shown when there are problems -->
+		{#if sceneHealth && sceneHealth.score < 1.0}
 			<section class="panel-section">
-				<div class="section-header">
-					<h3>Health</h3>
-					<span
-						class="health-score"
-						class:health-good={sceneHealth.score >= 0.8}
-						class:health-warning={sceneHealth.score >= 0.5 && sceneHealth.score < 0.8}
-						class:health-bad={sceneHealth.score < 0.5}
-					>
-						{Math.round(sceneHealth.score * 100)}%
-					</span>
-				</div>
+				<h3>Problems</h3>
 				<div class="health-checks">
-					{#each sceneHealth.checks as check (check.name)}
-						<div
-							class="health-check"
-							class:check-passed={check.passed}
-							class:check-failed={!check.passed}
-						>
-							<span class="check-icon">{check.passed ? '✓' : '✗'}</span>
+					{#each sceneHealth.checks.filter((c) => !c.passed) as check (check.name)}
+						<div class="health-check check-failed">
+							<span class="check-icon">!</span>
 							<span class="check-label">{check.label}</span>
 						</div>
 					{/each}
@@ -518,13 +506,6 @@
 						</button>
 					{/if}
 				</div>
-			</section>
-		{/if}
-
-		<!-- Status Chart Section -->
-		{#if isSectionVisible('status')}
-			<section class="panel-section">
-				<StatusChart />
 			</section>
 		{/if}
 
@@ -914,21 +895,20 @@
 			</section>
 		{/if}
 
-		<!-- Facts & Revelations Section (Revision Mode) -->
-		{#if isSectionVisible('facts') && appState.workMode === 'revision' && selectedSceneId}
-			<section class="panel-section">
-				<h3>Facts & Revelations</h3>
-				<FactsPanel sceneId={selectedSceneId} />
-			</section>
-		{/if}
-
-		<!-- Narrative Context (World State) -->
-		{#if appState.workMode === 'revision'}
-			<section class="panel-section">
-				<h3>World State</h3>
-				<NarrativeContext />
-			</section>
-		{/if}
+		<!-- Narrative Context (World State) / Character Thread -->
+		<section class="panel-section">
+			{#if appState.characterThreadId}
+				<CharacterThread />
+			{:else}
+				<button class="section-toggle" onclick={() => (worldStateExpanded = !worldStateExpanded)}>
+					<span class="toggle-icon">{worldStateExpanded ? '▾' : '▸'}</span>
+					<h3>World State</h3>
+				</button>
+				{#if worldStateExpanded}
+					<NarrativeContext />
+				{/if}
+			{/if}
+		</section>
 
 		<!-- Annotations Section (Revision Mode) -->
 		{#if isSectionVisible('annotations') && appState.workMode === 'revision'}
@@ -1569,29 +1549,6 @@
 		color: var(--color-text-muted);
 	}
 
-	/* Health score styles */
-	.health-score {
-		font-size: var(--font-size-sm);
-		font-weight: 700;
-		padding: 2px 8px;
-		border-radius: var(--border-radius-sm);
-	}
-
-	.health-good {
-		color: var(--color-success, #22c55e);
-		background-color: color-mix(in srgb, var(--color-success, #22c55e) 15%, transparent);
-	}
-
-	.health-warning {
-		color: var(--color-warning);
-		background-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
-	}
-
-	.health-bad {
-		color: var(--color-error);
-		background-color: color-mix(in srgb, var(--color-error) 15%, transparent);
-	}
-
 	.health-checks {
 		display: flex;
 		flex-direction: column;
@@ -1614,12 +1571,8 @@
 		flex-shrink: 0;
 	}
 
-	.check-passed .check-icon {
-		color: var(--color-success, #22c55e);
-	}
-
 	.check-failed .check-icon {
-		color: var(--color-error);
+		color: var(--color-warning);
 	}
 
 	.check-label {
@@ -1628,5 +1581,30 @@
 
 	.check-failed .check-label {
 		color: var(--color-text-primary);
+	}
+
+	/* Section toggle (collapsible headers) */
+	.section-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		width: 100%;
+		padding: 0;
+		margin-bottom: var(--spacing-sm);
+		cursor: pointer;
+		background: none;
+		border: none;
+		text-align: left;
+	}
+
+	.section-toggle h3 {
+		margin: 0;
+	}
+
+	.toggle-icon {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
+		width: 14px;
+		flex-shrink: 0;
 	}
 </style>

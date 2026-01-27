@@ -119,7 +119,7 @@ pub fn run() {
             commands::search::global_search,
             commands::search::find_replace_in_scenes,
             // Stats commands
-            commands::stats::get_word_counts,
+            commands::analytics::get_word_counts,
             // Arc commands
             commands::arc::create_arc,
             commands::arc::get_arcs,
@@ -226,53 +226,14 @@ pub fn run() {
             commands::cut::create_cut,
             commands::cut::get_cuts,
             commands::cut::delete_cut,
-            // Name Registry commands
-            commands::name_registry::create_name_registry_entry,
-            commands::name_registry::get_name_registry_entries,
-            commands::name_registry::get_name_registry_entry,
-            commands::name_registry::update_name_registry_entry,
-            commands::name_registry::delete_name_registry_entry,
-            commands::name_registry::get_name_mentions_by_scene,
-            commands::name_registry::get_name_mentions_by_registry,
-            commands::name_registry::update_name_mention,
-            commands::name_registry::delete_name_mention,
-            commands::name_registry::scan_names,
-            commands::name_registry::scan_names_for_scene,
-            commands::name_registry::merge_name_entries,
-            // Saved Filter commands
-            commands::saved_filter::create_saved_filter,
-            commands::saved_filter::get_saved_filters,
-            commands::saved_filter::update_saved_filter,
-            commands::saved_filter::delete_saved_filter,
-            // Writing Session commands
-            commands::writing_session::create_writing_session,
-            commands::writing_session::get_writing_sessions,
-            commands::writing_session::get_writing_session_by_date,
-            commands::writing_session::update_writing_session,
-            commands::writing_session::delete_writing_session,
-            // Detection commands
-            commands::detection::run_all_detections,
-            // Health commands
-            commands::health::get_scene_health_batch,
-            // World State commands
-            commands::world_state::get_world_state_at_scene,
-            // Scene Context commands
-            commands::scene_context::get_scene_context,
-            // Impact Awareness commands
-            commands::impact::preview_delete_scene_impact,
-            commands::impact::preview_delete_bible_entry_impact,
-            commands::impact::preview_delete_chapter_impact,
-            // Fact commands
-            commands::fact::create_fact,
-            commands::fact::get_facts,
-            commands::fact::get_fact,
-            commands::fact::update_fact,
-            commands::fact::delete_fact,
-            commands::fact::get_facts_for_scene,
-            commands::fact::link_character_to_fact,
-            commands::fact::unlink_character_from_fact,
-            commands::fact::get_fact_characters,
-            commands::fact::get_character_knowledge_at_scene,
+            // Analytics commands (stats, health, detection, world state, impact)
+            commands::analytics::run_all_detections,
+            commands::analytics::get_scene_health_batch,
+            commands::analytics::get_world_state_at_scene,
+            commands::analytics::get_character_thread,
+            commands::analytics::preview_delete_scene_impact,
+            commands::analytics::preview_delete_bible_entry_impact,
+            commands::analytics::preview_delete_chapter_impact,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
