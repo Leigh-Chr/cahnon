@@ -702,8 +702,10 @@ Import process:
 | Corkboard  | ⌘2  | Ctrl+2        |
 | Timeline   | ⌘3  | Ctrl+3        |
 | Bible      | ⌘4  | Ctrl+4        |
-| Fullscreen | ⌘⇧F | F11           |
-| Focus mode | ⌘D  | Ctrl+D        |
+| Issues     | ⌘5  | Ctrl+5        |
+| Dashboard  | ⌘6  | Ctrl+6        |
+| Fullscreen | F11 | F11           |
+| Focus mode | ⌘⇧F | Ctrl+Shift+F  |
 
 All shortcuts customizable in settings.
 

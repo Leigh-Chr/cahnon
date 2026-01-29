@@ -41,16 +41,16 @@ cahnon/
 ├── src/                        # Frontend (Svelte/TypeScript)
 │   ├── lib/
 │   │   ├── api/               # Tauri IPC wrappers, split into domain modules
-│   │   │   ├── types/         # Shared TypeScript types
-│   │   │   └── *.ts           # Domain modules (project, bible, timeline, etc.)
-│   │   ├── components/        # Svelte components (~46)
-│   │   │   └── ui/            # Reusable UI primitives (Button, Icon, etc.)
+│   │   │   ├── types/index.ts # Shared TypeScript types
+│   │   │   └── *.ts           # Domain modules (9 total: project, bible, timeline, etc.)
+│   │   ├── components/        # Svelte components (39 main + 12 ui = 51 total)
+│   │   │   └── ui/            # Reusable UI primitives (Button, Icon, Dialog, etc.)
 │   │   ├── stores/            # Svelte 5 runes-based state management
 │   │   └── utils/             # Utility functions
 │   └── routes/                # SvelteKit routes
 ├── src-tauri/                 # Backend (Rust)
 │   ├── src/
-│   │   ├── commands/          # Tauri command handlers (29 modules)
+│   │   ├── commands/          # Tauri command handlers (20 modules)
 │   │   ├── database.rs        # SQLite operations
 │   │   ├── models.rs          # Data structures
 │   │   ├── validation.rs      # Input validation

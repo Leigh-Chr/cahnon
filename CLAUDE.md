@@ -40,7 +40,7 @@ UI Component → Svelte Store → API Layer (invoke) → Tauri IPC → Rust Comm
 
 - **`lib/api/`** - TypeScript types and Tauri invoke wrappers, split into domain modules (project, bible, timeline, health, etc.) with `index.ts` re-exporting all APIs
 - **`lib/stores/`** - Svelte 5 runes-based `AppState` class (`app-state.svelte.ts`) + types, recovery utilities
-- **`lib/components/`** - ~46 Svelte components (Layout, Editor, Outline, Corkboard, BibleView, Dashboard, etc.) + `ui/` subdir for reusable primitives (Button, Icon, EmptyState, etc.)
+- **`lib/components/`** - 39 Svelte components (Layout, Editor, Outline, Corkboard, BibleView, Dashboard, etc.) + `ui/` subdir with 12 reusable primitives (Button, Icon, Dialog, EmptyState, etc.)
 
 ### Backend (`src-tauri/src/`)
 
@@ -48,7 +48,7 @@ UI Component → Svelte Store → API Layer (invoke) → Tauri IPC → Rust Comm
 - **`models.rs`** - All data structures and request/response types
 - **`database.rs`** - SQLite operations (schema init, migrations, CRUD)
 - **`validation.rs`** - Input validation
-- **`commands/`** - 29 modules: project, chapter, scene, bible, arc, event, export, fact, health, impact, issue, name_registry, world_state, writing_session, etc.
+- **`commands/`** - 20 modules: project, chapter, scene, bible, arc, event, export, export_csv, annotation, association, cut, history, import, issue, relationship, search, snapshot, template, trash, analytics
 
 ### Data Model
 
@@ -68,7 +68,7 @@ Projects are single `.cahnon` SQLite files containing:
 2. Add database operations in `src-tauri/src/database.rs`
 3. Create Tauri commands in `src-tauri/src/commands/`
 4. Register commands in `src-tauri/src/lib.rs` (`generate_handler![]`)
-5. Add TypeScript types in `src/lib/api/types/` and API wrapper in `src/lib/api/` (create a domain module or add to existing one, re-export from `index.ts`)
+5. Add TypeScript types in `src/lib/api/types/index.ts` and API wrapper in `src/lib/api/` (create a domain module or add to existing one, re-export from `index.ts`)
 6. Update stores if needed in `src/lib/stores/app-state.svelte.ts`
 7. Build UI components in `src/lib/components/`
 

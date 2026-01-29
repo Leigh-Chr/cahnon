@@ -67,9 +67,10 @@ The built application will be in `src-tauri/target/release/`.
 | New Scene            | `Cmd/Ctrl + N`         |
 | Save                 | `Cmd/Ctrl + S`         |
 | Toggle Outline       | `Cmd/Ctrl + \`         |
-| Toggle Context Panel | `Cmd/Ctrl + .`         |
+| Toggle Context Panel | `Cmd/Ctrl + Shift + \` |
 | Focus Mode           | `Cmd/Ctrl + Shift + F` |
-| Find & Replace       | `Cmd/Ctrl + F`         |
+| Find                 | `Cmd/Ctrl + F`         |
+| Find & Replace       | `Cmd/Ctrl + H`         |
 
 ## Documentation
 

@@ -48,28 +48,33 @@ cahnon/
 │   ├── lib/
 │   │   ├── api/
 │   │   │   ├── index.ts          # Re-exports all API modules
-│   │   │   ├── types/            # Shared TypeScript types
+│   │   │   ├── types/index.ts    # Shared TypeScript types
 │   │   │   ├── project.ts        # Project CRUD
 │   │   │   ├── manuscript.ts     # Chapter/scene operations
 │   │   │   ├── bible.ts          # Bible entries, associations, relationships
 │   │   │   ├── timeline.ts       # Events, arcs
 │   │   │   ├── content.ts        # Annotations, cuts, templates, snapshots
-│   │   │   └── ...               # 17 domain modules total
+│   │   │   └── ...               # 9 domain modules total
 │   │   ├── components/
 │   │   │   ├── Layout.svelte     # Main app container
 │   │   │   ├── Editor.svelte     # TipTap text editor
 │   │   │   ├── Outline.svelte    # Chapter/scene tree
 │   │   │   ├── Dashboard.svelte  # Project dashboard
-│   │   │   ├── ui/               # Reusable primitives (Button, Icon, etc.)
-│   │   │   └── ...               # ~46 components total
+│   │   │   ├── ui/               # 12 reusable primitives (Button, Icon, Dialog, etc.)
+│   │   │   └── ...               # 39 main + 12 ui = 51 components total
 │   │   ├── stores/
 │   │   │   ├── app-state.svelte.ts  # Main AppState class (Svelte 5 runes)
 │   │   │   ├── types.ts             # Store type definitions
 │   │   │   ├── recovery.ts          # Crash recovery utilities
+│   │   │   ├── onboarding.ts        # Onboarding state management
+│   │   │   ├── undo.ts              # Undo/redo utilities
 │   │   │   └── index.svelte.ts      # Re-exports
 │   │   └── utils/
-│   │       ├── index.ts          # Helper functions
-│   │       └── revision-passes.ts
+│   │       ├── index.ts          # Main helper functions
+│   │       ├── annotations.ts    # Annotation utilities
+│   │       ├── focus-trap.ts     # Focus trap for modals
+│   │       ├── native-dialog.ts  # Native dialog helpers
+│   │       └── timeline-layout.ts # Timeline layout calculations
 │   └── routes/
 │       └── +page.svelte          # Entry point
 │
@@ -88,11 +93,10 @@ cahnon/
 │   │       ├── arc.rs            # Plot arcs
 │   │       ├── event.rs          # Timeline events
 │   │       ├── export.rs         # Export handlers
-│   │       ├── health.rs         # Scene health scoring
-│   │       ├── fact.rs           # Story facts tracking
-│   │       ├── world_state.rs    # Narrative context at scene level
-│   │       ├── writing_session.rs # Session tracking
-│   │       └── ...               # 29 modules total
+│   │       ├── annotation.rs     # Text annotations
+│   │       ├── analytics.rs      # Writing analytics
+│   │       ├── search.rs         # Global search
+│   │       └── ...               # 20 modules total
 │   └── Cargo.toml
 │
 ├── docs/
@@ -249,7 +253,7 @@ Commands are registered in `lib.rs`:
 ```rust
 .invoke_handler(tauri::generate_handler![
     commands::scene::update_scene,
-    // ... 170+ commands
+    // ... 141 commands
 ])
 ```
 
