@@ -275,4 +275,17 @@
 		display: flex;
 		gap: var(--spacing-xs);
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.tour-tooltip {
+			width: 280px;
+		}
+	}
+
+	@media (max-width: 800px) {
+		.tour-tooltip {
+			width: 240px;
+		}
+	}
 </style>

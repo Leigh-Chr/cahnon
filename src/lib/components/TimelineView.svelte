@@ -575,4 +575,11 @@
 		color: var(--color-text-muted);
 		margin-top: var(--spacing-xs);
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.dual-track {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>

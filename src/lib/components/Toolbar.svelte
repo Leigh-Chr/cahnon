@@ -764,4 +764,69 @@
 		background-color: var(--color-border);
 		margin: var(--spacing-xs) 0;
 	}
+
+	/* Responsive toolbar adjustments */
+	@media (max-width: 1000px) {
+		.breadcrumb-item {
+			max-width: 120px;
+		}
+		.breadcrumb-current {
+			max-width: 140px;
+		}
+		/* Hide shortcut hints to save space */
+		.view-btn .shortcut-hint {
+			display: none;
+		}
+		.view-btn {
+			padding: var(--spacing-xs) var(--spacing-sm);
+		}
+	}
+
+	@media (max-width: 900px) {
+		.toolbar {
+			gap: var(--spacing-sm);
+			padding: 0 var(--spacing-sm);
+		}
+		.breadcrumb-item {
+			max-width: 100px;
+		}
+		.breadcrumb-current {
+			max-width: 120px;
+		}
+		.view-btn {
+			padding: var(--spacing-xs);
+			font-size: var(--font-size-xs);
+		}
+		.mode-toggle {
+			padding: var(--spacing-xs) var(--spacing-sm);
+			font-size: var(--font-size-xs);
+		}
+		.separator {
+			margin: 0 2px;
+		}
+		/* Hide pending chars count on small screens */
+		.chars-pending {
+			display: none;
+		}
+	}
+
+	@media (max-width: 800px) {
+		/* Hide view labels, show only abbreviations */
+		.view-btn span:first-child {
+			max-width: 40px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.breadcrumb-item {
+			max-width: 80px;
+		}
+		.breadcrumb-current {
+			max-width: 100px;
+		}
+		/* Stack unsaved badge below breadcrumb if needed */
+		.unsaved-badge {
+			font-size: 10px;
+			padding: 1px var(--spacing-xs);
+		}
+	}
 </style>

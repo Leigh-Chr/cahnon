@@ -321,4 +321,13 @@
 		font-style: italic;
 		padding: var(--spacing-sm);
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.scene-meta,
+		.scene-summary,
+		.scene-others {
+			padding-left: 20px;
+		}
+	}
 </style>

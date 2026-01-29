@@ -1061,4 +1061,20 @@
 		margin-top: var(--spacing-xs);
 		display: block;
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.modal-container {
+			max-width: calc(100vw - var(--spacing-md) * 2);
+		}
+		.events-sidebar {
+			width: 220px;
+		}
+	}
+
+	@media (max-width: 800px) {
+		.events-sidebar {
+			width: 180px;
+		}
+	}
 </style>

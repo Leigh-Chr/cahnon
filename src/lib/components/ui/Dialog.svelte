@@ -188,6 +188,8 @@
 		font-size: var(--font-size-lg);
 		font-weight: 600;
 		color: var(--color-text-primary);
+		word-break: break-word;
+		overflow-wrap: break-word;
 	}
 
 	.dialog-close {
@@ -219,5 +221,24 @@
 		padding: var(--spacing-md) var(--spacing-lg);
 		border-top: 1px solid var(--color-border);
 		flex-shrink: 0;
+	}
+
+	/* Responsive dialog sizes for smaller screens */
+	@media (max-width: 900px) {
+		.dialog-sm {
+			max-width: min(360px, calc(100vw - var(--spacing-md) * 2));
+		}
+		.dialog-md {
+			max-width: min(500px, calc(100vw - var(--spacing-md) * 2));
+		}
+		.dialog-lg {
+			max-width: min(650px, calc(100vw - var(--spacing-md) * 2));
+		}
+		.dialog-xl {
+			max-width: min(800px, calc(100vw - var(--spacing-md) * 2));
+		}
+		.dialog-body {
+			padding: var(--spacing-md);
+		}
 	}
 </style>

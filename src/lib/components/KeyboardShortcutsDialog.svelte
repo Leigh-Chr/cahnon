@@ -288,7 +288,14 @@
 		white-space: nowrap;
 	}
 
-	@media (max-width: 500px) {
+	@media (max-width: 900px) {
+		.shortcuts-dialog {
+			width: 500px;
+			padding: var(--spacing-md);
+		}
+	}
+
+	@media (max-width: 600px) {
 		.shortcuts-grid {
 			grid-template-columns: 1fr;
 		}

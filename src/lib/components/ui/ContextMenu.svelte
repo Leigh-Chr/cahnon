@@ -169,4 +169,12 @@
 			animation: none;
 		}
 	}
+
+	/* Ensure menu doesn't overflow on small screens */
+	@media (max-width: 900px) {
+		.context-menu {
+			min-width: 160px;
+			max-width: calc(100vw - var(--spacing-md) * 2);
+		}
+	}
 </style>

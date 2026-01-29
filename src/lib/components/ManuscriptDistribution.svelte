@@ -361,4 +361,14 @@
 		padding: var(--spacing-md);
 		font-size: var(--font-size-sm);
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.charts-row {
+			grid-template-columns: 1fr;
+		}
+		.pie-section {
+			min-width: 150px;
+		}
+	}
 </style>

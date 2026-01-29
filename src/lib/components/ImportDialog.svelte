@@ -658,4 +658,11 @@
 			transform: rotate(360deg);
 		}
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.import-modes {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>

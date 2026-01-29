@@ -515,4 +515,15 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.welcome-content {
+			max-width: 90%;
+		}
+		.welcome-actions {
+			flex-wrap: wrap;
+			justify-content: center;
+		}
+	}
 </style>

@@ -1118,4 +1118,20 @@
 		font-size: var(--font-size-sm);
 		font-style: italic;
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.modal-container {
+			max-width: calc(100vw - var(--spacing-md) * 2);
+		}
+		.arcs-sidebar {
+			width: 220px;
+		}
+	}
+
+	@media (max-width: 800px) {
+		.arcs-sidebar {
+			width: 180px;
+		}
+	}
 </style>

@@ -652,4 +652,15 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-text-primary);
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.dialog-container {
+			max-width: 90%;
+			padding: var(--spacing-md);
+		}
+		.shortcuts-list {
+			max-height: 200px;
+		}
+	}
 </style>

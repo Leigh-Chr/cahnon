@@ -1266,8 +1266,9 @@
 	}
 
 	.layout.focus-mode .content {
-		max-width: 800px;
+		max-width: min(800px, calc(100vw - var(--spacing-lg) * 2));
 		width: 100%;
+		padding: 0 var(--spacing-md);
 	}
 
 	.exit-focus-btn {
@@ -1469,6 +1470,23 @@
 		}
 		50% {
 			opacity: 1;
+		}
+	}
+
+	/* Responsive adjustments for smaller windows */
+	@media (max-width: 900px) {
+		.modal-container {
+			width: 95%;
+			max-width: calc(100vw - var(--spacing-md) * 2);
+		}
+
+		.recovery-modal {
+			max-width: calc(100vw - var(--spacing-md) * 2);
+			padding: var(--spacing-md);
+		}
+
+		.recovery-list {
+			max-height: 200px;
 		}
 	}
 </style>

@@ -1895,4 +1895,25 @@ Custom Fields: ${breakdown.customFields}`;
 	.related-loading {
 		padding: var(--spacing-lg) 0;
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.bible-sidebar {
+			width: 240px;
+		}
+	}
+
+	@media (max-width: 800px) {
+		.bible-sidebar {
+			width: 200px;
+		}
+		.filter-tabs {
+			flex-wrap: nowrap;
+			-webkit-overflow-scrolling: touch;
+		}
+		.filter-tab {
+			font-size: var(--font-size-xs);
+			padding: var(--spacing-xs);
+		}
+	}
 </style>

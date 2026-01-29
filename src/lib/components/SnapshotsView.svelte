@@ -1079,4 +1079,24 @@
 		color: var(--color-text-secondary);
 		text-align: right;
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.panel {
+			width: 380px;
+		}
+		.panel-content {
+			padding: var(--spacing-md);
+		}
+	}
+
+	@media (max-width: 800px) {
+		.panel {
+			width: 320px;
+		}
+		.snapshot-meta {
+			flex-direction: column;
+			gap: var(--spacing-xs);
+		}
+	}
 </style>

@@ -516,4 +516,12 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-warning);
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.find-replace {
+			min-width: 280px;
+			max-width: calc(100vw - var(--spacing-md) * 2 - var(--width-sidebar));
+		}
+	}
 </style>

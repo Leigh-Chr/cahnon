@@ -880,6 +880,21 @@ textarea::placeholder {
 	}
 }
 
+/* Responsive layout dimensions for smaller windows */
+@media (max-width: 1000px) {
+	:root {
+		--width-sidebar: 220px;
+		--width-panel: 260px;
+	}
+}
+
+@media (max-width: 900px) {
+	:root {
+		--width-sidebar: 200px;
+		--width-panel: 240px;
+	}
+}
+
 /* ==========================================================================
    AJ6: Active State for Toggle Buttons
    ========================================================================== */

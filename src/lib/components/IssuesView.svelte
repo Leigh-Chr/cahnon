@@ -1204,4 +1204,26 @@
 		font-style: italic;
 		font-size: var(--font-size-sm);
 	}
+
+	/* Responsive adjustments */
+	@media (max-width: 900px) {
+		.issues-sidebar {
+			width: 280px;
+		}
+		.detail-content {
+			max-width: none;
+		}
+	}
+
+	@media (max-width: 800px) {
+		.issues-sidebar {
+			width: 240px;
+		}
+		.issues-dashboard {
+			flex-wrap: wrap;
+		}
+		.stat-card {
+			min-width: 60px;
+		}
+	}
 </style>
