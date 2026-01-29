@@ -9,8 +9,8 @@
  * - `editor`: Main writing view with TipTap editor
  * - `corkboard`: Card-based scene organization
  * - `timeline`: Chronological event view
- * - `bible`: Knowledge base browser
- * - `issues`: Consistency problems and issues view
+ * - `bible`: Knowledge base browser (Codex)
+ * - `issues`: Consistency problems and issues view (Continuity)
  */
 export type ViewMode = 'editor' | 'corkboard' | 'timeline' | 'bible' | 'issues' | 'dashboard';
 
@@ -20,6 +20,11 @@ export type ViewMode = 'editor' | 'corkboard' | 'timeline' | 'bible' | 'issues' 
  * - `revision`: Shows analytical tools (annotations, review grid, etc.)
  */
 export type WorkMode = 'writing' | 'revision';
+
+/**
+ * CA4: Editor color theme options.
+ */
+export type EditorTheme = 'default' | 'sepia' | 'dark' | 'low-contrast';
 
 /**
  * Typography settings for the text editor.
@@ -34,6 +39,8 @@ export interface EditorSettings {
 	lineHeight: number;
 	/** Max width of text column in pixels */
 	textWidth: number;
+	/** CA4: Editor color theme */
+	theme: EditorTheme;
 }
 
 /**
@@ -54,6 +61,7 @@ export const defaultEditorSettings: EditorSettings = {
 	fontSize: 18,
 	lineHeight: 1.8,
 	textWidth: 700,
+	theme: 'default',
 };
 
 export const defaultFocusSettings: FocusSettings = {
@@ -90,6 +98,10 @@ export interface KeyboardShortcuts {
 	toggleWorkMode: ShortcutBinding;
 	nextScene: ShortcutBinding;
 	prevScene: ShortcutBinding;
+	nextChapter: ShortcutBinding; // AD4
+	prevChapter: ShortcutBinding; // AD4
+	newChapter: ShortcutBinding;
+	newScene: ShortcutBinding;
 	save: ShortcutBinding;
 	find: ShortcutBinding;
 	findReplace: ShortcutBinding;
@@ -102,6 +114,7 @@ export interface KeyboardShortcuts {
 	fullscreen: ShortcutBinding;
 	focusMode: ShortcutBinding;
 	addAnnotation: ShortcutBinding;
+	showShortcuts: ShortcutBinding;
 }
 
 export const defaultKeyboardShortcuts: KeyboardShortcuts = {
@@ -114,21 +127,26 @@ export const defaultKeyboardShortcuts: KeyboardShortcuts = {
 	viewBible: { key: '4', mod: true, shift: false },
 	viewIssues: { key: '5', mod: true, shift: false },
 	viewDashboard: { key: '6', mod: true, shift: false },
-	toggleWorkMode: { key: 'd', mod: true, shift: false },
+	toggleWorkMode: { key: 'd', mod: true, shift: true },
 	nextScene: { key: 'ArrowDown', mod: true, shift: false },
 	prevScene: { key: 'ArrowUp', mod: true, shift: false },
+	nextChapter: { key: 'ArrowDown', mod: true, shift: true }, // AD4
+	prevChapter: { key: 'ArrowUp', mod: true, shift: true }, // AD4
+	newChapter: { key: 'n', mod: true, shift: true },
+	newScene: { key: 'n', mod: true, shift: false },
 	save: { key: 's', mod: true, shift: false },
 	find: { key: 'f', mod: true, shift: false },
 	findReplace: { key: 'h', mod: true, shift: false },
 	export: { key: 'e', mod: true, shift: false },
 	reviewGrid: { key: 'g', mod: true, shift: false },
-	importDialog: { key: 'i', mod: true, shift: false },
-	arcsManager: { key: 'a', mod: true, shift: false },
+	importDialog: { key: 'i', mod: true, shift: true },
+	arcsManager: { key: 'a', mod: true, shift: true },
 	eventsManager: { key: 'v', mod: true, shift: false },
-	templatesManager: { key: 't', mod: true, shift: false },
+	templatesManager: { key: 't', mod: true, shift: true },
 	fullscreen: { key: 'F11', mod: false, shift: false },
 	focusMode: { key: 'f', mod: true, shift: true },
-	addAnnotation: { key: 'a', mod: true, shift: true },
+	addAnnotation: { key: 'm', mod: true, shift: true },
+	showShortcuts: { key: '/', mod: true, shift: false },
 };
 
 /** Friendly labels for shortcut actions. */
@@ -139,12 +157,16 @@ export const shortcutLabels: Record<keyof KeyboardShortcuts, string> = {
 	viewEditor: 'Editor View',
 	viewCorkboard: 'Corkboard View',
 	viewTimeline: 'Timeline View',
-	viewBible: 'Bible View',
-	viewIssues: 'Issues View',
+	viewBible: 'Codex View',
+	viewIssues: 'Continuity View',
 	viewDashboard: 'Dashboard View',
 	toggleWorkMode: 'Toggle Work Mode',
 	nextScene: 'Next Scene',
 	prevScene: 'Previous Scene',
+	nextChapter: 'Next Chapter', // AD4
+	prevChapter: 'Previous Chapter', // AD4
+	newChapter: 'New Chapter',
+	newScene: 'New Scene',
 	save: 'Save',
 	find: 'Find',
 	findReplace: 'Find & Replace',
@@ -157,4 +179,5 @@ export const shortcutLabels: Record<keyof KeyboardShortcuts, string> = {
 	fullscreen: 'Fullscreen',
 	focusMode: 'Focus Mode',
 	addAnnotation: 'Add Annotation',
+	showShortcuts: 'Keyboard Shortcuts',
 };

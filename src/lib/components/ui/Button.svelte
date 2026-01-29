@@ -11,6 +11,10 @@
 	 * - ghost: Minimal buttons (no background until hover)
 	 * - icon: Icon-only buttons (square)
 	 * - danger: Destructive actions
+	 *
+	 * Features:
+	 * - AJ4: disabledReason prop shows tooltip explaining why button is disabled
+	 * - AM1: loading prop shows spinner and disables interaction
 	 */
 
 	import type { Snippet } from 'svelte';
@@ -22,6 +26,8 @@
 		variant?: ButtonVariant;
 		size?: ButtonSize;
 		disabled?: boolean;
+		disabledReason?: string;
+		loading?: boolean;
 		type?: 'button' | 'submit' | 'reset';
 		title?: string;
 		class?: string;
@@ -33,20 +39,41 @@
 		variant = 'primary',
 		size = 'md',
 		disabled = false,
+		disabledReason,
+		loading = false,
 		type = 'button',
 		title,
 		class: className = '',
 		onclick,
 		children,
 	}: Props = $props();
+
+	// AJ4: Show disabled reason as tooltip when button is disabled
+	let effectiveTitle = $derived(disabled && disabledReason ? disabledReason : title);
+
+	// AM1: Loading state also disables the button
+	let effectiveDisabled = $derived(disabled || loading);
 </script>
 
-<button class="btn btn-{variant} btn-{size} {className}" {type} {disabled} {title} {onclick}>
-	{@render children()}
+<button
+	class="btn btn-{variant} btn-{size} {className}"
+	class:loading
+	{type}
+	disabled={effectiveDisabled}
+	title={effectiveTitle}
+	{onclick}
+>
+	{#if loading}
+		<span class="btn-spinner"></span>
+	{/if}
+	<span class="btn-content" class:invisible={loading}>
+		{@render children()}
+	</span>
 </button>
 
 <style>
 	.btn {
+		position: relative;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -58,13 +85,55 @@
 		transition:
 			background-color var(--transition-fast),
 			color var(--transition-fast),
-			opacity var(--transition-fast);
+			opacity var(--transition-fast),
+			box-shadow var(--transition-fast),
+			transform var(--transition-fast);
 		white-space: nowrap;
+	}
+
+	/* BE1: Depth on hover - subtle lift effect */
+	.btn:hover:not(:disabled) {
+		box-shadow: 0 2px 8px oklch(0% 0 0 / 8%);
+		transform: translateY(-1px);
+	}
+
+	/* BE1: Press effect */
+	.btn:active:not(:disabled) {
+		transform: scale(0.98);
+		box-shadow: none;
+		transition-duration: 50ms;
 	}
 
 	.btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	/* AM1: Loading spinner */
+	.btn-spinner {
+		position: absolute;
+		width: 16px;
+		height: 16px;
+		border: 2px solid currentColor;
+		border-top-color: transparent;
+		border-radius: 50%;
+		animation: btn-spin 0.6s linear infinite;
+	}
+
+	.btn-content {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+	}
+
+	.btn-content.invisible {
+		visibility: hidden;
+	}
+
+	@keyframes btn-spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	/* Size variants */

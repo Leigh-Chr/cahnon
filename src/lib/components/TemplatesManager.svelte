@@ -13,9 +13,10 @@
 	import { type Template, templateApi, type TemplateStep } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { trapFocus } from '$lib/utils/focus-trap';
 	import { nativeConfirm } from '$lib/utils/native-dialog';
 
-	import { Button, EmptyState, FormActions, FormGroup, Icon } from './ui';
+	import { Button, EmptyState, FormActions, FormGroup, Icon, LoadingState } from './ui';
 
 	interface Props {
 		isOpen: boolean;
@@ -285,14 +286,16 @@
 		role="presentation"
 		tabindex="-1"
 	>
+		<!-- AE1: Focus trap -->
 		<div
-			class="modal-container"
+			class="modal-container modal-enter"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="templates-title"
 			tabindex="-1"
+			use:trapFocus={{ onEscape: onclose }}
 		>
 			<div class="modal-header">
 				<h2 id="templates-title">Narrative Templates</h2>
@@ -319,9 +322,14 @@
 
 					<div class="templates-list">
 						{#if isLoading}
-							<div class="loading">Loading templates...</div>
+							<LoadingState message="Loading templates..." size="sm" />
 						{:else if templates.length === 0}
-							<EmptyState title="No templates" />
+							<EmptyState
+								compact
+								icon="file"
+								title="No templates"
+								description="Narrative templates define story structure beats like the Hero's Journey."
+							/>
 						{:else}
 							{#each templates as template (template.id)}
 								<button
@@ -528,7 +536,11 @@
 							</div>
 						</div>
 					{:else}
-						<EmptyState title="Select a template or create a new one" />
+						<EmptyState
+							icon="file"
+							title="Select a template or create a new one"
+							description="Choose a template to view its story beats, or create a custom template."
+						/>
 					{/if}
 				</div>
 			</div>
@@ -623,12 +635,6 @@
 	.templates-list {
 		flex: 1;
 		overflow-y: auto;
-	}
-
-	.loading {
-		padding: var(--spacing-lg);
-		text-align: center;
-		color: var(--color-text-secondary);
 	}
 
 	.template-item {

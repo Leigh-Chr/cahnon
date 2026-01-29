@@ -18,14 +18,37 @@
 	import { showError } from '$lib/toast';
 	import { countWords, formatWordCount } from '$lib/utils';
 
+	import TimelineGraphical from './TimelineGraphical.svelte';
 	import { Button, EmptyState, Icon, LoadingState } from './ui';
 
 	let timelineScenes = $state<Scene[]>([]);
 	let conflicts = $state<TimelineConflict[]>([]);
-	let viewMode = $state<'chronological' | 'narrative'>('chronological');
+	// AX3: Persist viewMode in localStorage
+	let viewMode = $state<'graphical' | 'chronological' | 'narrative'>(
+		(() => {
+			try {
+				const saved = localStorage.getItem('cahnon:timelineViewMode');
+				if (saved === 'graphical' || saved === 'chronological' || saved === 'narrative') {
+					return saved;
+				}
+			} catch {
+				/* ignore */
+			}
+			return 'chronological';
+		})()
+	);
 	let showConflicts = $state(false);
 	let isLoading = $state(true);
 	let isCheckingConflicts = $state(false);
+
+	// AX3: Persist viewMode changes
+	$effect(() => {
+		try {
+			localStorage.setItem('cahnon:timelineViewMode', viewMode);
+		} catch {
+			/* ignore */
+		}
+	});
 
 	let allScenes = $derived(Array.from(appState.scenes.values()).flat());
 	let scenesWithTime = $derived(
@@ -87,10 +110,11 @@
 		return chapter?.title || 'Unknown';
 	}
 
+	// AX4: Consistent time format (no "From" prefix)
 	function getTimeDisplay(scene: Scene): string {
 		if (scene.time_point) return scene.time_point;
 		if (scene.time_start && scene.time_end) return `${scene.time_start} - ${scene.time_end}`;
-		if (scene.time_start) return `From ${scene.time_start}`;
+		if (scene.time_start) return scene.time_start;
 		return 'No time set';
 	}
 
@@ -127,6 +151,9 @@
 				{/if}
 			</Button>
 			<div class="view-toggle">
+				<button class:active={viewMode === 'graphical'} onclick={() => (viewMode = 'graphical')}>
+					Graphical
+				</button>
 				<button
 					class:active={viewMode === 'chronological'}
 					onclick={() => (viewMode = 'chronological')}
@@ -194,7 +221,9 @@
 		</EmptyState>
 	{:else}
 		<div class="timeline-content">
-			{#if viewMode === 'chronological'}
+			{#if viewMode === 'graphical'}
+				<TimelineGraphical scenes={scenesWithTime} events={[]} {conflicts} />
+			{:else if viewMode === 'chronological'}
 				<div class="timeline-track">
 					{#each timelineScenes as scene (scene.id)}
 						<button

@@ -8,14 +8,62 @@
   d. Manuscript Distribution: embedded visualization
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
+
 	import { type Issue, issueApi } from '$lib/api';
 	import { appState } from '$lib/stores';
+	import {
+		type ChecklistState,
+		firstProjectSteps,
+		getChecklistState,
+		isChecklistComplete,
+		markChecklistStep,
+	} from '$lib/stores/onboarding';
 
 	import ManuscriptDistribution from './ManuscriptDistribution.svelte';
 	import TensionCurve from './TensionCurve.svelte';
+	import { EmptyState, Icon, LoadingState } from './ui';
 
 	let issues = $state<Issue[]>([]);
 	let issuesLoading = $state(false);
+
+	// UA1: First project checklist state
+	let checklistState = $state<ChecklistState>(getChecklistState());
+	let showChecklist = $state(!isChecklistComplete());
+
+	// Refresh checklist state when data changes
+	$effect(() => {
+		// Track these dependencies explicitly
+		const chapters = chapterCount;
+		const scenes = sceneCount;
+		const hasCharacter = appState.bibleEntries.some((e) => e.entry_type === 'character');
+
+		// Read current state without tracking to avoid infinite loop
+		const currentState = untrack(() => checklistState);
+		const newState = { ...currentState };
+		let changed = false;
+
+		if (chapters > 0 && !newState['first-chapter']) {
+			newState['first-chapter'] = true;
+			markChecklistStep('first-chapter');
+			changed = true;
+		}
+		if (scenes > 0 && !newState['first-scene']) {
+			newState['first-scene'] = true;
+			markChecklistStep('first-scene');
+			changed = true;
+		}
+		if (hasCharacter && !newState['first-character']) {
+			newState['first-character'] = true;
+			markChecklistStep('first-character');
+			changed = true;
+		}
+
+		if (changed) {
+			checklistState = newState;
+			showChecklist = !isChecklistComplete();
+		}
+	});
 
 	// Load issues on mount
 	$effect(() => {
@@ -42,6 +90,10 @@
 	let progressPercent = $derived(
 		wordTarget > 0 ? Math.min(100, Math.round((totalWords / wordTarget) * 100)) : 0
 	);
+	let isOverTarget = $derived(wordTarget > 0 && totalWords > wordTarget);
+	let overshootPercent = $derived(
+		wordTarget > 0 ? Math.round(((totalWords - wordTarget) / wordTarget) * 100) : 0
+	);
 	let chapterCount = $derived(appState.chapters.length);
 	let sceneCount = $derived.by(() => {
 		let count = 0;
@@ -64,12 +116,28 @@
 	let revisionScenes = $derived(statusData.find((s) => s.status === 'revision')?.scene_count || 0);
 	let doneScenes = $derived(statusData.find((s) => s.status === 'done')?.scene_count || 0);
 
+	// BC2: Chapter breakdown with word counts
+	let chapterStats = $derived(appState.wordCounts?.by_chapter || []);
+
+	// BC2: Status percentages for visual bar
+	let totalSceneCount = $derived(draftScenes + revisionScenes + doneScenes);
+	let draftPercent = $derived(totalSceneCount > 0 ? (draftScenes / totalSceneCount) * 100 : 0);
+	let revisionPercent = $derived(
+		totalSceneCount > 0 ? (revisionScenes / totalSceneCount) * 100 : 0
+	);
+	let donePercent = $derived(totalSceneCount > 0 ? (doneScenes / totalSceneCount) * 100 : 0);
+
 	function formatNumber(n: number): string {
 		return n.toLocaleString();
 	}
 
 	function navigateToIssues() {
 		appState.navigateTo('issue');
+	}
+
+	async function handleCreateFirstChapter() {
+		await appState.createChapter('Chapter 1');
+		appState.setViewMode('editor');
 	}
 </script>
 
@@ -81,59 +149,106 @@
 		{/if}
 	</div>
 
+	<!-- UA2: Quick Start Writing Session -->
+	{#if chapterCount > 0 && sceneCount > 0 && !appState.writingSessionActive}
+		<div class="card quick-session-card">
+			<div class="quick-session-header">
+				<div>
+					<h3>Start Writing Session</h3>
+					<p class="session-description">
+						Set a word goal and enter focus mode to minimize distractions.
+					</p>
+				</div>
+				<!-- UA6: Jump to Last Scene -->
+				{#if appState.lastEditedSceneId}
+					<button class="jump-last-scene-btn" onclick={() => appState.jumpToLastScene()}>
+						Continue Writing
+					</button>
+				{/if}
+			</div>
+			<div class="session-goals">
+				<button class="session-goal-btn" onclick={() => appState.startWritingSession(250)}>
+					<span class="goal-value">250</span>
+					<span class="goal-label">words</span>
+				</button>
+				<button class="session-goal-btn" onclick={() => appState.startWritingSession(500)}>
+					<span class="goal-value">500</span>
+					<span class="goal-label">words</span>
+				</button>
+				<button class="session-goal-btn" onclick={() => appState.startWritingSession(1000)}>
+					<span class="goal-value">1000</span>
+					<span class="goal-label">words</span>
+				</button>
+				<button class="session-goal-btn custom" onclick={() => appState.startWritingSession()}>
+					<span class="goal-value">Custom</span>
+					<span class="goal-label">default: 500</span>
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	{#if chapterCount === 0 && sceneCount === 0}
+		<div class="card wide-card">
+			<EmptyState
+				icon="book"
+				title="Your project is empty"
+				description="Create your first chapter to start writing. Chapters organize your scenes, and scenes hold your story."
+				actionLabel="Create First Chapter"
+				onaction={handleCreateFirstChapter}
+			/>
+		</div>
+	{/if}
+
 	<div class="dashboard-grid">
 		<!-- Progress Overview Card -->
 		<div class="card progress-card">
 			<h3>Progress Overview</h3>
 			<div class="stats-grid">
-				<div class="stat-item primary">
+				<div class="stat-item primary" title="Total word count across all scenes">
 					<span class="stat-value">{formatNumber(totalWords)}</span>
 					<span class="stat-label">Total Words</span>
 				</div>
 				{#if wordTarget > 0}
-					<div class="stat-item">
+					<div class="stat-item" title="Your manuscript word count goal">
 						<span class="stat-value">{formatNumber(wordTarget)}</span>
 						<span class="stat-label">Word Target</span>
 					</div>
-					<div class="stat-item">
+					<div class="stat-item" title="Percentage of word target reached">
 						<span class="stat-value">{progressPercent}%</span>
 						<span class="stat-label">Complete</span>
 					</div>
 				{/if}
-				<div class="stat-item">
+				<div class="stat-item" title="Number of chapters in the project">
 					<span class="stat-value">{chapterCount}</span>
 					<span class="stat-label">Chapters</span>
 				</div>
-				<div class="stat-item">
+				<div class="stat-item" title="Number of scenes in the project">
 					<span class="stat-value">{sceneCount}</span>
 					<span class="stat-label">Scenes</span>
 				</div>
+				<div class="stat-item" title="Number of bible entries in the project">
+					<span class="stat-value">{appState.bibleEntries.length}</span>
+					<span class="stat-label">Bible Entries</span>
+				</div>
+				{#if sceneCount > 0}
+					<div class="stat-item" title="Average words per scene">
+						<span class="stat-value">{Math.round(totalWords / sceneCount)}</span>
+						<span class="stat-label">Avg/Scene</span>
+					</div>
+				{/if}
 			</div>
 
 			{#if wordTarget > 0}
 				<div class="progress-bar-container">
-					<div class="progress-bar">
+					<div class="progress-bar" class:overshoot={isOverTarget}>
 						<div class="progress-fill" style="width: {progressPercent}%"></div>
 					</div>
-					<span class="progress-text">{progressPercent}% of target</span>
-				</div>
-			{/if}
-
-			<!-- Scene status breakdown -->
-			{#if sceneCount > 0}
-				<div class="status-breakdown">
-					<div class="status-item draft">
-						<span class="status-count">{draftScenes}</span>
-						<span class="status-name">Draft</span>
-					</div>
-					<div class="status-item revision">
-						<span class="status-count">{revisionScenes}</span>
-						<span class="status-name">Revision</span>
-					</div>
-					<div class="status-item done">
-						<span class="status-count">{doneScenes}</span>
-						<span class="status-name">Done</span>
-					</div>
+					<span class="progress-text">
+						{progressPercent}% of target
+						{#if isOverTarget}
+							<span class="overshoot-text">+{overshootPercent}% over</span>
+						{/if}
+					</span>
 				</div>
 			{/if}
 		</div>
@@ -145,7 +260,7 @@
 				<button class="link-btn" onclick={navigateToIssues}>View All</button>
 			</div>
 			{#if issuesLoading}
-				<p class="loading-text">Loading...</p>
+				<LoadingState size="sm" />
 			{:else if issues.length === 0}
 				<p class="no-issues">No issues detected.</p>
 			{:else}
@@ -170,6 +285,58 @@
 			{/if}
 		</div>
 
+		<!-- BC2: Manuscript Breakdown Card -->
+		{#if appState.chapters.length > 0}
+			<div class="card wide-card">
+				<h3>Manuscript Breakdown</h3>
+				<div class="breakdown-grid">
+					{#each appState.chapters as chapter (chapter.id)}
+						{@const stats = chapterStats.find((c) => c.chapter_id === chapter.id)}
+						{@const chapterWordCount = stats?.word_count || 0}
+						{@const chapterSceneCount = appState.scenes.get(chapter.id)?.length || 0}
+						<div class="breakdown-row">
+							<span class="chapter-title">{chapter.title}</span>
+							<span class="chapter-words">{formatNumber(chapterWordCount)}</span>
+							<span class="chapter-scenes"
+								>{chapterSceneCount} scene{chapterSceneCount !== 1 ? 's' : ''}</span
+							>
+						</div>
+					{/each}
+				</div>
+
+				<div class="status-breakdown">
+					<div class="status-bar">
+						{#if draftPercent > 0}
+							<div
+								class="bar-segment draft"
+								style="width: {draftPercent}%"
+								title="Draft: {draftScenes} scenes"
+							></div>
+						{/if}
+						{#if revisionPercent > 0}
+							<div
+								class="bar-segment revision"
+								style="width: {revisionPercent}%"
+								title="Revision: {revisionScenes} scenes"
+							></div>
+						{/if}
+						{#if donePercent > 0}
+							<div
+								class="bar-segment done"
+								style="width: {donePercent}%"
+								title="Done: {doneScenes} scenes"
+							></div>
+						{/if}
+					</div>
+					<div class="status-labels">
+						<span class="status-label draft">Draft: {draftScenes}</span>
+						<span class="status-label revision">Revision: {revisionScenes}</span>
+						<span class="status-label done">Done: {doneScenes}</span>
+					</div>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Tension Curve Card -->
 		<div class="card wide-card">
 			<h3>Tension Curve</h3>
@@ -182,6 +349,36 @@
 			<ManuscriptDistribution />
 		</div>
 	</div>
+
+	<!-- UA1: First Project Checklist -->
+	{#if showChecklist && chapterCount > 0}
+		<div class="checklist-card">
+			<div class="checklist-header">
+				<h3>Getting Started</h3>
+				<button class="dismiss-checklist" onclick={() => (showChecklist = false)} title="Dismiss">
+					<Icon name="close" size={14} />
+				</button>
+			</div>
+			<div class="checklist-items">
+				{#each firstProjectSteps as step (step.id)}
+					{@const isComplete = checklistState[step.id]}
+					<div class="checklist-item" class:complete={isComplete}>
+						<span class="checklist-checkbox">
+							{#if isComplete}
+								<Icon name="check" size={12} />
+							{/if}
+						</span>
+						<div class="checklist-content">
+							<span class="checklist-title">{step.title}</span>
+							{#if !isComplete}
+								<span class="checklist-description">{step.description}</span>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -288,44 +485,19 @@
 		transition: width 0.3s ease;
 	}
 
+	.progress-bar.overshoot .progress-fill {
+		background-color: var(--color-success);
+	}
+
+	.overshoot-text {
+		color: var(--color-success);
+		font-weight: 500;
+	}
+
 	.progress-text {
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
 		white-space: nowrap;
-	}
-
-	.status-breakdown {
-		display: flex;
-		gap: var(--spacing-md);
-		padding-top: var(--spacing-sm);
-		border-top: 1px solid var(--color-border-light, var(--color-border));
-	}
-
-	.status-item {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-xs);
-		font-size: var(--font-size-sm);
-	}
-
-	.status-count {
-		font-weight: 600;
-	}
-
-	.status-name {
-		color: var(--color-text-muted);
-	}
-
-	.status-item.draft .status-count {
-		color: var(--color-warning);
-	}
-
-	.status-item.revision .status-count {
-		color: var(--color-info);
-	}
-
-	.status-item.done .status-count {
-		color: var(--color-success);
 	}
 
 	/* Issues card */
@@ -352,11 +524,6 @@
 	.link-btn:hover {
 		text-decoration: underline;
 		background-color: var(--color-bg-hover);
-	}
-
-	.loading-text {
-		color: var(--color-text-muted);
-		font-size: var(--font-size-sm);
 	}
 
 	.no-issues {
@@ -418,7 +585,7 @@
 		font-weight: 500;
 	}
 
-	/* Responsive */
+	/* AZ11: Responsive layout for small screens */
 	@media (max-width: 700px) {
 		.dashboard-grid {
 			grid-template-columns: 1fr;
@@ -427,5 +594,319 @@
 		.wide-card {
 			grid-column: 1;
 		}
+	}
+
+	@media (max-width: 500px) {
+		.dashboard {
+			padding: var(--spacing-sm);
+		}
+
+		.dashboard-header h2 {
+			font-size: var(--font-size-lg);
+		}
+
+		.card {
+			padding: var(--spacing-md);
+		}
+
+		.stats-grid {
+			gap: var(--spacing-md);
+		}
+
+		.stat-item .stat-value {
+			font-size: var(--font-size-lg);
+		}
+	}
+
+	/* BC2: Manuscript breakdown */
+	.breakdown-grid {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+		margin-bottom: var(--spacing-md);
+	}
+
+	.breakdown-row {
+		display: grid;
+		grid-template-columns: 1fr auto auto;
+		gap: var(--spacing-md);
+		padding: var(--spacing-xs) 0;
+		border-bottom: 1px solid var(--color-border-light);
+		align-items: center;
+	}
+
+	.breakdown-row:last-child {
+		border-bottom: none;
+	}
+
+	.chapter-title {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.chapter-words {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text-secondary);
+		text-align: right;
+	}
+
+	.chapter-scenes {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		text-align: right;
+		min-width: 60px;
+	}
+
+	.status-breakdown {
+		margin-top: var(--spacing-md);
+	}
+
+	.status-bar {
+		display: flex;
+		height: 8px;
+		border-radius: 4px;
+		overflow: hidden;
+		background-color: var(--color-bg-tertiary);
+	}
+
+	.bar-segment {
+		transition: width 0.3s ease;
+	}
+
+	.bar-segment.draft {
+		background-color: var(--color-text-muted);
+	}
+
+	.bar-segment.revision {
+		background-color: var(--color-warning);
+	}
+
+	.bar-segment.done {
+		background-color: var(--color-success);
+	}
+
+	.status-labels {
+		display: flex;
+		justify-content: space-between;
+		margin-top: var(--spacing-xs);
+	}
+
+	.status-label {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.status-label.draft::before {
+		content: '';
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background-color: var(--color-text-muted);
+		margin-right: var(--spacing-xs);
+	}
+
+	.status-label.revision::before {
+		content: '';
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background-color: var(--color-warning);
+		margin-right: var(--spacing-xs);
+	}
+
+	.status-label.done::before {
+		content: '';
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background-color: var(--color-success);
+		margin-right: var(--spacing-xs);
+	}
+
+	/* UA2: Quick Start Writing Session */
+	.quick-session-card {
+		grid-column: 1 / -1;
+		background: linear-gradient(
+			135deg,
+			var(--color-accent-light) 0%,
+			var(--color-bg-secondary) 100%
+		);
+	}
+
+	.session-description {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		margin: 0 0 var(--spacing-md) 0;
+	}
+
+	.session-goals {
+		display: flex;
+		gap: var(--spacing-md);
+		flex-wrap: wrap;
+	}
+
+	.session-goal-btn {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: var(--spacing-md) var(--spacing-lg);
+		background-color: var(--color-bg-primary);
+		border: 2px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		min-width: 100px;
+	}
+
+	.session-goal-btn:hover {
+		border-color: var(--color-accent);
+		transform: translateY(-2px);
+		box-shadow: var(--shadow-md);
+	}
+
+	.session-goal-btn .goal-value {
+		font-size: var(--font-size-xl, 1.5rem);
+		font-weight: 700;
+		color: var(--color-accent);
+	}
+
+	.session-goal-btn .goal-label {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.session-goal-btn.custom {
+		border-style: dashed;
+	}
+
+	.session-goal-btn.custom .goal-value {
+		font-size: var(--font-size-md);
+	}
+
+	/* UA6: Jump to Last Scene */
+	.quick-session-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		margin-bottom: var(--spacing-md);
+	}
+
+	.quick-session-header > div {
+		flex: 1;
+	}
+
+	.quick-session-header h3 {
+		margin: 0;
+	}
+
+	.jump-last-scene-btn {
+		padding: var(--spacing-sm) var(--spacing-md);
+		background-color: var(--color-accent);
+		color: var(--text-on-accent, #fff);
+		border-radius: var(--border-radius-md);
+		font-weight: 500;
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		white-space: nowrap;
+	}
+
+	.jump-last-scene-btn:hover {
+		opacity: 0.9;
+		transform: translateY(-1px);
+	}
+
+	/* UA1: First Project Checklist */
+	.checklist-card {
+		margin-top: var(--spacing-lg);
+		padding: var(--spacing-md);
+		background-color: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-lg);
+	}
+
+	.checklist-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: var(--spacing-md);
+	}
+
+	.checklist-header h3 {
+		margin: 0;
+		font-size: var(--font-size-base);
+		font-weight: 600;
+	}
+
+	.dismiss-checklist {
+		padding: var(--spacing-xs);
+		color: var(--color-text-muted);
+		border-radius: var(--border-radius-sm);
+		opacity: 0.6;
+	}
+
+	.dismiss-checklist:hover {
+		opacity: 1;
+		background-color: var(--color-bg-hover);
+	}
+
+	.checklist-items {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+	}
+
+	.checklist-item {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--spacing-sm);
+	}
+
+	.checklist-checkbox {
+		width: 18px;
+		height: 18px;
+		border: 2px solid var(--color-border);
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		margin-top: 2px;
+	}
+
+	.checklist-item.complete .checklist-checkbox {
+		background-color: var(--color-success);
+		border-color: var(--color-success);
+		color: white;
+	}
+
+	.checklist-content {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.checklist-title {
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+	}
+
+	.checklist-item.complete .checklist-title {
+		color: var(--color-text-muted);
+		text-decoration: line-through;
+	}
+
+	.checklist-description {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
 	}
 </style>

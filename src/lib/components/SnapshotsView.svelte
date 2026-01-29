@@ -2,6 +2,7 @@
 	import { type Snapshot, snapshotApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
+	import { formatDateTime, formatRelativeTime } from '$lib/utils';
 	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import { Button, EmptyState, FormActions, FormGroup, Icon, LoadingState } from './ui';
@@ -9,7 +10,7 @@
 	// Type for parsed snapshot data
 	interface SnapshotData {
 		chapters?: Array<{ id: string; title: string }>;
-		scenes?: Array<{ id: string; title: string; chapter_id: string }>;
+		scenes?: Array<{ id: string; title: string; chapter_id: string; cached_word_count?: number }>;
 		bible_entries?: unknown[];
 		arcs?: unknown[];
 	}
@@ -38,9 +39,10 @@
 	interface DiffResult {
 		addedScenes: Array<{ id: string; title: string }>;
 		removedScenes: Array<{ id: string; title: string }>;
-		modifiedScenes: Array<{ id: string; title: string }>;
+		modifiedScenes: Array<{ id: string; title: string; wordDelta?: number }>;
 		addedChapters: Array<{ id: string; title: string }>;
 		removedChapters: Array<{ id: string; title: string }>;
+		totalWordDelta: number;
 	}
 
 	let diffResult = $state<DiffResult | null>(null);
@@ -57,20 +59,33 @@
 
 		const addedScenes: Array<{ id: string; title: string }> = [];
 		const removedScenes: Array<{ id: string; title: string }> = [];
-		const modifiedScenes: Array<{ id: string; title: string }> = [];
+		const modifiedScenes: Array<{ id: string; title: string; wordDelta?: number }> = [];
+		let totalWordDelta = 0;
 
 		for (const [id, scene] of targetScenes) {
 			if (!baseScenes.has(id)) {
 				addedScenes.push({ id, title: scene.title });
+				totalWordDelta += scene.cached_word_count ?? 0;
 			}
 		}
 		for (const [id, scene] of baseScenes) {
 			if (!targetScenes.has(id)) {
 				removedScenes.push({ id, title: scene.title });
+				totalWordDelta -= scene.cached_word_count ?? 0;
 			} else {
 				const target = targetScenes.get(id)!;
-				if (scene.title !== target.title) {
-					modifiedScenes.push({ id, title: `${scene.title} → ${target.title}` });
+				const baseWords = scene.cached_word_count ?? 0;
+				const targetWords = target.cached_word_count ?? 0;
+				const wordDelta = targetWords - baseWords;
+				if (scene.title !== target.title || wordDelta !== 0) {
+					const titleDisplay =
+						scene.title !== target.title ? `${scene.title} → ${target.title}` : scene.title;
+					modifiedScenes.push({
+						id,
+						title: titleDisplay,
+						wordDelta: wordDelta !== 0 ? wordDelta : undefined,
+					});
+					totalWordDelta += wordDelta;
 				}
 			}
 		}
@@ -89,7 +104,14 @@
 			}
 		}
 
-		return { addedScenes, removedScenes, modifiedScenes, addedChapters, removedChapters };
+		return {
+			addedScenes,
+			removedScenes,
+			modifiedScenes,
+			addedChapters,
+			removedChapters,
+			totalWordDelta,
+		};
 	}
 
 	function startCompare() {
@@ -176,25 +198,6 @@
 
 	async function viewSnapshot(snapshot: Snapshot) {
 		selectedSnapshot = snapshot;
-	}
-
-	function formatDate(dateStr: string): string {
-		return new Date(dateStr).toLocaleString();
-	}
-
-	function formatRelativeDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		const now = new Date();
-		const diffMs = now.getTime() - date.getTime();
-		const diffMins = Math.floor(diffMs / 60000);
-		const diffHours = Math.floor(diffMs / 3600000);
-		const diffDays = Math.floor(diffMs / 86400000);
-
-		if (diffMins < 1) return 'Just now';
-		if (diffMins < 60) return `${diffMins} min ago`;
-		if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-		if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-		return date.toLocaleDateString();
 	}
 
 	function getTypeLabel(type: string): string {
@@ -294,10 +297,31 @@
 	}
 
 	async function restoreSnapshot(snapshot: Snapshot) {
+		let snapshotInfo = '';
+		try {
+			const data: SnapshotData = JSON.parse(snapshot.data);
+			const chapterCount = data.chapters?.length ?? 0;
+			const sceneCount = data.scenes?.length ?? 0;
+			const bibleCount = (data.bible_entries as unknown[])?.length ?? 0;
+			const arcCount = (data.arcs as unknown[])?.length ?? 0;
+			snapshotInfo = `\nSnapshot contains: ${chapterCount} chapters, ${sceneCount} scenes, ${bibleCount} bible entries, ${arcCount} arcs.\n`;
+		} catch {
+			// If parsing fails, just proceed without extra info
+		}
+
+		const currentChapters = appState.chapters.length;
+		const currentScenes = Array.from(appState.scenes.values()).reduce(
+			(sum, s) => sum + s.length,
+			0
+		);
+		const currentInfo = `Current project: ${currentChapters} chapters, ${currentScenes} scenes.`;
+
 		const confirmed = await nativeConfirm(
 			`Are you sure you want to restore the snapshot "${snapshot.name}"?\n\n` +
-				'This will replace ALL current project data (chapters, scenes, bible entries, arcs, events) ' +
-				'with the data from this snapshot.\n\n' +
+				snapshotInfo +
+				currentInfo +
+				'\n\n' +
+				'This will replace ALL current project data with the data from this snapshot.\n\n' +
 				'An automatic backup will be created before restoring.',
 			'Restore Snapshot'
 		);
@@ -338,7 +362,7 @@
 		tabindex="-1"
 	>
 		<div
-			class="panel"
+			class="panel modal-enter"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
@@ -427,7 +451,7 @@
 							<p class="detail-description">{selectedSnapshot.description}</p>
 						{/if}
 
-						<p class="detail-date">Created: {formatDate(selectedSnapshot.created_at)}</p>
+						<p class="detail-date">Created: {formatDateTime(selectedSnapshot.created_at)}</p>
 
 						{#if selectedSnapshot.data}
 							{@const data = parseSnapshotData(selectedSnapshot.data)}
@@ -551,7 +575,7 @@
 											<div class="snapshot-name">{snapshot.name}</div>
 											<div class="snapshot-meta">
 												<span class="type">{getTypeLabel(snapshot.snapshot_type)}</span>
-												<span class="date">{formatRelativeDate(snapshot.created_at)}</span>
+												<span class="date">{formatRelativeTime(snapshot.created_at)}</span>
 											</div>
 										</div>
 										{#if compareBase?.id === snapshot.id}
@@ -610,12 +634,34 @@
 											~ Modified Scenes ({diffResult.modifiedScenes.length})
 										</h4>
 										{#each diffResult.modifiedScenes as scene (scene.id)}
-											<div class="diff-item modified">{scene.title}</div>
+											<div class="diff-item modified">
+												{scene.title}
+												{#if scene.wordDelta}
+													<span
+														class="word-delta"
+														class:positive={scene.wordDelta > 0}
+														class:negative={scene.wordDelta < 0}
+													>
+														{scene.wordDelta > 0 ? '+' : ''}{scene.wordDelta} words
+													</span>
+												{/if}
+											</div>
 										{/each}
 									</div>
 								{/if}
 								{#if diffResult.addedChapters.length === 0 && diffResult.removedChapters.length === 0 && diffResult.addedScenes.length === 0 && diffResult.removedScenes.length === 0 && diffResult.modifiedScenes.length === 0}
 									<p class="no-diff">No structural differences found between snapshots.</p>
+								{/if}
+								{#if diffResult.totalWordDelta !== 0}
+									<div class="diff-total">
+										Total word change: <span
+											class="word-delta"
+											class:positive={diffResult.totalWordDelta > 0}
+											class:negative={diffResult.totalWordDelta < 0}
+										>
+											{diffResult.totalWordDelta > 0 ? '+' : ''}{diffResult.totalWordDelta} words
+										</span>
+									</div>
 								{/if}
 							</div>
 							<Button variant="ghost" onclick={exitCompare}>Done</Button>
@@ -632,7 +678,7 @@
 									<div class="snapshot-name">{snapshot.name}</div>
 									<div class="snapshot-meta">
 										<span class="type">{getTypeLabel(snapshot.snapshot_type)}</span>
-										<span class="date">{formatRelativeDate(snapshot.created_at)}</span>
+										<span class="date">{formatRelativeTime(snapshot.created_at)}</span>
 									</div>
 									{#if snapshot.description}
 										<div class="snapshot-description">{snapshot.description}</div>
@@ -1007,5 +1053,28 @@
 		color: var(--color-text-muted);
 		font-size: var(--font-size-sm);
 		padding: var(--spacing-lg);
+	}
+
+	.word-delta {
+		font-size: var(--font-size-xs);
+		margin-left: var(--spacing-sm);
+		font-weight: 500;
+	}
+
+	.word-delta.positive {
+		color: var(--color-success);
+	}
+
+	.word-delta.negative {
+		color: var(--color-error);
+	}
+
+	.diff-total {
+		padding: var(--spacing-sm) var(--spacing-md);
+		margin-top: var(--spacing-sm);
+		border-top: 1px solid var(--color-border);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		text-align: right;
 	}
 </style>

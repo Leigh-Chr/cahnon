@@ -19,4 +19,17 @@ export { appState } from './app-state.svelte';
 
 // Recovery utilities
 export type { RecoveryDraft } from './recovery';
-export { clearRecoveryDraft, getRecoveryDraft, saveRecoveryDraft } from './recovery';
+export {
+	clearRecoveryDraft,
+	clearRecoveryDraftForScene,
+	getAllRecoveryDrafts,
+	getRecoveryDraft,
+	hasRecoveryDrafts,
+	saveRecoveryDraft,
+} from './recovery';
+
+// Onboarding utilities (AL1)
+export type { OnboardingState } from './onboarding';
+
+// Global Undo Stack (UD1, UD2)
+export { undoStack } from './undo';

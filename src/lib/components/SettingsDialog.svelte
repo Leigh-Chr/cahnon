@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { projectApi } from '$lib/api';
 	import { appState } from '$lib/stores';
+	import { resetOnboarding } from '$lib/stores/onboarding';
 	import type { KeyboardShortcuts, ShortcutBinding } from '$lib/stores/types';
 	import { shortcutLabels } from '$lib/stores/types';
-	import { showError } from '$lib/toast';
+	import { showError, showInfo } from '$lib/toast';
 	import { isModKey } from '$lib/utils';
+	import { trapFocus } from '$lib/utils/focus-trap';
 
 	import { Button, Icon } from './ui';
 
@@ -75,12 +77,28 @@
 		appState.editorSettings = { ...settings, textWidth: value };
 	}
 
+	// CA4: Editor theme options
+	import type { EditorTheme } from '$lib/stores/types';
+
+	const editorThemes: { value: EditorTheme; label: string }[] = [
+		{ value: 'default', label: 'Default' },
+		{ value: 'sepia', label: 'Sepia' },
+		{ value: 'dark', label: 'Dark' },
+		{ value: 'low-contrast', label: 'Low Contrast' },
+	];
+
+	function handleThemeChange(event: Event) {
+		const value = (event.target as HTMLSelectElement).value as EditorTheme;
+		appState.editorSettings = { ...settings, theme: value };
+	}
+
 	function resetToDefaults() {
 		appState.editorSettings = {
 			fontFamily: 'Georgia, serif',
 			fontSize: 18,
 			lineHeight: 1.8,
 			textWidth: 700,
+			theme: 'default',
 		};
 		appState.resetShortcuts();
 	}
@@ -88,8 +106,31 @@
 	// Keyboard shortcut recording
 	let recordingAction = $state<keyof KeyboardShortcuts | null>(null);
 
+	// V2: Conflict detection
+	let shortcutConflict = $state<{ action: keyof KeyboardShortcuts; conflictsWith: string } | null>(
+		null
+	);
+
 	function startRecording(action: keyof KeyboardShortcuts) {
 		recordingAction = action;
+		shortcutConflict = null;
+	}
+
+	function bindingsMatch(a: ShortcutBinding, b: ShortcutBinding): boolean {
+		return a.key === b.key && a.mod === b.mod && a.shift === b.shift;
+	}
+
+	function checkForConflict(
+		action: keyof KeyboardShortcuts,
+		binding: ShortcutBinding
+	): keyof KeyboardShortcuts | null {
+		const shortcuts = appState.keyboardShortcuts;
+		for (const [key, existingBinding] of Object.entries(shortcuts)) {
+			if (key !== action && bindingsMatch(existingBinding, binding)) {
+				return key as keyof KeyboardShortcuts;
+			}
+		}
+		return null;
 	}
 
 	function handleShortcutKeydown(event: KeyboardEvent) {
@@ -112,6 +153,17 @@
 			mod: isModKey(event),
 			shift: event.shiftKey,
 		};
+
+		// V2: Check for conflicts before setting
+		const conflictAction = checkForConflict(recordingAction, binding);
+		if (conflictAction) {
+			shortcutConflict = {
+				action: recordingAction,
+				conflictsWith: shortcutLabels[conflictAction],
+			};
+		} else {
+			shortcutConflict = null;
+		}
 
 		appState.setShortcut(recordingAction, binding);
 		recordingAction = null;
@@ -161,17 +213,20 @@
 	}
 
 	function handleWordTargetBlur() {
+		if (projectWordTarget != null && projectWordTarget < 0) projectWordTarget = 0;
 		updateProjectTarget('word_target', projectWordTarget);
 	}
 
 	function handleDailyTargetBlur() {
+		if (projectDailyTarget != null && projectDailyTarget < 0) projectDailyTarget = 0;
 		updateProjectTarget('daily_word_target', projectDailyTarget);
 	}
 </script>
 
 {#if isOpen}
 	<div class="dialog-overlay" onclick={handleOverlayClick} role="presentation">
-		<div class="dialog-container">
+		<!-- AY4: Add trapFocus for Escape key handling -->
+		<div class="dialog-container modal-enter" use:trapFocus={{ onEscape: close }}>
 			<div class="dialog-header">
 				<h2>Settings</h2>
 				<Button variant="icon" onclick={handleClose} title="Close">
@@ -229,6 +284,16 @@
 							value={settings.textWidth}
 							oninput={handleTextWidthChange}
 						/>
+					</div>
+
+					<!-- CA4: Editor theme selector -->
+					<div class="form-group">
+						<label for="editor-theme">Editor Theme</label>
+						<select id="editor-theme" value={settings.theme} onchange={handleThemeChange}>
+							{#each editorThemes as theme (theme.value)}
+								<option value={theme.value}>{theme.label}</option>
+							{/each}
+						</select>
 					</div>
 
 					<div class="preview">
@@ -290,6 +355,11 @@
 							</div>
 						{/each}
 					</div>
+					{#if shortcutConflict}
+						<div class="conflict-warning">
+							Warning: This shortcut conflicts with "{shortcutConflict.conflictsWith}"
+						</div>
+					{/if}
 					<div class="shortcuts-footer">
 						<Button variant="ghost" size="sm" onclick={() => appState.resetShortcuts()}>
 							Reset Shortcuts to Defaults
@@ -306,6 +376,7 @@
 							<input
 								id="manuscript-target"
 								type="number"
+								min="0"
 								placeholder="e.g., 80000"
 								bind:value={projectWordTarget}
 								onblur={handleWordTargetBlur}
@@ -318,6 +389,7 @@
 							<input
 								id="daily-target"
 								type="number"
+								min="0"
 								placeholder="e.g., 1000"
 								bind:value={projectDailyTarget}
 								onblur={handleDailyTargetBlur}
@@ -326,6 +398,37 @@
 						</div>
 					</section>
 				{/if}
+
+				<!-- UA3: Show Feature Tour -->
+				<section class="settings-section">
+					<h3>Help & Onboarding</h3>
+					<Button
+						variant="secondary"
+						size="sm"
+						onclick={() => {
+							resetOnboarding();
+							handleClose();
+							showInfo(
+								'Feature tour will show on next action. Refresh the page to see it immediately.'
+							);
+						}}
+					>
+						Show Feature Tour
+					</Button>
+				</section>
+
+				<!-- BF5: Data Recovery Info -->
+				<section class="settings-section">
+					<h3>Data Recovery</h3>
+					<p class="setting-info">
+						Recovery drafts are automatically saved while you write and expire after 30 days of
+						inactivity.
+					</p>
+					<p class="setting-info">
+						In case of a crash or unexpected close, you'll be prompted to restore any unsaved work
+						when you next open the project.
+					</p>
+				</section>
 			</div>
 
 			<div class="dialog-footer">
@@ -436,6 +539,18 @@
 		margin-top: var(--spacing-xs);
 	}
 
+	/* BF5: Info text styling */
+	.setting-info {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		margin: 0 0 var(--spacing-sm);
+		line-height: 1.5;
+	}
+
+	.setting-info:last-child {
+		margin-bottom: 0;
+	}
+
 	.preview {
 		padding: var(--spacing-md);
 		background-color: var(--color-bg-secondary);
@@ -520,5 +635,16 @@
 
 	.shortcuts-footer {
 		margin-top: var(--spacing-sm);
+	}
+
+	/* V2: Conflict warning */
+	.conflict-warning {
+		margin-top: var(--spacing-sm);
+		padding: var(--spacing-sm);
+		background-color: var(--warning-subtle, oklch(90% 0.08 80));
+		border: 1px solid var(--warning-border, oklch(75% 0.12 80));
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
 	}
 </style>

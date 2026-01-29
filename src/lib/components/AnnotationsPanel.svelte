@@ -9,6 +9,7 @@
 	import { type Annotation, annotationApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { formatDate } from '$lib/utils';
 	import { getAnnotationStatusColor, getAnnotationType } from '$lib/utils/annotations';
 
 	import { Button, Icon } from './ui';
@@ -96,10 +97,6 @@
 			console.error('Failed to update annotation:', e);
 			showError('Failed to update annotation');
 		}
-	}
-
-	function formatDate(dateStr: string): string {
-		return new Date(dateStr).toLocaleDateString();
 	}
 
 	// Watch for focusedAnnotationId from store (set by Editor on highlight click)

@@ -13,9 +13,11 @@
 	import { type Arc, arcApi, type Scene } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { formatDate } from '$lib/utils';
+	import { trapFocus } from '$lib/utils/focus-trap';
 	import { nativeConfirm } from '$lib/utils/native-dialog';
 
-	import { Button, EmptyState, FormActions, FormGroup, Icon } from './ui';
+	import { Button, EmptyState, FormActions, FormGroup, Icon, LoadingState } from './ui';
 	import ContextMenu from './ui/ContextMenu.svelte';
 	import ContextMenuItem from './ui/ContextMenuItem.svelte';
 	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
@@ -55,6 +57,10 @@
 	// Linked scenes
 	let arcScenes = $state<Scene[]>([]);
 
+	// Scene linking
+	let isAddingSceneToArc = $state(false);
+	let sceneSearchQuery = $state('');
+
 	// Character selector
 	let characterSearch = $state('');
 	let showCharacterDropdown = $state(false);
@@ -67,6 +73,23 @@
 				(e) => !characterSearch || e.name.toLowerCase().includes(characterSearch.toLowerCase())
 			)
 	);
+
+	let availableScenesForArc = $derived.by(() => {
+		const linkedIds = new Set(arcScenes.map((s) => s.id));
+		const result: Array<{ id: string; title: string; chapterTitle: string }> = [];
+		for (const chapter of appState.chapters) {
+			const scenes = appState.scenes.get(chapter.id) || [];
+			for (const scene of scenes) {
+				if (
+					!linkedIds.has(scene.id) &&
+					(!sceneSearchQuery || scene.title.toLowerCase().includes(sceneSearchQuery.toLowerCase()))
+				) {
+					result.push({ id: scene.id, title: scene.title, chapterTitle: chapter.title });
+				}
+			}
+		}
+		return result;
+	});
 
 	const arcStatuses = [
 		{ value: 'setup', label: 'Setup' },
@@ -104,6 +127,8 @@
 		} else {
 			arcScenes = [];
 		}
+		isAddingSceneToArc = false;
+		sceneSearchQuery = '';
 	});
 
 	async function loadArcs() {
@@ -137,6 +162,30 @@
 				onclose();
 				return;
 			}
+		}
+	}
+
+	async function linkSceneToArc(sceneId: string) {
+		if (!selectedArc) return;
+		try {
+			await arcApi.linkScene(sceneId, selectedArc.id);
+			arcScenes = await arcApi.getArcScenes(selectedArc.id);
+			isAddingSceneToArc = false;
+			sceneSearchQuery = '';
+		} catch (e) {
+			console.error('Failed to link scene to arc:', e);
+			showError('Failed to link scene to arc');
+		}
+	}
+
+	async function unlinkSceneFromArc(sceneId: string) {
+		if (!selectedArc) return;
+		try {
+			await arcApi.unlinkScene(sceneId, selectedArc.id);
+			arcScenes = arcScenes.filter((s) => s.id !== sceneId);
+		} catch (e) {
+			console.error('Failed to unlink scene from arc:', e);
+			showError('Failed to unlink scene from arc');
 		}
 	}
 
@@ -266,14 +315,16 @@
 		role="presentation"
 		tabindex="-1"
 	>
+		<!-- AE1: Focus trap -->
 		<div
-			class="modal-container"
+			class="modal-container modal-enter"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="arcs-title"
 			tabindex="-1"
+			use:trapFocus={{ onEscape: onclose }}
 		>
 			<div class="modal-header">
 				<h2 id="arcs-title">Story Arcs</h2>
@@ -293,9 +344,14 @@
 
 					<div class="arcs-list">
 						{#if isLoading}
-							<div class="loading">Loading arcs...</div>
+							<LoadingState message="Loading arcs..." size="sm" />
 						{:else if arcs.length === 0}
-							<EmptyState title="No arcs yet" />
+							<EmptyState
+								compact
+								icon="bookmark"
+								title="No arcs yet"
+								description="Story arcs track the major narrative threads in your manuscript."
+							/>
 						{:else}
 							{#each arcs as arc (arc.id)}
 								<button
@@ -310,7 +366,7 @@
 								>
 									<span class="arc-color" style="background-color: {arc.color || '#6366f1'}"></span>
 									<div class="arc-info">
-										<span class="arc-name">{arc.name}</span>
+										<span class="arc-name" title={arc.name}>{arc.name}</span>
 										<span class="arc-status">{getStatusLabel(arc.status)}</span>
 									</div>
 								</button>
@@ -330,7 +386,13 @@
 							<h3>{isCreating ? 'Create New Arc' : 'Edit Arc'}</h3>
 
 							<FormGroup label="Name">
-								<input type="text" bind:value={formName} placeholder="Arc name" required />
+								<input
+									type="text"
+									bind:value={formName}
+									placeholder="Arc name"
+									maxlength={100}
+									required
+								/>
 							</FormGroup>
 
 							<FormGroup label="Description">
@@ -400,6 +462,13 @@
 													!(e.currentTarget as HTMLElement).parentElement?.contains(related)
 												) {
 													showCharacterDropdown = false;
+												}
+											}}
+											onkeydown={(e) => {
+												if (e.key === 'Escape') {
+													e.stopPropagation();
+													showCharacterDropdown = false;
+													characterSearch = '';
 												}
 											}}
 										/>
@@ -487,29 +556,81 @@
 								</div>
 							{/if}
 
-							{#if arcScenes.length > 0}
-								<div class="detail-section">
+							<div class="detail-section">
+								<div class="section-header">
 									<h4>Scenes ({arcScenes.length})</h4>
+									<Button
+										variant="secondary"
+										size="sm"
+										onclick={() => (isAddingSceneToArc = !isAddingSceneToArc)}
+									>
+										<Icon name="plus" size={14} />
+										Link
+									</Button>
+								</div>
+								{#if isAddingSceneToArc}
+									<div class="scene-search">
+										<input
+											type="text"
+											placeholder="Search scenes..."
+											bind:value={sceneSearchQuery}
+											class="scene-search-input"
+											onkeydown={(e) => {
+												if (e.key === 'Escape') {
+													e.stopPropagation();
+													isAddingSceneToArc = false;
+													sceneSearchQuery = '';
+												}
+											}}
+										/>
+										<div class="scene-search-results">
+											{#each availableScenesForArc.slice(0, 10) as scene (scene.id)}
+												<button class="scene-search-item" onclick={() => linkSceneToArc(scene.id)}>
+													<span class="scene-search-title">{scene.title}</span>
+													<span class="scene-search-chapter">{scene.chapterTitle}</span>
+												</button>
+											{:else}
+												<span class="no-results">No matching scenes</span>
+											{/each}
+										</div>
+									</div>
+								{/if}
+								{#if arcScenes.length > 0}
 									<div class="scenes-list">
 										{#each arcScenes as scene (scene.id)}
-											<button class="scene-link" onclick={() => navigateToScene(scene.id)}>
-												{scene.title}
-											</button>
+											<div class="scene-link-item">
+												<button class="scene-link" onclick={() => navigateToScene(scene.id)}>
+													{scene.title}
+												</button>
+												<button
+													class="unlink-btn"
+													onclick={() => unlinkSceneFromArc(scene.id)}
+													title="Unlink scene"
+												>
+													<Icon name="close" size={12} />
+												</button>
+											</div>
 										{/each}
 									</div>
-								</div>
-							{/if}
+								{:else if !isAddingSceneToArc}
+									<p class="no-scenes">No scenes linked to this arc.</p>
+								{/if}
+							</div>
 
 							<div class="detail-section">
 								<h4>Metadata</h4>
 								<div class="meta-info">
-									<span>Created: {new Date(selectedArc.created_at).toLocaleDateString()}</span>
-									<span>Updated: {new Date(selectedArc.updated_at).toLocaleDateString()}</span>
+									<span>Created: {formatDate(selectedArc.created_at)}</span>
+									<span>Updated: {formatDate(selectedArc.updated_at)}</span>
 								</div>
 							</div>
 						</div>
 					{:else}
-						<EmptyState title="Select an arc or create a new one" />
+						<EmptyState
+							icon="bookmark"
+							title="Select an arc or create a new one"
+							description="Choose an arc from the list to view its details, or create a new arc to track a narrative thread."
+						/>
 					{/if}
 				</div>
 			</div>
@@ -611,12 +732,6 @@
 	.arcs-list {
 		flex: 1;
 		overflow-y: auto;
-	}
-
-	.loading {
-		padding: var(--spacing-lg);
-		text-align: center;
-		color: var(--color-text-secondary);
 	}
 
 	.arc-item {
@@ -889,7 +1004,7 @@
 		border-radius: var(--border-radius-sm);
 		box-shadow: var(--shadow-md);
 		z-index: 10;
-		max-height: 200px;
+		max-height: min(200px, 40vh);
 		overflow-y: auto;
 	}
 
@@ -902,5 +1017,103 @@
 
 	.character-dropdown-item:hover {
 		background-color: var(--color-bg-hover);
+	}
+
+	/* Scene Linking */
+	.section-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.section-header h4 {
+		margin: 0;
+	}
+
+	.scene-link-item {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+	}
+
+	.scene-link-item .scene-link {
+		flex: 1;
+	}
+
+	.unlink-btn {
+		padding: 2px;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		border-radius: var(--border-radius-sm);
+		flex-shrink: 0;
+	}
+
+	.unlink-btn:hover {
+		color: var(--color-error);
+		background-color: var(--color-bg-hover);
+	}
+
+	.scene-search {
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.scene-search-input {
+		width: 100%;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background: var(--color-bg-primary);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.scene-search-input:focus {
+		outline: none;
+		border-color: var(--color-accent);
+	}
+
+	.scene-search-results {
+		max-height: 150px;
+		overflow-y: auto;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.scene-search-item {
+		width: 100%;
+		display: flex;
+		justify-content: space-between;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.scene-search-item:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.scene-search-title {
+		font-size: var(--font-size-sm);
+	}
+
+	.scene-search-chapter {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.no-results {
+		display: block;
+		padding: var(--spacing-sm);
+		text-align: center;
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+	}
+
+	.no-scenes {
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+		font-style: italic;
 	}
 </style>

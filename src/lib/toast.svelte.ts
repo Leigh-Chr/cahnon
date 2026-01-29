@@ -62,33 +62,70 @@ export function removeToast(id: string) {
 	toastState.remove(id);
 }
 
+/** Options for toast convenience functions */
+interface ToastOptions {
+	action?: Toast['action'];
+	duration?: number;
+}
+
 // Convenience functions
 // Non-critical toasts without actions route to the status bar for a desktop feel.
-export function showSuccess(message: string, action?: Toast['action']) {
-	if (!action) {
+export function showSuccess(message: string, options?: ToastOptions | Toast['action']) {
+	// Support both old signature (action only) and new signature (options object)
+	const opts: ToastOptions =
+		options && typeof options === 'object' && 'label' in options
+			? { action: options }
+			: (options as ToastOptions) || {};
+
+	if (!opts.action) {
 		// Lazy import to avoid circular dependency
 		import('$lib/stores').then(({ appState }) => {
 			appState.showStatusMessage(message, 'success');
 		});
 		return '';
 	}
-	return showToast({ type: 'success', message, action });
+	return showToast({ type: 'success', message, action: opts.action, duration: opts.duration });
 }
 
-export function showError(message: string, action?: Toast['action']) {
-	return showToast({ type: 'error', message, action });
+export function showError(message: string, options?: ToastOptions | Toast['action']) {
+	const opts: ToastOptions =
+		options && typeof options === 'object' && 'label' in options
+			? { action: options }
+			: (options as ToastOptions) || {};
+	return showToast({ type: 'error', message, action: opts.action, duration: opts.duration });
 }
 
-export function showWarning(message: string, action?: Toast['action']) {
-	return showToast({ type: 'warning', message, action });
+export function showWarning(message: string, options?: ToastOptions | Toast['action']) {
+	const opts: ToastOptions =
+		options && typeof options === 'object' && 'label' in options
+			? { action: options }
+			: (options as ToastOptions) || {};
+	return showToast({ type: 'warning', message, action: opts.action, duration: opts.duration });
 }
 
-export function showInfo(message: string, action?: Toast['action']) {
-	if (!action) {
+export function showInfo(message: string, options?: ToastOptions | Toast['action']) {
+	const opts: ToastOptions =
+		options && typeof options === 'object' && 'label' in options
+			? { action: options }
+			: (options as ToastOptions) || {};
+
+	if (!opts.action) {
 		import('$lib/stores').then(({ appState }) => {
 			appState.showStatusMessage(message, 'info');
 		});
 		return '';
 	}
-	return showToast({ type: 'info', message, action });
+	return showToast({ type: 'info', message, action: opts.action, duration: opts.duration });
+}
+
+/**
+ * UB6: Show a celebration toast for achievements (goal reached, milestones).
+ * Uses success type with longer duration for positive reinforcement.
+ */
+export function celebrate(message: string): string {
+	return toastState.add({
+		type: 'success',
+		message,
+		duration: 4000,
+	});
 }

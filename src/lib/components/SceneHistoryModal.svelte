@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { historyApi, type SceneHistoryEntry } from '$lib/api';
 	import { showError, showSuccess } from '$lib/toast';
-	import { countWords, formatWordCount } from '$lib/utils';
+	import { countWords, formatDateTime, formatRelativeTime, formatWordCount } from '$lib/utils';
 
 	import { Button, EmptyState, Icon, LoadingState } from './ui';
 
@@ -101,28 +101,6 @@
 		isRestoring = false;
 	}
 
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		if (isNaN(date.getTime())) return dateStr;
-		return date.toLocaleString();
-	}
-
-	function formatRelativeDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		if (isNaN(date.getTime())) return dateStr;
-		const now = new Date();
-		const diffMs = now.getTime() - date.getTime();
-		const diffMins = Math.floor(diffMs / 60000);
-		const diffHours = Math.floor(diffMs / 3600000);
-		const diffDays = Math.floor(diffMs / 86400000);
-
-		if (diffMins < 1) return 'Just now';
-		if (diffMins < 60) return `${diffMins} min ago`;
-		if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-		if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-		return date.toLocaleDateString();
-	}
-
 	function handleKeydown(event: KeyboardEvent) {
 		if (!isOpen) return;
 		if (event.key === 'Escape') {
@@ -212,10 +190,10 @@
 											{/if}
 										</span>
 									{/if}
-									<div class="item-date">{formatRelativeDate(entry.created_at)}</div>
+									<div class="item-date">{formatRelativeTime(entry.created_at)}</div>
 									<div class="item-meta">
 										<span>{formatWordCount(countWords(entry.text))} words</span>
-										<span class="full-date">{formatDate(entry.created_at)}</span>
+										<span class="full-date">{formatDateTime(entry.created_at)}</span>
 									</div>
 								</button>
 							{/each}
@@ -264,7 +242,7 @@
 							{:else if selectedEntry}
 								<div class="preview-header">
 									<div class="preview-info">
-										<span class="preview-date">{formatDate(selectedEntry.created_at)}</span>
+										<span class="preview-date">{formatDateTime(selectedEntry.created_at)}</span>
 										<span class="preview-words"
 											>{formatWordCount(countWords(selectedEntry.text))} words</span
 										>

@@ -7,6 +7,8 @@
 </script>
 
 <script lang="ts">
+	import { Button, Dialog } from './ui';
+
 	interface Props {
 		isOpen?: boolean;
 		showReplace?: boolean;
@@ -53,6 +55,16 @@
 
 	let findInput = $state<HTMLInputElement | null>(null);
 
+	// AX6: Confirmation dialog state (replaces nativeConfirm)
+	let showReplaceAllConfirm = $state(false);
+	let pendingReplaceAllData = $state<{
+		find: string;
+		replace: string;
+		caseSensitive: boolean;
+		wholeWord: boolean;
+		scope: FindReplaceScope;
+	} | null>(null);
+
 	$effect(() => {
 		if (isOpen && findInput) {
 			findInput.focus();
@@ -81,10 +93,37 @@
 		}
 	}
 
+	// AX6: Use Dialog instead of nativeConfirm for Replace All warning
 	function handleReplaceAll() {
-		if (findQuery) {
-			onreplaceAll?.({ find: findQuery, replace: replaceQuery, caseSensitive, wholeWord, scope });
+		if (!findQuery) return;
+
+		// S4: Warn before destructive Replace All on chapter/manuscript scope
+		if (scope !== 'scene') {
+			pendingReplaceAllData = {
+				find: findQuery,
+				replace: replaceQuery,
+				caseSensitive,
+				wholeWord,
+				scope,
+			};
+			showReplaceAllConfirm = true;
+			return;
 		}
+
+		onreplaceAll?.({ find: findQuery, replace: replaceQuery, caseSensitive, wholeWord, scope });
+	}
+
+	function confirmReplaceAll() {
+		if (pendingReplaceAllData) {
+			onreplaceAll?.(pendingReplaceAllData);
+		}
+		showReplaceAllConfirm = false;
+		pendingReplaceAllData = null;
+	}
+
+	function cancelReplaceAll() {
+		showReplaceAllConfirm = false;
+		pendingReplaceAllData = null;
 	}
 
 	function handleNext() {
@@ -119,6 +158,7 @@
 	<div class="find-replace" onkeydown={handleKeydown} role="search">
 		<div class="find-row">
 			<div class="input-wrapper">
+				<!-- AP6: Add visual cue when no results -->
 				<input
 					bind:this={findInput}
 					type="text"
@@ -126,12 +166,14 @@
 					placeholder="Find..."
 					oninput={handleFind}
 					class="find-input"
+					class:no-results={findQuery && matchCount === 0}
 				/>
 				{#if findQuery}
-					<span class="match-count">
+					<span class="match-count" class:no-results={matchCount === 0}>
 						{#if matchCount > 0}
 							{currentMatch} of {matchCount}
 						{:else}
+							<!-- AP6: More visible "No results" -->
 							No results
 						{/if}
 					</span>
@@ -167,7 +209,7 @@
 				<button
 					class="nav-btn"
 					onclick={handlePrev}
-					title="Previous match"
+					title="Previous match (Shift+Enter)"
 					disabled={matchCount === 0}
 				>
 					<svg
@@ -181,7 +223,12 @@
 						<polyline points="18 15 12 9 6 15" />
 					</svg>
 				</button>
-				<button class="nav-btn" onclick={handleNext} title="Next match" disabled={matchCount === 0}>
+				<button
+					class="nav-btn"
+					onclick={handleNext}
+					title="Next match (Enter)"
+					disabled={matchCount === 0}
+				>
 					<svg
 						width="14"
 						height="14"
@@ -230,6 +277,20 @@
 			</div>
 		</div>
 
+		{#if findQuery}
+			<span class="keyboard-hint">Enter: next &middot; Shift+Enter: prev</span>
+		{/if}
+
+		<!-- V4: Scope selector always visible -->
+		<div class="scope-row">
+			<span class="scope-label">Scope:</span>
+			<select bind:value={scope} class="scope-select">
+				<option value="scene">Scene</option>
+				<option value="chapter">Chapter</option>
+				<option value="manuscript">Manuscript</option>
+			</select>
+		</div>
+
 		{#if showReplace}
 			<div class="replace-row">
 				<input
@@ -247,17 +308,23 @@
 					</button>
 				</div>
 			</div>
-			<div class="scope-row">
-				<span class="scope-label">Scope:</span>
-				<select bind:value={scope} class="scope-select">
-					<option value="scene">Scene</option>
-					<option value="chapter">Chapter</option>
-					<option value="manuscript">Manuscript</option>
-				</select>
-			</div>
 		{/if}
 	</div>
 {/if}
+
+<!-- AX6: Confirmation dialog for Replace All (instead of native dialog) -->
+<Dialog isOpen={showReplaceAllConfirm} title="Replace All" size="sm" onclose={cancelReplaceAll}>
+	{@const scopeLabel = scope === 'chapter' ? 'the entire chapter' : 'the entire manuscript'}
+	<p class="confirm-message">
+		Replace all occurrences in {scopeLabel}?
+	</p>
+	<p class="confirm-warning">This will modify multiple scenes and cannot be easily undone.</p>
+
+	{#snippet footer()}
+		<Button variant="ghost" onclick={cancelReplaceAll}>Cancel</Button>
+		<Button variant="danger" onclick={confirmReplaceAll}>Replace All</Button>
+	{/snippet}
+</Dialog>
 
 <style>
 	.find-replace {
@@ -305,6 +372,32 @@
 		outline: none;
 	}
 
+	/* AP6, AZ9: Visual cue when no results found with shake animation */
+	.find-input.no-results {
+		border-color: var(--color-warning);
+		background-color: color-mix(in srgb, var(--color-warning) 5%, var(--color-bg-secondary));
+		animation: no-results-shake 0.4s ease-out;
+	}
+
+	.find-input.no-results:focus {
+		border-color: var(--color-warning);
+	}
+
+	@keyframes no-results-shake {
+		0%,
+		100% {
+			transform: translateX(0);
+		}
+		20%,
+		60% {
+			transform: translateX(-4px);
+		}
+		40%,
+		80% {
+			transform: translateX(4px);
+		}
+	}
+
 	.match-count {
 		position: absolute;
 		right: var(--spacing-sm);
@@ -312,6 +405,12 @@
 		transform: translateY(-50%);
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
+	}
+
+	/* AP6: More visible "No results" state */
+	.match-count.no-results {
+		color: var(--color-warning);
+		font-weight: 500;
 	}
 
 	.find-actions,
@@ -395,5 +494,26 @@
 		border-radius: var(--border-radius-sm);
 		background-color: var(--color-bg-secondary);
 		color: var(--color-text-primary);
+	}
+
+	/* T4: Keyboard hints */
+	.keyboard-hint {
+		display: block;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		padding: var(--spacing-xs) var(--spacing-sm);
+	}
+
+	/* AX6: Confirmation dialog styles */
+	.confirm-message {
+		margin: 0 0 var(--spacing-sm);
+		font-size: var(--font-size-base);
+		color: var(--color-text-primary);
+	}
+
+	.confirm-warning {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-warning);
 	}
 </style>

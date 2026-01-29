@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { type Cut, cutApi } from '$lib/api';
 	import { showError, showSuccess } from '$lib/toast';
-	import { countWords, formatWordCount } from '$lib/utils';
+	import { countWords, formatDateTime, formatWordCount } from '$lib/utils';
+	import { trapFocus } from '$lib/utils/focus-trap';
+	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import { Button, EmptyState, Icon, LoadingState } from './ui';
 
@@ -33,10 +35,12 @@
 		isLoading = false;
 	}
 
-	async function deleteCut(cutId: string) {
+	async function handleDeleteCut(id: string) {
+		const confirmed = await nativeConfirm('Delete this cut permanently?');
+		if (!confirmed) return;
 		try {
-			await cutApi.delete(cutId);
-			cuts = cuts.filter((c) => c.id !== cutId);
+			await cutApi.delete(id);
+			cuts = cuts.filter((c) => c.id !== id);
 		} catch (e) {
 			console.error('Failed to delete cut:', e);
 			showError('Failed to delete cut');
@@ -57,12 +61,6 @@
 			console.error('Failed to copy to clipboard:', e);
 			showError('Failed to copy to clipboard');
 		}
-	}
-
-	function formatDate(dateStr: string): string {
-		const date = new Date(dateStr);
-		if (isNaN(date.getTime())) return dateStr;
-		return date.toLocaleString();
 	}
 
 	function close() {
@@ -111,6 +109,7 @@
 			aria-modal="true"
 			aria-labelledby="cuts-title"
 			tabindex="-1"
+			use:trapFocus={{ onEscape: close }}
 		>
 			<div class="panel-header">
 				<h2 id="cuts-title">Cut Library</h2>
@@ -131,6 +130,9 @@
 				{:else}
 					<div class="search-box">
 						<input type="text" placeholder="Search cuts..." bind:value={searchQuery} />
+						{#if searchQuery}
+							<span class="result-count">{filteredCuts.length} of {cuts.length} cuts</span>
+						{/if}
 					</div>
 					{#if filteredCuts.length === 0 && searchQuery}
 						<div class="no-results">No cuts matching "{searchQuery}"</div>
@@ -144,7 +146,7 @@
 								<div class="cut-footer">
 									<div class="cut-meta">
 										<span class="word-count">{formatWordCount(countWords(cut.text))} words</span>
-										<span class="date">{formatDate(cut.created_at)}</span>
+										<span class="date">{formatDateTime(cut.created_at)}</span>
 									</div>
 									<div class="cut-actions">
 										<Button
@@ -170,7 +172,7 @@
 											variant="icon"
 											size="sm"
 											class="danger"
-											onclick={() => deleteCut(cut.id)}
+											onclick={() => handleDeleteCut(cut.id)}
 											title="Delete permanently"
 										>
 											<Icon name="delete" size={16} />
@@ -229,6 +231,13 @@
 
 	.search-box {
 		padding: var(--spacing-md) var(--spacing-md) 0;
+	}
+
+	.result-count {
+		display: block;
+		margin-top: var(--spacing-xs);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
 	}
 
 	.search-box input {

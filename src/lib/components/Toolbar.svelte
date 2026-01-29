@@ -15,15 +15,53 @@
 <script lang="ts">
 	import { appState } from '$lib/stores';
 	import { formatShortcut } from '$lib/utils';
-	import { revisionPasses, type RevisionPassId } from '$lib/utils/revision-passes';
 
+	import { Icon } from './ui';
+
+	let showMoreMenu = $state(false);
+
+	function closeMoreMenu() {
+		showMoreMenu = false;
+	}
+
+	function handleMoreMenuAction(action: (() => void) | null | undefined) {
+		action?.();
+		closeMoreMenu();
+	}
+
+	// BB4: View modes with descriptive tooltips
 	const viewModes = [
-		{ id: 'editor', label: 'Editor', shortcut: '1' },
-		{ id: 'corkboard', label: 'Corkboard', shortcut: '2' },
-		{ id: 'timeline', label: 'Timeline', shortcut: '3' },
-		{ id: 'bible', label: 'Bible', shortcut: '4' },
-		{ id: 'issues', label: 'Issues', shortcut: '5' },
-		{ id: 'dashboard', label: 'Dashboard', shortcut: '6' },
+		{ id: 'editor', label: 'Editor', shortcut: '1', tooltip: 'Write and edit your manuscript' },
+		{
+			id: 'corkboard',
+			label: 'Corkboard',
+			shortcut: '2',
+			tooltip: 'Visual overview of scenes as cards',
+		},
+		{
+			id: 'timeline',
+			label: 'Timeline',
+			shortcut: '3',
+			tooltip: 'Chronological view of story events',
+		},
+		{
+			id: 'bible',
+			label: 'Codex',
+			shortcut: '4',
+			tooltip: 'Characters, locations & world-building',
+		},
+		{
+			id: 'issues',
+			label: 'Continuity',
+			shortcut: '5',
+			tooltip: 'Track plot holes & inconsistencies',
+		},
+		{
+			id: 'dashboard',
+			label: 'Dashboard',
+			shortcut: '6',
+			tooltip: 'Project overview & statistics',
+		},
 	] as const;
 
 	interface Props {
@@ -31,6 +69,7 @@
 		onOpenImportDialog?: (() => void) | null;
 		onOpenSettings?: (() => void) | null;
 		onOpenSnapshots?: (() => void) | null;
+		onOpenKeyboardShortcuts?: (() => void) | null;
 	}
 
 	let {
@@ -38,6 +77,7 @@
 		onOpenImportDialog = null,
 		onOpenSettings = null,
 		onOpenSnapshots = null,
+		onOpenKeyboardShortcuts = null,
 	}: Props = $props();
 </script>
 
@@ -102,17 +142,29 @@
 			</svg>
 		</button>
 
+		<!-- AG1: Quick Open button (visible search trigger) -->
+		<button
+			class="toolbar-btn icon-btn"
+			onclick={() => appState.toggleQuickOpen()}
+			title="Quick Open ({formatShortcut('K')})"
+			aria-label="Quick Open"
+		>
+			<Icon name="search" size={18} />
+		</button>
+
 		<div class="separator"></div>
 
+		<!-- AW1, BB4: View switcher with visible shortcut hints and descriptive tooltips -->
 		<div class="view-switcher">
 			{#each viewModes as mode (mode.id)}
 				<button
 					class="view-btn"
 					class:active={appState.viewMode === mode.id}
 					onclick={() => appState.setViewMode(mode.id)}
-					title="{mode.label} ({formatShortcut(mode.shortcut)})"
+					title="{mode.tooltip} ({formatShortcut(mode.shortcut)})"
 				>
-					{mode.label}
+					<span>{mode.label}</span>
+					<span class="shortcut-hint">{formatShortcut(mode.shortcut)}</span>
 				</button>
 			{/each}
 		</div>
@@ -120,46 +172,99 @@
 
 	<div class="toolbar-center">
 		{#if appState.project}
-			<span class="project-title">
-				{appState.project.title}
+			<nav class="breadcrumb" aria-label="Navigation breadcrumb">
+				<button
+					class="breadcrumb-item"
+					onclick={() => appState.setViewMode('dashboard')}
+					title={appState.project.title}
+				>
+					{appState.project.title}
+				</button>
 				{#if appState.isDemo}
 					<span class="demo-badge">Demo</span>
 				{/if}
-				{#if appState.hasUnsavedChanges}
-					<span class="unsaved-indicator" title="Unsaved changes">•</span>
+				{#if appState.selectedChapter}
+					<span class="breadcrumb-sep" aria-hidden="true"
+						><svg
+							width="12"
+							height="12"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg
+						></span
+					>
+					<button
+						class="breadcrumb-item"
+						onclick={() => {
+							if (appState.selectedChapterId) {
+								const chapterScenes = appState.scenes.get(appState.selectedChapterId);
+								if (chapterScenes?.length) {
+									appState.selectScene(chapterScenes[0].id, appState.selectedChapterId);
+								}
+								appState.setViewMode('editor');
+							}
+						}}
+						title={appState.selectedChapter.title}
+					>
+						<span class="truncate">{appState.selectedChapter.title}</span>
+					</button>
 				{/if}
-			</span>
+				{#if appState.selectedScene}
+					<span class="breadcrumb-sep" aria-hidden="true"
+						><svg
+							width="12"
+							height="12"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg
+						></span
+					>
+					<span class="breadcrumb-current truncate" title={appState.selectedScene.title}>
+						{appState.selectedScene.title}
+					</span>
+				{/if}
+				<!-- AF1, BA5: More visible unsaved badge with pending chars count -->
+				{#if appState.hasUnsavedChanges}
+					<span class="unsaved-badge" title="You have unsaved changes">
+						<span class="unsaved-dot-pulse"></span>
+						{#if appState.pendingCharsCount > 0}
+							<span class="chars-pending">{appState.pendingCharsCount} chars</span>
+						{:else}
+							Unsaved
+						{/if}
+					</span>
+				{/if}
+				{#if appState.viewMode === 'bible' && appState.canNavigateBack}
+					<button
+						class="breadcrumb-back-link"
+						onclick={() => appState.navigateBack()}
+						title="Return to previous view"
+					>
+						&#8592; Back
+					</button>
+				{/if}
+			</nav>
 		{/if}
 	</div>
 
 	<div class="toolbar-right">
+		<!-- AX1, AX2: Standardized vocabulary - Writing/Revision instead of Draft/Revise -->
 		<button
 			class="mode-toggle"
 			class:revision={appState.workMode === 'revision'}
 			onclick={() => appState.toggleWorkMode()}
-			title="Toggle Work Mode ({formatShortcut('D')})"
+			title="{appState.workMode === 'writing'
+				? 'Switch to Revision mode for analytical tools'
+				: 'Switch to Writing mode for distraction-free writing'} ({formatShortcut(
+				'D',
+				true,
+				true
+			)})"
 		>
 			{appState.workMode === 'writing' ? 'Writing' : 'Revision'}
 		</button>
-
-		{#if appState.workMode === 'revision'}
-			<div class="revision-passes">
-				<button
-					class="pass-btn"
-					class:active={appState.revisionPass === null}
-					onclick={() => appState.setRevisionPass(null)}
-					title="Show all sections">All</button
-				>
-				{#each revisionPasses as pass (pass.id)}
-					<button
-						class="pass-btn"
-						class:active={appState.revisionPass === pass.id}
-						onclick={() => appState.setRevisionPass(pass.id as RevisionPassId)}
-						title={pass.description}>{pass.label}</button
-					>
-				{/each}
-			</div>
-		{/if}
 
 		<button
 			class="toolbar-btn icon-btn"
@@ -184,83 +289,138 @@
 
 		<div class="separator"></div>
 
-		<button
-			class="toolbar-btn icon-btn"
-			onclick={() => onOpenImportDialog?.()}
-			title="Import Content ({formatShortcut('I')})"
-			aria-label="Import Content"
-		>
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
+		<div class="more-menu-container">
+			<button
+				class="toolbar-btn icon-btn"
+				class:active={showMoreMenu}
+				onclick={() => (showMoreMenu = !showMoreMenu)}
+				title="More actions"
+				aria-label="More actions"
+				aria-expanded={showMoreMenu}
 			>
-				<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-				<polyline points="7 10 12 15 17 10" />
-				<line x1="12" y1="15" x2="12" y2="3" />
-			</svg>
-		</button>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<circle cx="12" cy="5" r="1" />
+					<circle cx="12" cy="12" r="1" />
+					<circle cx="12" cy="19" r="1" />
+				</svg>
+			</button>
 
-		<button
-			class="toolbar-btn icon-btn"
-			onclick={() => appState.openExportDialog()}
-			title="Export Project ({formatShortcut('E')})"
-			aria-label="Export Project"
-		>
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-				<polyline points="17 8 12 3 7 8" />
-				<line x1="12" y1="3" x2="12" y2="15" />
-			</svg>
-		</button>
+			{#if showMoreMenu}
+				<div
+					class="more-menu-backdrop"
+					onclick={closeMoreMenu}
+					onkeydown={(e) => {
+						if (e.key === 'Escape') closeMoreMenu();
+					}}
+					role="presentation"
+					tabindex="-1"
+				></div>
+				<!-- AW2: Organized menu with separators -->
+				<div class="more-menu" role="menu">
+					<!-- File operations -->
+					<button
+						class="more-menu-item"
+						onclick={() => handleMoreMenuAction(onOpenImportDialog)}
+						role="menuitem"
+					>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+							<polyline points="7 10 12 15 17 10" />
+							<line x1="12" y1="15" x2="12" y2="3" />
+						</svg>
+						<span>Import</span>
+						<kbd>{formatShortcut('I', true, true)}</kbd>
+					</button>
+					<button
+						class="more-menu-item"
+						onclick={() => handleMoreMenuAction(() => appState.openExportDialog())}
+						role="menuitem"
+					>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+							<polyline points="17 8 12 3 7 8" />
+							<line x1="12" y1="3" x2="12" y2="15" />
+						</svg>
+						<span>Export</span>
+						<kbd>{formatShortcut('E')}</kbd>
+					</button>
 
-		<button
-			class="toolbar-btn icon-btn"
-			onclick={() => onOpenSnapshots?.()}
-			title="Snapshots"
-			aria-label="Snapshots"
-		>
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-				<circle cx="8.5" cy="8.5" r="1.5" />
-				<polyline points="21 15 16 10 5 21" />
-			</svg>
-		</button>
+					<div class="more-menu-separator" role="separator"></div>
 
+					<!-- Project management -->
+					<button
+						class="more-menu-item"
+						onclick={() => handleMoreMenuAction(onOpenSnapshots)}
+						role="menuitem"
+					>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+							<circle cx="8.5" cy="8.5" r="1.5" />
+							<polyline points="21 15 16 10 5 21" />
+						</svg>
+						<span>Snapshots</span>
+						<kbd>{formatShortcut('S', true, true)}</kbd>
+					</button>
+					<button
+						class="more-menu-item"
+						onclick={() => handleMoreMenuAction(() => appState.openTrashView())}
+						role="menuitem"
+					>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<polyline points="3 6 5 6 21 6" />
+							<path
+								d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+							/>
+						</svg>
+						<span>Trash</span>
+					</button>
+				</div>
+			{/if}
+		</div>
+
+		<!-- AG2: Help/Keyboard shortcuts button -->
 		<button
 			class="toolbar-btn icon-btn"
-			onclick={() => appState.openTrashView()}
-			title="Trash"
-			aria-label="Trash"
+			onclick={() => onOpenKeyboardShortcuts?.()}
+			title="Keyboard Shortcuts ({formatShortcut('/')})"
+			aria-label="Keyboard Shortcuts"
 		>
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<polyline points="3 6 5 6 21 6" />
-				<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-			</svg>
+			<Icon name="help-circle" size={18} />
 		</button>
 
 		<button
@@ -334,16 +494,93 @@
 		text-align: center;
 	}
 
-	.project-title {
+	.breadcrumb {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
 		font-size: var(--font-size-sm);
-		font-weight: 500;
-		color: var(--color-text-secondary);
+		max-width: 100%;
+		overflow: hidden;
+		-webkit-app-region: no-drag;
 	}
 
-	.unsaved-indicator {
+	.breadcrumb-item {
+		color: var(--color-text-muted);
+		font-weight: 500;
+		max-width: 160px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		border-radius: var(--border-radius-sm);
+		padding: 1px var(--spacing-xs);
+		transition: all var(--transition-fast);
+	}
+
+	.breadcrumb-item:hover {
+		color: var(--color-text-primary);
+		background-color: var(--color-bg-hover);
+	}
+
+	.breadcrumb-sep {
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+	}
+
+	.breadcrumb-current {
+		font-weight: 600;
+		color: var(--color-text-primary);
+		max-width: 180px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.breadcrumb-back-link {
+		color: var(--color-accent);
+		font-size: var(--font-size-sm);
+		display: inline-flex;
+		align-items: center;
+		padding: 2px var(--spacing-xs);
+		border-radius: var(--border-radius-sm);
+		margin-left: var(--spacing-sm);
+	}
+
+	.breadcrumb-back-link:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	/* AF1: More visible unsaved badge in breadcrumb */
+	.unsaved-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		padding: 2px var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
 		color: var(--color-warning);
-		font-size: var(--font-size-lg);
-		vertical-align: middle;
+		background-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
+		border-radius: var(--border-radius-sm);
+		margin-left: var(--spacing-xs);
+	}
+
+	.unsaved-dot-pulse {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background-color: var(--color-warning);
+		animation: unsaved-pulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes unsaved-pulse {
+		0%,
+		100% {
+			transform: scale(1);
+			opacity: 0.7;
+		}
+		50% {
+			transform: scale(1.3);
+			opacity: 1;
+		}
 	}
 
 	.demo-badge {
@@ -407,6 +644,10 @@
 	}
 
 	.view-btn {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1px;
 		padding: var(--spacing-xs) var(--spacing-sm);
 		font-size: var(--font-size-sm);
 		border-radius: var(--border-radius-sm);
@@ -422,6 +663,20 @@
 		background-color: var(--color-bg-primary);
 		color: var(--color-text-primary);
 		box-shadow: var(--shadow-sm);
+	}
+
+	/* AW1: Visible keyboard shortcut hints */
+	.view-btn .shortcut-hint {
+		font-size: 9px;
+		font-family: var(--font-family-mono);
+		color: var(--color-text-muted);
+		opacity: 0.7;
+		line-height: 1;
+	}
+
+	.view-btn:hover .shortcut-hint,
+	.view-btn.active .shortcut-hint {
+		opacity: 1;
 	}
 
 	.mode-toggle {
@@ -443,31 +698,70 @@
 		color: var(--color-accent);
 	}
 
-	.revision-passes {
+	/* More menu */
+	.more-menu-container {
+		position: relative;
+	}
+
+	.more-menu-backdrop {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 99;
+	}
+
+	.more-menu {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		margin-top: var(--spacing-xs);
+		min-width: 180px;
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--spacing-xs);
+		z-index: 100;
+	}
+
+	.more-menu-item {
 		display: flex;
-		gap: 1px;
-		background-color: var(--color-border-light);
-		border-radius: var(--border-radius-sm);
-		overflow: hidden;
-		margin-left: var(--spacing-xs);
-	}
-
-	.pass-btn {
+		align-items: center;
+		gap: var(--spacing-sm);
+		width: 100%;
 		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: var(--font-size-xs);
-		font-weight: 500;
-		background-color: var(--color-bg-secondary);
-		color: var(--color-text-muted);
-		transition: all var(--transition-fast);
-	}
-
-	.pass-btn:hover {
-		background-color: var(--color-bg-hover);
+		font-size: var(--font-size-sm);
+		text-align: left;
+		border-radius: var(--border-radius-sm);
 		color: var(--color-text-primary);
+		transition: background-color var(--transition-fast);
 	}
 
-	.pass-btn.active {
-		background-color: var(--color-accent-light);
-		color: var(--color-accent);
+	.more-menu-item:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.more-menu-item svg {
+		flex-shrink: 0;
+		color: var(--color-text-muted);
+	}
+
+	.more-menu-item span {
+		flex: 1;
+	}
+
+	.more-menu-item kbd {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		font-family: inherit;
+	}
+
+	/* AW2: Menu separator for grouping */
+	.more-menu-separator {
+		height: 1px;
+		background-color: var(--color-border);
+		margin: var(--spacing-xs) 0;
 	}
 </style>

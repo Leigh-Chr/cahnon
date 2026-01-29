@@ -8,7 +8,7 @@
  */
 
 import { untrack } from 'svelte';
-import { SvelteMap } from 'svelte/reactivity';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 import type { BibleEntry, Chapter, Project, Scene, SceneHealth, WordCounts } from '$lib/api';
 import {
@@ -22,10 +22,10 @@ import {
 	statsApi,
 	trashApi,
 } from '$lib/api';
-import { showError } from '$lib/toast.svelte';
+import { showError, showInfo, showWarning } from '$lib/toast.svelte';
 import { nativeConfirm } from '$lib/utils/native-dialog';
-import type { RevisionPassId } from '$lib/utils/revision-passes';
 
+import { getExpiringDrafts } from './recovery';
 import type {
 	EditorSettings,
 	FocusSettings,
@@ -36,9 +36,10 @@ import type {
 } from './types';
 import { defaultEditorSettings, defaultFocusSettings, defaultKeyboardShortcuts } from './types';
 
-const AUTOSAVE_INTERVAL_MS = 30_000; // 30 seconds
+const AUTOSAVE_INTERVAL_MS = 10_000; // 10 seconds
 const SAVE_RETRY_MAX_ATTEMPTS = 3;
 const SAVE_RETRY_DELAY_MS = 2_000;
+const MAX_NAV_HISTORY = 100;
 
 /**
  * Central application state using Svelte 5 runes.
@@ -63,7 +64,34 @@ class AppState {
 	workMode = $state<WorkMode>('writing');
 	showOutline = $state(true);
 	showContextPanel = $state(true);
+
+	// -------------------------------------------------------------------------
+	// Auto-Backup and Last Scene (UB5, UA6)
+	// -------------------------------------------------------------------------
+	lastAutoBackup = $state<Date | null>(null);
+	lastEditedSceneId = $state<string | null>(
+		typeof localStorage !== 'undefined' ? localStorage.getItem('cahnon-last-scene') : null
+	);
+
+	// -------------------------------------------------------------------------
+	// Sync Status (UD3)
+	// -------------------------------------------------------------------------
+	syncStatus = $state<'synced' | 'syncing' | 'error'>('synced');
+
+	// -------------------------------------------------------------------------
+	// Writing Session Mode (UA2, UB2, UB6, UB7)
+	// -------------------------------------------------------------------------
+	writingSessionActive = $state(false);
+	writingSessionGoal = $state(500);
+	writingSessionStartTime = $state<number | null>(null);
+	writingSessionWordsWritten = $state(0);
+	private _sessionGoalReached = false;
+	private _sessionLastWordCount = 0;
+	/** BD1: Scroll positions per view mode */
+	private _scrollPositions = new Map<ViewMode, number>();
+	contextPanelTab = $state<'writing' | 'links' | 'analysis'>('writing');
 	isLoading = $state(false);
+	loadingStage = $state<string>('');
 	error = $state<string | null>(null);
 
 	// -------------------------------------------------------------------------
@@ -72,6 +100,24 @@ class AppState {
 	project = $state<Project | null>(null);
 	projectPath = $state<string | null>(null);
 	hasUnsavedChanges = $state(false);
+	isSaving = $state(false);
+	lastSavedAt = $state<Date | null>(null);
+	saveFailed = $state(false);
+	/** AF1: Track when unsaved state started for duration display */
+	unsavedSince = $state<Date | null>(null);
+	/** AF5: Track when last save completed for visual flash */
+	justSaved = $state(false);
+	private _justSavedTimer: ReturnType<typeof setTimeout> | null = null;
+	/** AF1: Timer for long unsaved warning */
+	private _unsavedWarningTimer: ReturnType<typeof setTimeout> | null = null;
+	/** BA1: Track when user is actively typing */
+	isTyping = $state(false);
+	private _typingTimer: ReturnType<typeof setTimeout> | null = null;
+	/** BA2: Modal for persistent save failures */
+	showSaveFailedModal = $state(false);
+	private _saveFailedTimer: ReturnType<typeof setTimeout> | null = null;
+	/** BA5: Count of pending unsaved characters */
+	pendingCharsCount = $state(0);
 	isDemo = $state(false);
 
 	// -------------------------------------------------------------------------
@@ -88,6 +134,7 @@ class AppState {
 	bibleEntries = $state<BibleEntry[]>([]);
 	selectedBibleEntryId = $state<string | null>(null);
 	bibleFilter = $state<string | null>(null);
+	bibleSearchQuery = $state('');
 
 	// -------------------------------------------------------------------------
 	// Entity Selection (for cross-view navigation)
@@ -96,11 +143,30 @@ class AppState {
 	selectedEventId = $state<string | null>(null);
 	selectedIssueId = $state<string | null>(null);
 
+	// Requests to open managers (consumed by Layout)
+	requestOpenArcsManager = $state(false);
+	requestOpenEventsManager = $state(false);
+	requestOpenTemplatesManager = $state(false);
+
 	// -------------------------------------------------------------------------
 	// Navigation History
 	// -------------------------------------------------------------------------
 	private _navHistory: Array<{ type: string; id: string; meta?: Record<string, string> }> = [];
 	private _navIndex = -1;
+
+	/** Trim navigation history if it exceeds MAX_NAV_HISTORY (S2). */
+	private _trimNavHistory() {
+		if (this._navHistory.length > MAX_NAV_HISTORY) {
+			const excess = this._navHistory.length - MAX_NAV_HISTORY;
+			this._navHistory = this._navHistory.slice(excess);
+			this._navIndex = Math.max(0, this._navIndex - excess);
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// Favorite Scenes
+	// -------------------------------------------------------------------------
+	favoriteSceneIds = $state<Set<string>>(new Set());
 
 	// -------------------------------------------------------------------------
 	// Stats
@@ -113,11 +179,6 @@ class AppState {
 	sceneHealthMap = $state(new SvelteMap<string, SceneHealth>());
 
 	// -------------------------------------------------------------------------
-	// Revision Pass
-	// -------------------------------------------------------------------------
-	revisionPass = $state<RevisionPassId | null>(null);
-
-	// -------------------------------------------------------------------------
 	// Status Bar Message
 	// -------------------------------------------------------------------------
 	statusMessage = $state<{ text: string; type: 'info' | 'success' | 'warning' } | null>(null);
@@ -127,6 +188,29 @@ class AppState {
 	// Quick Open
 	// -------------------------------------------------------------------------
 	isQuickOpenVisible = $state(false);
+
+	// -------------------------------------------------------------------------
+	// CA7: Pending Operations (for "Working..." indicator)
+	// -------------------------------------------------------------------------
+	pendingOperations = $state(new SvelteSet<string>());
+
+	/** Add a pending operation by name (returns cleanup function). */
+	startOperation(name: string): () => void {
+		this.pendingOperations.add(name);
+		return () => {
+			this.pendingOperations.delete(name);
+		};
+	}
+
+	/** Check if any operation is pending. */
+	get isWorking(): boolean {
+		return this.pendingOperations.size > 0;
+	}
+
+	/** Get current operation names for display. */
+	get currentOperations(): string[] {
+		return Array.from(this.pendingOperations);
+	}
 
 	// -------------------------------------------------------------------------
 	// Search
@@ -193,10 +277,19 @@ class AppState {
 		return this.chapters.find((c) => c.id === this.selectedChapterId) || null;
 	}
 
-	/** Get bible entries filtered by type */
+	/** Get bible entries filtered by type and search query */
 	get filteredBibleEntries(): BibleEntry[] {
-		if (!this.bibleFilter) return this.bibleEntries;
-		return this.bibleEntries.filter((e) => e.entry_type === this.bibleFilter);
+		return this.bibleEntries.filter((e) => {
+			if (this.bibleFilter && e.entry_type !== this.bibleFilter) return false;
+			if (this.bibleSearchQuery) {
+				const q = this.bibleSearchQuery.toLowerCase();
+				return (
+					e.name.toLowerCase().includes(q) ||
+					(e.aliases ? e.aliases.toLowerCase().includes(q) : false)
+				);
+			}
+			return true;
+		});
 	}
 
 	// -------------------------------------------------------------------------
@@ -223,6 +316,7 @@ class AppState {
 			this.setupSystemColorSchemeListener();
 			this.setupAutosaveTimer();
 			this.setupWindowFocusDetection();
+			this.setupCloseInterceptor();
 		}
 	}
 
@@ -282,6 +376,14 @@ class AppState {
 		const savedShowContextPanel = localStorage.getItem('showContextPanel');
 		if (savedShowContextPanel !== null) {
 			this.showContextPanel = savedShowContextPanel === 'true';
+		}
+		const savedContextPanelTab = localStorage.getItem('contextPanelTab') as
+			| 'writing'
+			| 'links'
+			| 'analysis'
+			| null;
+		if (savedContextPanelTab) {
+			this.contextPanelTab = savedContextPanelTab;
 		}
 
 		// View mode
@@ -353,6 +455,9 @@ class AppState {
 			$effect(() => {
 				localStorage.setItem('showContextPanel', String(this.showContextPanel));
 			});
+			$effect(() => {
+				localStorage.setItem('contextPanelTab', this.contextPanelTab);
+			});
 
 			// Sync view mode
 			$effect(() => {
@@ -414,14 +519,29 @@ class AppState {
 		}
 	}
 
+	private static readonly MIN_SAVING_DISPLAY_MS = 1000; // AF4: Minimum time to show "Saving..."
+
 	/** Execute a save with a concurrency guard to prevent overlapping saves. */
 	private async _guardedSave() {
 		if (this._isSaving || !this._pendingSave) return;
 		this._isSaving = true;
+		this.isSaving = true;
+		const saveStartTime = Date.now();
 		try {
 			await this._pendingSave();
+			// AF4: Ensure minimum display time for "Saving..." indicator
+			const elapsed = Date.now() - saveStartTime;
+			const remaining = AppState.MIN_SAVING_DISPLAY_MS - elapsed;
+			if (remaining > 0) {
+				await new Promise((r) => setTimeout(r, remaining));
+			}
+			this.lastSavedAt = new Date();
+			this.saveFailed = false;
+			this._clearUnsavedTracking();
+			this._triggerJustSaved(); // AF5: Visual flash
 		} finally {
 			this._isSaving = false;
+			this.isSaving = false;
 		}
 	}
 
@@ -452,6 +572,71 @@ class AppState {
 		window.addEventListener('focus', this._windowFocusHandler);
 	}
 
+	/** Intercept native window close to warn about unsaved changes. */
+	private async setupCloseInterceptor() {
+		try {
+			const { getCurrentWindow } = await import('@tauri-apps/api/window');
+			const appWindow = getCurrentWindow();
+			appWindow.onCloseRequested(async (event) => {
+				if (this.hasUnsavedChanges) {
+					const confirmed = await nativeConfirm(
+						'You have unsaved changes. Are you sure you want to close?\n\nAny unsaved changes will be lost.',
+						'Unsaved Changes'
+					);
+					if (!confirmed) {
+						event.preventDefault();
+					}
+				}
+			});
+		} catch {
+			// Not in Tauri environment, ignore
+		}
+	}
+
+	/** Retry a failed save manually. */
+	async retrySave() {
+		if (!this._pendingSave) return;
+		this.saveFailed = false;
+		this.error = null;
+		const success = await this.saveWithRetry(this._pendingSave, 'save');
+		if (success) {
+			this.hasUnsavedChanges = false;
+			this.lastSavedAt = new Date();
+		}
+	}
+
+	/** BA6: Force save - triggers pending save callback immediately. */
+	async forceSave() {
+		if (this._pendingSave && this.hasUnsavedChanges) {
+			await this._pendingSave();
+		}
+	}
+
+	/** AO2: Emergency export - download current scene as backup when save fails. */
+	async emergencyExport() {
+		if (!this.selectedScene) {
+			showWarning('No scene selected to export');
+			return;
+		}
+
+		const content = this.selectedScene.text || '';
+		const title = this.selectedScene.title || 'untitled';
+		const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+		const filename = `emergency-backup-${title}-${timestamp}.txt`;
+
+		const blob = new Blob([content], { type: 'text/plain' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+
+		showInfo(`Backup saved as ${filename}`);
+	}
+
 	/** Clean up all event listeners, timers, and reactive effects. */
 	destroy() {
 		if (this._effectCleanup) {
@@ -475,9 +660,19 @@ class AppState {
 
 	/** Save with automatic retry on failure. */
 	async saveWithRetry(saveFn: () => Promise<void>, context = 'save'): Promise<boolean> {
+		// Store pending save for retry
+		this._pendingSave = saveFn;
 		for (let attempt = 1; attempt <= SAVE_RETRY_MAX_ATTEMPTS; attempt++) {
 			try {
 				await saveFn();
+				this._pendingSave = null;
+				// BA2: Clear any pending save failed modal timer on success
+				if (this._saveFailedTimer) {
+					clearTimeout(this._saveFailedTimer);
+					this._saveFailedTimer = null;
+				}
+				this.showSaveFailedModal = false;
+				this.saveFailed = false;
 				return true;
 			} catch (e) {
 				console.error(`${context} failed (attempt ${attempt}/${SAVE_RETRY_MAX_ATTEMPTS}):`, e);
@@ -486,12 +681,32 @@ class AppState {
 				}
 			}
 		}
-		// All retries failed
-		this.error = `Failed to ${context} after ${SAVE_RETRY_MAX_ATTEMPTS} attempts. Your changes are preserved in memory.`;
+		// All retries failed - Z5: Humanized error message
+		this.error = `Unable to save. Your writing is safe here — try saving manually or check your disk space.`;
+		this.saveFailed = true;
 		showError(
-			`Failed to ${context} after ${SAVE_RETRY_MAX_ATTEMPTS} attempts. Your changes are preserved in memory.`
+			`Unable to save. Your writing is safe here — try saving manually or check your disk space.`
 		);
+		// BA2: Start timer for persistent failure modal
+		if (!this._saveFailedTimer) {
+			this._saveFailedTimer = setTimeout(() => {
+				if (this.saveFailed) {
+					this.showSaveFailedModal = true;
+				}
+			}, 60_000); // Show modal after 60 seconds of persistent failure
+		}
 		return false;
+	}
+
+	/** BA2: Dismiss save failed modal without retrying */
+	dismissSaveFailedModal() {
+		this.showSaveFailedModal = false;
+	}
+
+	/** BA2: Export backup when save fails */
+	async exportBackup() {
+		await this.emergencyExport();
+		this.dismissSaveFailedModal();
 	}
 
 	private applyColorMode() {
@@ -554,6 +769,7 @@ class AppState {
 		}
 
 		this.isLoading = true;
+		this.loadingStage = 'Checking file status...';
 		this.error = null;
 		try {
 			// Check file status and lock before opening
@@ -579,6 +795,7 @@ class AppState {
 			}
 
 			const p = await projectApi.open(path);
+			this.loadingStage = 'Opening database...';
 			this.project = p;
 			this.projectPath = path;
 
@@ -617,16 +834,28 @@ class AppState {
 				// Non-critical, ignore
 			}
 
+			this.loadingStage = 'Loading manuscript...';
 			await this.loadManuscript();
 			await this.loadBible();
+			this.loadingStage = 'Loading bible & stats...';
 			await this.loadStats();
 			this.loadSceneHealth(); // Non-blocking
 			this.runDetections(); // Non-blocking
 			this.hasUnsavedChanges = false;
+
+			// Check for expiring recovery drafts
+			const expiring = getExpiringDrafts();
+			if (expiring.length > 0) {
+				showWarning(`${expiring.length} recovery draft(s) will expire soon.`);
+			}
+
+			// Load favorite scenes
+			this.loadFavorites();
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
 			throw e;
 		} finally {
+			this.loadingStage = '';
 			this.isLoading = false;
 		}
 	}
@@ -643,6 +872,7 @@ class AppState {
 			this.bibleEntries = [];
 			this.wordCounts = { total: 0, by_chapter: [], by_status: [] };
 			this.hasUnsavedChanges = false;
+			this.viewMode = 'editor';
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
 			throw e;
@@ -683,8 +913,15 @@ class AppState {
 		this.selectedSceneId = null;
 		this.wordCounts = null;
 		this.sceneHealthMap = new SvelteMap();
-		this.revisionPass = null;
 		this.hasUnsavedChanges = false;
+
+		// S1: Clear navigation history and entity selections
+		this._navHistory = [];
+		this._navIndex = -1;
+		this.selectedBibleEntryId = null;
+		this.selectedArcId = null;
+		this.selectedEventId = null;
+		this.selectedIssueId = null;
 		return true;
 	}
 
@@ -774,6 +1011,7 @@ class AppState {
 			this.sceneHealthMap = map;
 		} catch (e) {
 			console.error('Failed to load scene health:', e);
+			showWarning('Scene health data unavailable');
 		}
 	}
 
@@ -783,11 +1021,8 @@ class AppState {
 			await issueApi.runDetections();
 		} catch (e) {
 			console.warn('Background detection failed:', e);
+			showWarning('Background analysis unavailable');
 		}
-	}
-
-	setRevisionPass(pass: RevisionPassId | null) {
-		this.revisionPass = pass;
 	}
 
 	// -------------------------------------------------------------------------
@@ -842,11 +1077,73 @@ class AppState {
 	}
 
 	private _saveVersion = 0;
+	private static readonly UNSAVED_WARNING_DELAY_MS = 5 * 60 * 1000; // 5 minutes
 
 	/** Mark content as changed. Returns a version token for use with updateScene. */
 	markUnsaved(): number {
 		this.hasUnsavedChanges = true;
+		// AF1: Track when unsaved state started
+		if (!this.unsavedSince) {
+			this.unsavedSince = new Date();
+			// Start warning timer
+			this._unsavedWarningTimer = setTimeout(() => {
+				if (this.hasUnsavedChanges) {
+					showWarning('You have unsaved changes for 5 minutes. Consider saving your work.');
+				}
+			}, AppState.UNSAVED_WARNING_DELAY_MS);
+		}
 		return ++this._saveVersion;
+	}
+
+	/** BA1: Mark user as actively typing - stays visible 500ms after typing stops */
+	markTyping(charsDelta = 0) {
+		this.isTyping = true;
+		// BA5: Track pending characters
+		this.pendingCharsCount += charsDelta;
+		if (this._typingTimer) clearTimeout(this._typingTimer);
+		this._typingTimer = setTimeout(() => {
+			this.isTyping = false;
+		}, 1500);
+	}
+
+	/** AF1: Clear unsaved tracking state after successful save */
+	private _clearUnsavedTracking() {
+		this.unsavedSince = null;
+		this.hasUnsavedChanges = false;
+		// BA1: Clear typing state
+		this.isTyping = false;
+		if (this._typingTimer) {
+			clearTimeout(this._typingTimer);
+			this._typingTimer = null;
+		}
+		// BA5: Reset pending chars count
+		this.pendingCharsCount = 0;
+		if (this._unsavedWarningTimer) {
+			clearTimeout(this._unsavedWarningTimer);
+			this._unsavedWarningTimer = null;
+		}
+		// BA2: Clear save failed modal timer
+		if (this._saveFailedTimer) {
+			clearTimeout(this._saveFailedTimer);
+			this._saveFailedTimer = null;
+		}
+		this.showSaveFailedModal = false;
+	}
+
+	/** AF5: Trigger visual flash indicating save completed */
+	private _triggerJustSaved() {
+		this.justSaved = true;
+		// AV1: Toast notification with save time
+		showInfo(
+			`Saved at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+		);
+		if (this._justSavedTimer) {
+			clearTimeout(this._justSavedTimer);
+		}
+		this._justSavedTimer = setTimeout(() => {
+			this.justSaved = false;
+			this._justSavedTimer = null;
+		}, 2000);
 	}
 
 	async updateScene(id: string, data: Partial<Scene>, saveVersion?: number) {
@@ -863,6 +1160,8 @@ class AppState {
 		// Only clear hasUnsavedChanges if no new changes happened since this save started
 		if (saveVersion === undefined || saveVersion === this._saveVersion) {
 			this.hasUnsavedChanges = false;
+			this._clearUnsavedTracking();
+			this._triggerJustSaved();
 		}
 		return scene;
 	}
@@ -881,10 +1180,42 @@ class AppState {
 		}
 	}
 
+	/** AF3: Restore a soft-deleted scene from trash */
+	async restoreScene(id: string): Promise<void> {
+		const restored = await trashApi.restoreScene(id);
+		// Reload chapters to get the restored scene
+		await this.loadChapters();
+		// Select the restored scene
+		if (restored.chapter_id) {
+			this.selectScene(restored.id, restored.chapter_id);
+		}
+	}
+
 	selectScene(sceneId: string, chapterId?: string) {
 		this.selectedSceneId = sceneId;
 		if (chapterId) {
 			this.selectedChapterId = chapterId;
+		}
+		// UA6: Track last edited scene for quick return
+		if (sceneId) {
+			this.lastEditedSceneId = sceneId;
+			try {
+				localStorage.setItem('cahnon-last-scene', sceneId);
+			} catch {
+				// localStorage unavailable
+			}
+		}
+		// Push to navigation history (avoid duplicates)
+		const lastEntry = this._navHistory[this._navIndex];
+		if (!lastEntry || lastEntry.type !== 'scene' || lastEntry.id !== sceneId) {
+			this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
+			this._navHistory.push({
+				type: 'scene',
+				id: sceneId,
+				meta: chapterId ? { chapterId } : undefined,
+			});
+			this._navIndex = this._navHistory.length - 1;
+			this._trimNavHistory();
 		}
 	}
 
@@ -926,12 +1257,29 @@ class AppState {
 	}
 
 	setViewMode(mode: ViewMode) {
+		const prevMode = this.viewMode;
 		this.viewMode = mode;
+		if (prevMode !== mode) {
+			this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
+			this._navHistory.push({ type: 'view', id: mode });
+			this._navIndex = this._navHistory.length - 1;
+			this._trimNavHistory();
+		}
+	}
+
+	/** BD1: Save scroll position for current view. */
+	saveScrollPosition(view: ViewMode, position: number) {
+		this._scrollPositions.set(view, position);
+	}
+
+	/** BD1: Get saved scroll position for a view. */
+	getScrollPosition(view: ViewMode): number {
+		return this._scrollPositions.get(view) || 0;
 	}
 
 	/** Navigate to a specific entity, switching view and pushing to history. */
 	navigateTo(
-		type: 'scene' | 'bible' | 'arc' | 'event' | 'issue' | 'dashboard',
+		type: 'scene' | 'bible' | 'arc' | 'event' | 'issue' | 'dashboard' | 'view',
 		id?: string,
 		meta?: Record<string, string>
 	) {
@@ -939,6 +1287,7 @@ class AppState {
 		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
 		this._navHistory.push({ type, id: id || '', meta });
 		this._navIndex = this._navHistory.length - 1;
+		this._trimNavHistory();
 
 		this._applyNavigation(type, id || '');
 	}
@@ -973,18 +1322,27 @@ class AppState {
 
 	private _applyNavigation(type: string, id: string) {
 		switch (type) {
-			case 'scene':
+			case 'scene': {
+				let found = false;
 				if (id) {
 					for (const [chapterId, scenes] of this.scenes) {
 						if (scenes.find((s) => s.id === id)) {
 							this.selectedChapterId = chapterId;
 							this.selectedSceneId = id;
+							found = true;
 							break;
 						}
 					}
 				}
+				// S3: Handle deleted scene navigation with feedback
+				if (id && !found) {
+					showInfo('Scene no longer exists.');
+					this._navHistory.splice(this._navIndex, 1);
+					if (this._navIndex > 0) this._navIndex--;
+				}
 				this.viewMode = 'editor';
 				break;
+			}
 			case 'bible':
 				if (id) this.selectedBibleEntryId = id;
 				this.viewMode = 'bible';
@@ -1004,6 +1362,88 @@ class AppState {
 			case 'dashboard':
 				this.viewMode = 'dashboard';
 				break;
+			case 'view':
+				this.viewMode = id as ViewMode;
+				break;
+		}
+	}
+
+	navigateToBibleEntry(id: string) {
+		this.navigateTo('bible', id);
+	}
+
+	/** AO4: Select a Bible entry with navigation history tracking. */
+	selectBibleEntry(entryId: string) {
+		// Push current entry to history before navigating
+		if (this.selectedBibleEntryId && this.selectedBibleEntryId !== entryId) {
+			this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
+			this._navHistory.push({
+				type: 'bible',
+				id: this.selectedBibleEntryId,
+			});
+			this._navIndex = this._navHistory.length - 1;
+			this._trimNavHistory();
+		}
+
+		this.selectedBibleEntryId = entryId;
+
+		// Also push the new selection to history
+		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
+		this._navHistory.push({
+			type: 'bible',
+			id: entryId,
+		});
+		this._navIndex = this._navHistory.length - 1;
+		this._trimNavHistory();
+	}
+
+	navigateToArc(id: string) {
+		this.selectedArcId = id;
+		this.requestOpenArcsManager = true;
+		// Push to navigation history
+		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
+		this._navHistory.push({ type: 'arc', id });
+		this._navIndex = this._navHistory.length - 1;
+		this._trimNavHistory();
+	}
+
+	navigateToEvent(id: string) {
+		this.selectedEventId = id;
+		this.requestOpenEventsManager = true;
+		// Push to navigation history
+		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
+		this._navHistory.push({ type: 'event', id });
+		this._navIndex = this._navHistory.length - 1;
+		this._trimNavHistory();
+	}
+
+	toggleFavorite(sceneId: string) {
+		const next = new SvelteSet(this.favoriteSceneIds);
+		if (next.has(sceneId)) {
+			next.delete(sceneId);
+		} else {
+			next.add(sceneId);
+		}
+		this.favoriteSceneIds = next;
+		// Persist
+		try {
+			localStorage.setItem(`favorites:${this.projectPath || 'default'}`, JSON.stringify([...next]));
+		} catch {
+			/* ignore */
+		}
+	}
+
+	isFavorite(sceneId: string): boolean {
+		return this.favoriteSceneIds.has(sceneId);
+	}
+
+	private loadFavorites() {
+		try {
+			const key = `favorites:${this.projectPath || 'default'}`;
+			const saved = localStorage.getItem(key);
+			this.favoriteSceneIds = new Set(saved ? JSON.parse(saved) : []);
+		} catch {
+			this.favoriteSceneIds = new Set();
 		}
 	}
 
@@ -1114,11 +1554,125 @@ class AppState {
 	}
 
 	// -------------------------------------------------------------------------
+	// Actions - Writing Session (UA2, UB2, UB6, UB7)
+	// -------------------------------------------------------------------------
+
+	/** Start a writing session with an optional word goal. */
+	startWritingSession(goal?: number) {
+		this.writingSessionActive = true;
+		this.writingSessionGoal = goal || 500;
+		this.writingSessionStartTime = Date.now();
+		this.writingSessionWordsWritten = 0;
+		this._sessionGoalReached = false;
+		this._sessionLastWordCount = 0; // Will be set on first update
+		// Switch to editor and optionally enable focus mode
+		this.setViewMode('editor');
+		if (!this.isFocusMode) {
+			this.toggleFocusMode();
+		}
+	}
+
+	/** End the current writing session and show summary. */
+	endWritingSession() {
+		if (!this.writingSessionActive) return;
+
+		const duration = this.writingSessionStartTime
+			? Math.floor((Date.now() - this.writingSessionStartTime) / 60000)
+			: 0;
+		const wordsWritten = this.writingSessionWordsWritten;
+
+		this.writingSessionActive = false;
+		this.writingSessionStartTime = null;
+		this.writingSessionWordsWritten = 0;
+		this._sessionGoalReached = false;
+
+		// Exit focus mode if it was enabled
+		if (this.isFocusMode) {
+			this.toggleFocusMode();
+		}
+
+		// Show session summary toast
+		const wpm = duration > 0 ? Math.round(wordsWritten / duration) : 0;
+		showInfo(`Session complete: ${wordsWritten} words in ${duration}m (${wpm} wpm)`);
+	}
+
+	/** Update session word count based on current scene's live word count. */
+	updateSessionWordCount(currentSceneWordCount: number) {
+		if (!this.writingSessionActive) return;
+
+		// Initialize baseline on first call
+		if (this._sessionLastWordCount === 0) {
+			this._sessionLastWordCount = currentSceneWordCount;
+			return;
+		}
+
+		// Calculate delta (only count additions, not deletions)
+		const delta = currentSceneWordCount - this._sessionLastWordCount;
+		if (delta > 0) {
+			this.writingSessionWordsWritten += delta;
+		}
+		this._sessionLastWordCount = currentSceneWordCount;
+
+		// Check if goal reached for first time
+		if (this.writingSessionWordsWritten >= this.writingSessionGoal && !this._sessionGoalReached) {
+			this._sessionGoalReached = true;
+			// Dynamic import to avoid circular dependency
+			import('$lib/toast.svelte').then(({ celebrate }) => {
+				celebrate(`Goal reached! ${this.writingSessionWordsWritten} words written`);
+			});
+		}
+	}
+
+	/** Reset session word tracking when switching scenes. */
+	resetSessionSceneBaseline(newSceneWordCount: number) {
+		if (this.writingSessionActive) {
+			this._sessionLastWordCount = newSceneWordCount;
+		}
+	}
+
+	/** UA6: Jump to the last edited scene. */
+	jumpToLastScene() {
+		if (!this.lastEditedSceneId) return;
+
+		// Find the chapter containing this scene
+		for (const [chapterId, scenes] of this.scenes) {
+			const scene = scenes.find((s) => s.id === this.lastEditedSceneId);
+			if (scene) {
+				this.selectScene(scene.id, chapterId);
+				this.setViewMode('editor');
+				return;
+			}
+		}
+	}
+
+	/** Get session progress as a percentage (0-100). */
+	get sessionProgress(): number {
+		if (!this.writingSessionActive || this.writingSessionGoal <= 0) return 0;
+		return Math.min(100, (this.writingSessionWordsWritten / this.writingSessionGoal) * 100);
+	}
+
+	// -------------------------------------------------------------------------
 	// Actions - Focus Mode
 	// -------------------------------------------------------------------------
 
+	// CA1: Pre-focus panel state for restoration
+	private _preFocusPanelState: { showOutline: boolean; showContextPanel: boolean } | null = null;
+
 	toggleFocusMode() {
 		this.isFocusMode = !this.isFocusMode;
+		// CA1: Save panel state when entering focus mode, restore when exiting
+		if (this.isFocusMode) {
+			this._preFocusPanelState = {
+				showOutline: this.showOutline,
+				showContextPanel: this.showContextPanel,
+			};
+			this.showOutline = false;
+			this.showContextPanel = false;
+		} else if (this._preFocusPanelState) {
+			this.showOutline = this._preFocusPanelState.showOutline;
+			this.showContextPanel = this._preFocusPanelState.showContextPanel;
+			this._preFocusPanelState = null;
+		}
 	}
 
 	setFocusSetting<K extends keyof FocusSettings>(key: K, value: FocusSettings[K]) {

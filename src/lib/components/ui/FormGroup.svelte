@@ -4,9 +4,16 @@
 	 *
 	 * Wrapper for form fields with consistent label styling.
 	 * Replaces the repeated .form-group pattern across 9+ components.
+	 *
+	 * AM6: Enhanced accessibility for validation errors:
+	 * - Error icon (not just color) for visibility
+	 * - aria-describedby links input to error/hint message
+	 * - role="alert" on error for screen reader announcement
 	 */
 
 	import type { Snippet } from 'svelte';
+
+	import Icon from './Icon.svelte';
 
 	interface Props {
 		label: string;
@@ -18,27 +25,44 @@
 	}
 
 	let { label, id, hint, error, required = false, children }: Props = $props();
+
+	// Generate IDs for accessibility
+	let errorId = $derived(id ? `${id}-error` : undefined);
+	let hintId = $derived(id ? `${id}-hint` : undefined);
 </script>
 
 <div class="form-group" class:has-error={error}>
 	<label for={id} class="form-label">
 		{label}
 		{#if required}
-			<span class="required">*</span>
+			<span class="required" aria-hidden="true">*</span>
 		{/if}
 	</label>
-	<div class="form-control">
-		{@render children()}
+	<div class="form-input-wrapper">
+		<div class="form-control">
+			{@render children()}
+		</div>
+		{#if error}
+			<span class="form-error-icon" aria-hidden="true">
+				<Icon name="alert" size={16} />
+			</span>
+		{/if}
 	</div>
 	{#if error}
-		<span class="form-error">{error}</span>
+		<div class="form-error" id={errorId} role="alert">
+			<Icon name="alert" size={12} />
+			<span>{error}</span>
+		</div>
 	{:else if hint}
-		<span class="form-hint">{hint}</span>
+		<span class="form-hint" id={hintId}>{hint}</span>
 	{/if}
 </div>
 
 <style>
 	.form-group {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
 		margin-bottom: var(--spacing-md);
 	}
 
@@ -47,7 +71,6 @@
 		font-size: var(--font-size-xs);
 		font-weight: 500;
 		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-xs);
 	}
 
 	.required {
@@ -55,8 +78,22 @@
 		margin-left: 2px;
 	}
 
+	.form-input-wrapper {
+		position: relative;
+	}
+
 	.form-control {
 		width: 100%;
+	}
+
+	/* AM6: Error icon positioned inside the input */
+	.form-error-icon {
+		position: absolute;
+		right: var(--spacing-sm);
+		top: 50%;
+		transform: translateY(-50%);
+		color: var(--color-error);
+		pointer-events: none;
 	}
 
 	/* Style native inputs within form-control */
@@ -103,19 +140,25 @@
 	.has-error .form-control :global(textarea),
 	.has-error .form-control :global(select) {
 		border-color: var(--color-error);
+		padding-right: calc(var(--spacing-sm) * 2 + 16px);
+	}
+
+	.has-error .form-control :global(input:focus),
+	.has-error .form-control :global(textarea:focus) {
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
 	}
 
 	.form-hint {
-		display: block;
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
-		margin-top: var(--spacing-xs);
 	}
 
+	/* AM6: Error with icon for accessibility (not just color) */
 	.form-error {
-		display: block;
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
 		font-size: var(--font-size-xs);
 		color: var(--color-error);
-		margin-top: var(--spacing-xs);
 	}
 </style>

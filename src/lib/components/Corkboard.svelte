@@ -11,15 +11,24 @@
   - Automatic snapshots before bulk operations
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 	import type { Arc, Scene } from '$lib/api';
 	import { arcApi, sceneApi, snapshotApi } from '$lib/api';
 	import { appState } from '$lib/stores';
-	import { showError, showSuccess } from '$lib/toast';
-	import { countWords, formatWordCount, sceneStatuses, statusColors } from '$lib/utils';
+	import { showError, showInfo, showSuccess } from '$lib/toast';
+	import {
+		countWords,
+		formatWordCount,
+		sceneStatuses,
+		statusColors,
+		stripHtml,
+		truncate,
+	} from '$lib/utils';
 	import { nativeConfirm } from '$lib/utils/native-dialog';
 
+	import { EmptyState } from './ui';
 	import ContextMenu from './ui/ContextMenu.svelte';
 	import ContextMenuItem from './ui/ContextMenuItem.svelte';
 	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
@@ -52,16 +61,42 @@
 		}
 	}
 
+	function filterKey(name: string): string {
+		return `corkboard-${name}-${appState.projectPath || 'default'}`;
+	}
+
 	type GroupBy = 'chapter' | 'status' | 'pov' | 'arc';
-	let groupBy = $state<GroupBy>('chapter');
+	let groupBy = $state<GroupBy>(
+		(localStorage.getItem(filterKey('groupby')) as GroupBy) || 'chapter'
+	);
 	let showFilters = $state(false);
 
-	// Filter state
-	let filterStatus = $state('');
-	let filterPov = $state('');
-	let filterTag = $state('');
-	let filterArc = $state('');
-	let filterHealth = $state('');
+	// Filter state (persisted to localStorage, scoped per project)
+	let filterStatus = $state(localStorage.getItem(filterKey('status')) || '');
+	let filterPov = $state(localStorage.getItem(filterKey('pov')) || '');
+	let filterTag = $state(localStorage.getItem(filterKey('tag')) || '');
+	let filterArc = $state(localStorage.getItem(filterKey('arc')) || '');
+	let filterHealth = $state(localStorage.getItem(filterKey('health')) || '');
+
+	// Persist filter changes to localStorage
+	$effect(() => {
+		localStorage.setItem(filterKey('groupby'), groupBy);
+	});
+	$effect(() => {
+		localStorage.setItem(filterKey('status'), filterStatus);
+	});
+	$effect(() => {
+		localStorage.setItem(filterKey('pov'), filterPov);
+	});
+	$effect(() => {
+		localStorage.setItem(filterKey('tag'), filterTag);
+	});
+	$effect(() => {
+		localStorage.setItem(filterKey('arc'), filterArc);
+	});
+	$effect(() => {
+		localStorage.setItem(filterKey('health'), filterHealth);
+	});
 
 	// Arc data for filtering and display
 	let allArcs = $state<Arc[]>([]);
@@ -93,7 +128,7 @@
 		}
 	}
 
-	// Multi-select state
+	// Multi-select state - SvelteSet is already reactive
 	let selectedSceneIds = new SvelteSet<string>();
 	let isMultiSelectMode = $state(false);
 
@@ -242,14 +277,33 @@
 	// Clear selection when filters change
 	$effect(() => {
 		if (currentFilters) {
-			selectedSceneIds.clear();
+			// Use untrack to avoid creating dependency on selectedSceneIds
+			untrack(() => selectedSceneIds.clear());
 		}
 	});
 
+	// CB6: Track last selected index for shift+click range selection
+	let lastSelectedIndex = $state(-1);
+
 	function selectScene(sceneId: string, chapterId: string, event: MouseEvent) {
-		// Handle multi-select with Ctrl/Cmd or Shift
+		const currentIndex = filteredScenes.findIndex((s) => s.scene.id === sceneId);
+
+		// CB6: Handle Shift+click range selection
+		if (event.shiftKey && lastSelectedIndex >= 0 && currentIndex >= 0) {
+			const start = Math.min(lastSelectedIndex, currentIndex);
+			const end = Math.max(lastSelectedIndex, currentIndex);
+
+			isMultiSelectMode = true;
+			for (let i = start; i <= end; i++) {
+				selectedSceneIds.add(filteredScenes[i].scene.id);
+			}
+			return;
+		}
+
+		// Handle multi-select with Ctrl/Cmd
 		if (event.ctrlKey || event.metaKey) {
 			isMultiSelectMode = true;
+			lastSelectedIndex = currentIndex;
 			if (selectedSceneIds.has(sceneId)) {
 				selectedSceneIds.delete(sceneId);
 			} else {
@@ -262,10 +316,12 @@
 		if (!isMultiSelectMode || selectedSceneIds.size === 0) {
 			selectedSceneIds.clear();
 			isMultiSelectMode = false;
+			lastSelectedIndex = currentIndex;
 			appState.selectScene(sceneId, chapterId);
 			appState.setViewMode('editor');
 		} else {
 			// In multi-select mode, toggle selection
+			lastSelectedIndex = currentIndex;
 			if (selectedSceneIds.has(sceneId)) {
 				selectedSceneIds.delete(sceneId);
 			} else {
@@ -338,7 +394,11 @@
 
 	// Drag and drop handlers
 	function handleDragStart(event: DragEvent, sceneId: string) {
-		if (groupBy !== 'chapter') return; // Only allow reordering when grouped by chapter
+		if (groupBy !== 'chapter') {
+			showInfo('Switch to "Group by Chapter" to reorder scenes');
+			event.preventDefault();
+			return;
+		}
 		draggedSceneId = sceneId;
 		if (event.dataTransfer) {
 			event.dataTransfer.effectAllowed = 'move';
@@ -397,6 +457,49 @@
 
 	function getStatusColor(status: string): string {
 		return statusColors[status] || 'var(--color-text-muted)';
+	}
+
+	// Keyboard accessibility for reordering
+	let moveAnnouncement = $state('');
+
+	async function handleCardKeydown(e: KeyboardEvent, sceneId: string, chapterId: string) {
+		if (groupBy !== 'chapter') return;
+		if (!e.ctrlKey && !e.metaKey) return;
+		if (!e.shiftKey) return;
+
+		if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+			e.preventDefault();
+			const chapterScenes = appState.scenes.get(chapterId) || [];
+			const sceneIds = chapterScenes.map((s) => s.id);
+			const index = sceneIds.indexOf(sceneId);
+			if (index <= 0) return;
+			sceneIds.splice(index, 1);
+			sceneIds.splice(index - 1, 0, sceneId);
+			try {
+				await sceneApi.reorder(chapterId, sceneIds);
+				await appState.loadChapters();
+				const scene = chapterScenes.find((s) => s.id === sceneId);
+				moveAnnouncement = `${scene?.title || 'Scene'} moved up`;
+			} catch {
+				showError('Failed to reorder scene');
+			}
+		} else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+			e.preventDefault();
+			const chapterScenes = appState.scenes.get(chapterId) || [];
+			const sceneIds = chapterScenes.map((s) => s.id);
+			const index = sceneIds.indexOf(sceneId);
+			if (index === -1 || index >= sceneIds.length - 1) return;
+			sceneIds.splice(index, 1);
+			sceneIds.splice(index + 1, 0, sceneId);
+			try {
+				await sceneApi.reorder(chapterId, sceneIds);
+				await appState.loadChapters();
+				const scene = chapterScenes.find((s) => s.id === sceneId);
+				moveAnnouncement = `${scene?.title || 'Scene'} moved down`;
+			} catch {
+				showError('Failed to reorder scene');
+			}
+		}
 	}
 </script>
 
@@ -571,7 +674,9 @@
 							class:multi-selected={selectedSceneIds.has(scene.id)}
 							class:dragging={draggedSceneId === scene.id}
 							class:drag-over={dragOverSceneId === scene.id}
+							class:drag-disabled={groupBy !== 'chapter'}
 							onclick={(e) => selectScene(scene.id, chapterId, e)}
+							onkeydown={(e) => handleCardKeydown(e, scene.id, chapterId)}
 							oncontextmenu={(e) => handleCardContextMenu(e, scene.id, chapterId)}
 							style="--status-color: {getStatusColor(scene.status)}"
 							draggable={groupBy === 'chapter'}
@@ -606,8 +711,10 @@
 										class:health-good={health.score >= 0.8}
 										class:health-warning={health.score >= 0.5 && health.score < 0.8}
 										class:health-bad={health.score < 0.5}
-										title="Health: {Math.round(health.score * 100)}%"
-										>{Math.round(health.score * 100)}%</span
+										title="Health: {Math.round(health.score * 100)}% — {health.checks
+											.filter((c) => !c.passed)
+											.map((c) => c.label)
+											.join(', ') || 'All checks passed'}">{Math.round(health.score * 100)}%</span
 									>
 								{/if}
 								<span class="status-badge">{scene.status}</span>
@@ -615,6 +722,12 @@
 
 							{#if scene.summary}
 								<p class="card-summary">{scene.summary}</p>
+							{/if}
+
+							{#if stripHtml(scene.text).length > 0}
+								<p class="card-excerpt">
+									{truncate(stripHtml(scene.text), scene.summary ? 80 : 120)}
+								</p>
 							{/if}
 
 							<div class="card-footer">
@@ -652,10 +765,11 @@
 				</div>
 			</div>
 		{:else}
-			<div class="empty-corkboard">
-				<p>No scenes to display</p>
-				<p class="hint">Create chapters and scenes in the outline to see them here.</p>
-			</div>
+			<EmptyState
+				icon="file"
+				title="No scenes to display"
+				description="Create chapters and scenes in the outline to see them here as cards."
+			/>
 		{/each}
 	</div>
 </div>
@@ -682,6 +796,8 @@
 		/>
 	</ContextMenu>
 {/if}
+
+<div aria-live="polite" class="sr-only">{moveAnnouncement}</div>
 
 <style>
 	.corkboard {
@@ -981,6 +1097,20 @@
 		cursor: grabbing;
 	}
 
+	.scene-card[draggable='false'] .drag-handle {
+		opacity: 0.15;
+		cursor: not-allowed;
+	}
+
+	/* U4: Visual feedback when drag is disabled */
+	.scene-card.drag-disabled {
+		cursor: default;
+	}
+
+	.scene-card.drag-disabled .drag-handle {
+		display: none;
+	}
+
 	.select-checkbox {
 		position: absolute;
 		top: var(--spacing-sm);
@@ -1007,7 +1137,7 @@
 		bottom: var(--spacing-sm);
 		right: var(--spacing-sm);
 		color: var(--color-text-muted);
-		opacity: 0;
+		opacity: 0.3;
 		transition: opacity var(--transition-fast);
 	}
 
@@ -1077,6 +1207,18 @@
 		-webkit-box-orient: vertical;
 	}
 
+	.card-excerpt {
+		font-size: var(--font-size-xs);
+		font-style: italic;
+		color: var(--color-text-muted);
+		line-height: var(--line-height-tight);
+		overflow: hidden;
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
+		-webkit-box-orient: vertical;
+	}
+
 	.card-footer {
 		display: flex;
 		align-items: center;
@@ -1110,20 +1252,5 @@
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
 		margin-left: auto;
-	}
-
-	.empty-corkboard {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		color: var(--color-text-muted);
-		text-align: center;
-	}
-
-	.empty-corkboard .hint {
-		font-size: var(--font-size-sm);
-		margin-top: var(--spacing-sm);
 	}
 </style>

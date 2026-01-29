@@ -11,18 +11,39 @@
   - Context menu for edit/delete operations
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
-	import { chapterApi, sceneApi, trashApi } from '$lib/api';
+	import { chapterApi, type Scene, sceneApi, trashApi } from '$lib/api';
 	import { appState } from '$lib/stores';
-	import { showError } from '$lib/toast';
-	import { countWords, formatWordCount, statusColors } from '$lib/utils';
+	import { getAllRecoveryDrafts } from '$lib/stores/recovery';
+	import { showError, showSuccess } from '$lib/toast';
+	import { countWords, formatWordCount, sceneStatuses, statusColors } from '$lib/utils';
 
 	import ImpactDialog from './ImpactDialog.svelte';
-	import { Button, Icon } from './ui';
+	import { Button, EmptyState, Icon } from './ui';
 	import ContextMenu from './ui/ContextMenu.svelte';
 	import ContextMenuItem from './ui/ContextMenuItem.svelte';
 	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
+
+	// AJ1: Track scenes with recovery drafts
+	let recoverySceneIds = $derived.by(() => {
+		const drafts = getAllRecoveryDrafts();
+		return new Set(drafts.map((d) => d.sceneId));
+	});
+
+	// UC2: Compact view toggle
+	let compactView = $state(
+		typeof localStorage !== 'undefined' && localStorage.getItem('outline-compact') === 'true'
+	);
+
+	$effect(() => {
+		try {
+			localStorage.setItem('outline-compact', String(compactView));
+		} catch {
+			// localStorage unavailable
+		}
+	});
 
 	// Impact dialog state
 	let impactDialog = $state<{
@@ -48,7 +69,34 @@
 	let editingChapterStatus = $state('draft');
 	let editingChapterNotes = $state('');
 
-	let expandedChapters = new SvelteSet<string>();
+	// Scene inline editing state
+	let editingSceneId = $state<string | null>(null);
+	let editingSceneTitle = $state('');
+
+	let expandedChapters = new SvelteSet<string>(loadExpandedChapters());
+
+	function getExpandedKey(): string {
+		return `expandedChapters:${appState.projectPath || 'default'}`;
+	}
+
+	function loadExpandedChapters(): string[] {
+		try {
+			const stored = localStorage.getItem(getExpandedKey());
+			return stored ? JSON.parse(stored) : [];
+		} catch {
+			return [];
+		}
+	}
+
+	// Persist expanded chapters when they change
+	$effect(() => {
+		const ids = Array.from(expandedChapters);
+		try {
+			localStorage.setItem(getExpandedKey(), JSON.stringify(ids));
+		} catch {
+			// localStorage unavailable
+		}
+	});
 
 	// Drag and drop state
 	let draggedItem = $state<{ type: 'chapter' | 'scene'; id: string; chapterId?: string } | null>(
@@ -64,11 +112,116 @@
 	let chapters = $derived(appState.chapters);
 	let scenes = $derived(appState.scenes);
 
-	$effect(() => {
-		if (chapters.length > 0 && expandedChapters.size === 0) {
-			// Auto-expand first chapter
-			expandedChapters.add(chapters[0].id);
+	// CB1: Persist Outline filter in localStorage per project
+	function getFilterKey(): string {
+		return `outline-filter-${appState.projectPath || 'default'}`;
+	}
+
+	function loadPersistedFilter(): string {
+		try {
+			return localStorage.getItem(getFilterKey()) || '';
+		} catch {
+			return '';
 		}
+	}
+
+	// Outline filter
+	let filterQuery = $state(loadPersistedFilter());
+	let isFiltering = $derived(filterQuery.trim().length > 0);
+	// AW4: Store expanded state before filtering to restore after (non-reactive to avoid loops)
+	let preFilterExpanded: Set<string> | null = null;
+
+	// CB1: Persist filter query when it changes
+	$effect(() => {
+		try {
+			localStorage.setItem(getFilterKey(), filterQuery);
+		} catch {
+			// localStorage unavailable
+		}
+	});
+
+	let filteredChapters = $derived.by(() => {
+		if (!isFiltering) return chapters;
+		const q = filterQuery.trim().toLowerCase();
+		return chapters.filter((chapter) => {
+			if (chapter.title.toLowerCase().includes(q)) return true;
+			const chapterScenes = scenes.get(chapter.id) || [];
+			return chapterScenes.some((scene) => scene.title.toLowerCase().includes(q));
+		});
+	});
+
+	function getFilteredScenes(chapterId: string) {
+		const chapterScenes = scenes.get(chapterId) || [];
+		if (!isFiltering) return chapterScenes;
+		const q = filterQuery.trim().toLowerCase();
+		// If chapter title matches, show all its scenes
+		const chapter = chapters.find((c) => c.id === chapterId);
+		if (chapter && chapter.title.toLowerCase().includes(q)) return chapterScenes;
+		// Otherwise filter scenes by title
+		return chapterScenes.filter((scene) => scene.title.toLowerCase().includes(q));
+	}
+
+	let filterResultCount = $derived.by(() => {
+		if (!isFiltering) return 0;
+		let count = 0;
+		for (const chapter of filteredChapters) {
+			count += getFilteredScenes(chapter.id).length;
+		}
+		return count;
+	});
+
+	let hasInitializedExpansion = false;
+
+	$effect(() => {
+		if (chapters.length > 0 && !hasInitializedExpansion) {
+			hasInitializedExpansion = true;
+			// Only auto-expand first chapter if nothing was persisted
+			// Use untrack to avoid creating dependency on expandedChapters
+			untrack(() => {
+				if (expandedChapters.size === 0) {
+					expandedChapters.add(chapters[0].id);
+				}
+			});
+		}
+	});
+
+	// AW4: Save expanded state when starting to filter, restore when clearing
+	$effect(() => {
+		// Use untrack for reading/writing expandedChapters to avoid loops
+		if (isFiltering && preFilterExpanded === null) {
+			// Starting to filter - save current state
+			preFilterExpanded = new Set(untrack(() => expandedChapters));
+		} else if (!isFiltering && preFilterExpanded !== null) {
+			// Filter cleared - restore previous state
+			untrack(() => {
+				expandedChapters.clear();
+				for (const id of preFilterExpanded!) {
+					expandedChapters.add(id);
+				}
+			});
+			preFilterExpanded = null;
+		}
+	});
+
+	// Auto-scroll to selected scene and expand its chapter
+	$effect(() => {
+		const sceneId = appState.selectedSceneId;
+		const chapterId = appState.selectedChapterId;
+		if (!sceneId) return;
+
+		// Expand the chapter containing the selected scene
+		// Use untrack to avoid creating dependency on expandedChapters
+		untrack(() => {
+			if (chapterId && !expandedChapters.has(chapterId)) {
+				expandedChapters.add(chapterId);
+			}
+		});
+
+		// AC2: Scroll to the scene item after DOM update (center in view)
+		requestAnimationFrame(() => {
+			const el = document.querySelector(`[data-scene-id="${sceneId}"]`);
+			el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+		});
 	});
 
 	function toggleChapter(id: string) {
@@ -99,7 +252,29 @@
 	async function handleAddScene(chapterId: string) {
 		const chapterScenes = scenes.get(chapterId) || [];
 		const title = `Scene ${chapterScenes.length + 1}`;
-		await appState.createScene(chapterId, title);
+		const newScene = await appState.createScene(chapterId, title);
+
+		// AO3: Auto-select and focus the new scene
+		// Ensure chapter is expanded
+		if (!expandedChapters.has(chapterId)) {
+			expandedChapters.add(chapterId);
+		}
+
+		// Switch to editor view if not already
+		if (appState.viewMode !== 'editor') {
+			appState.setViewMode('editor');
+		}
+
+		// AV2: Keep focus in Outline on the new scene item instead of jumping to editor
+		// This allows the user to continue organizing scenes or rename immediately
+		requestAnimationFrame(() => {
+			const sceneItem = document.querySelector(`[data-scene-id="${newScene.id}"]`);
+			if (sceneItem instanceof HTMLElement) {
+				sceneItem.focus();
+			}
+		});
+
+		showSuccess(`Created "${newScene.title}"`);
 	}
 
 	function getChapterWordCount(chapterId: string): number {
@@ -231,6 +406,7 @@
 			appState.selectedSceneId = duplicated.id;
 		} catch (e) {
 			console.error('Failed to duplicate scene:', e);
+			showError('Failed to duplicate scene');
 		}
 		closeContextMenu();
 	}
@@ -249,15 +425,32 @@
 
 	async function confirmDelete() {
 		if (!impactDialog) return;
+		const { entityType, entityId, entityName } = impactDialog;
 		try {
-			if (impactDialog.entityType === 'scene') {
-				await appState.deleteScene(impactDialog.entityId);
-			} else if (impactDialog.entityType === 'chapter') {
-				await appState.deleteChapter(impactDialog.entityId);
+			if (entityType === 'scene') {
+				await appState.deleteScene(entityId);
+				// AF3: Show toast with undo action
+				showSuccess(`Scene "${entityName}" deleted`, {
+					action: {
+						label: 'Undo',
+						onClick: async () => {
+							try {
+								await appState.restoreScene(entityId);
+								showSuccess(`Scene "${entityName}" restored`);
+							} catch (e) {
+								console.error('Failed to restore scene:', e);
+								showError('Failed to restore scene');
+							}
+						},
+					},
+					duration: 10000,
+				});
+			} else if (entityType === 'chapter') {
+				await appState.deleteChapter(entityId);
 			}
 		} catch (e) {
-			console.error(`Failed to delete ${impactDialog.entityType}:`, e);
-			showError(`Failed to delete ${impactDialog.entityType}`);
+			console.error(`Failed to delete ${entityType}:`, e);
+			showError(`Failed to delete ${entityType}`);
 		}
 		impactDialog = null;
 	}
@@ -286,9 +479,15 @@
 			editingChapterId = null;
 			return;
 		}
+		const chapterId = editingChapterId;
 		try {
-			await chapterApi.update(editingChapterId, { title: editingChapterTitle.trim() });
+			await chapterApi.update(chapterId, { title: editingChapterTitle.trim() });
 			await appState.loadChapters();
+			// AP5: Flash confirmation
+			justSavedChapterId = chapterId;
+			setTimeout(() => {
+				if (justSavedChapterId === chapterId) justSavedChapterId = null;
+			}, 1000);
 		} catch (e) {
 			console.error('Failed to rename chapter:', e);
 			showError('Failed to rename chapter');
@@ -298,6 +497,40 @@
 
 	function cancelRenamingChapter() {
 		editingChapterId = null;
+	}
+
+	function startRenamingScene(sceneId: string) {
+		const scene = Array.from(scenes.values())
+			.flat()
+			.find((s) => s.id === sceneId);
+		if (!scene) return;
+		editingSceneTitle = scene.title;
+		editingSceneId = sceneId;
+	}
+
+	async function finishRenamingScene() {
+		if (!editingSceneId || !editingSceneTitle.trim()) {
+			editingSceneId = null;
+			return;
+		}
+		const sceneId = editingSceneId;
+		try {
+			await sceneApi.update(sceneId, { title: editingSceneTitle.trim() });
+			await appState.loadChapters();
+			// AP5: Flash confirmation
+			justSavedSceneId = sceneId;
+			setTimeout(() => {
+				if (justSavedSceneId === sceneId) justSavedSceneId = null;
+			}, 1000);
+		} catch (e) {
+			console.error('Failed to rename scene:', e);
+			showError('Failed to rename scene');
+		}
+		editingSceneId = null;
+	}
+
+	function cancelRenamingScene() {
+		editingSceneId = null;
 	}
 
 	function openChapterDetails(chapterId: string) {
@@ -343,21 +576,254 @@
 		closeContextMenu();
 	}
 
+	// Keyboard accessibility for reordering
+	let moveAnnouncement = $state('');
+	// AI5: Track recently moved items for visual feedback
+	let recentlyMovedId = $state<string | null>(null);
+
+	// AP5: Track recently saved items for visual feedback
+	let justSavedSceneId = $state<string | null>(null);
+	let justSavedChapterId = $state<string | null>(null);
+
+	function flashMovedItem(id: string) {
+		recentlyMovedId = id;
+		setTimeout(() => {
+			if (recentlyMovedId === id) {
+				recentlyMovedId = null;
+			}
+		}, 600);
+	}
+
+	async function moveChapter(chapterId: string, direction: 'up' | 'down') {
+		const chapterIds = chapters.map((c) => c.id);
+		const index = chapterIds.indexOf(chapterId);
+		if (index === -1) return;
+		const newIndex = direction === 'up' ? index - 1 : index + 1;
+		if (newIndex < 0 || newIndex >= chapterIds.length) return;
+
+		chapterIds.splice(index, 1);
+		chapterIds.splice(newIndex, 0, chapterId);
+		try {
+			await chapterApi.reorder(chapterIds);
+			await appState.loadChapters();
+			const chapter = chapters.find((c) => c.id === chapterId);
+			moveAnnouncement = `${chapter?.title || 'Chapter'} moved ${direction}`;
+		} catch {
+			showError('Failed to reorder chapter');
+		}
+	}
+
+	async function moveScene(sceneId: string, chapterId: string, direction: 'up' | 'down') {
+		const chapterScenes = scenes.get(chapterId) || [];
+		const sceneIds = chapterScenes.map((s) => s.id);
+		const index = sceneIds.indexOf(sceneId);
+		if (index === -1) return;
+		const newIndex = direction === 'up' ? index - 1 : index + 1;
+		if (newIndex < 0 || newIndex >= sceneIds.length) return;
+
+		sceneIds.splice(index, 1);
+		sceneIds.splice(newIndex, 0, sceneId);
+		try {
+			await sceneApi.reorder(chapterId, sceneIds);
+			await appState.loadChapters();
+			const scene = chapterScenes.find((s) => s.id === sceneId);
+			moveAnnouncement = `${scene?.title || 'Scene'} moved ${direction}`;
+			// AI5: Visual feedback for keyboard move
+			flashMovedItem(sceneId);
+		} catch {
+			showError('Failed to reorder scene');
+		}
+	}
+
+	async function moveSceneBetweenChapters(
+		sceneId: string,
+		sourceChapterId: string,
+		direction: 'prev' | 'next'
+	) {
+		const chapterIndex = chapters.findIndex((c) => c.id === sourceChapterId);
+		if (chapterIndex === -1) return;
+		const targetIndex = direction === 'prev' ? chapterIndex - 1 : chapterIndex + 1;
+		if (targetIndex < 0 || targetIndex >= chapters.length) return;
+
+		const targetChapter = chapters[targetIndex];
+		const targetScenes = scenes.get(targetChapter.id) || [];
+		try {
+			await sceneApi.moveToChapter(sceneId, targetChapter.id, targetScenes.length);
+			await appState.loadChapters();
+			expandedChapters.add(targetChapter.id);
+			const scene = (scenes.get(sourceChapterId) || []).find((s) => s.id === sceneId);
+			moveAnnouncement = `${scene?.title || 'Scene'} moved to ${targetChapter.title}`;
+		} catch {
+			showError('Failed to move scene');
+		}
+	}
+
+	function handleChapterKeydown(e: KeyboardEvent, chapterId: string) {
+		if (e.key === 'Enter') {
+			selectChapter(chapterId);
+			return;
+		}
+		if (!e.ctrlKey && !e.metaKey) return;
+		if (!e.shiftKey) return;
+		if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			moveChapter(chapterId, 'up');
+		} else if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			moveChapter(chapterId, 'down');
+		}
+	}
+
+	function handleSceneKeydown(e: KeyboardEvent, sceneId: string, chapterId: string) {
+		if (e.key === 'F2') {
+			e.preventDefault();
+			startRenamingScene(sceneId);
+			return;
+		}
+		if (!e.ctrlKey && !e.metaKey) return;
+		if (!e.shiftKey) return;
+		if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			moveScene(sceneId, chapterId, 'up');
+		} else if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			moveScene(sceneId, chapterId, 'down');
+		} else if (e.key === 'ArrowLeft') {
+			e.preventDefault();
+			moveSceneBetweenChapters(sceneId, chapterId, 'prev');
+		} else if (e.key === 'ArrowRight') {
+			e.preventDefault();
+			moveSceneBetweenChapters(sceneId, chapterId, 'next');
+		}
+	}
+
 	// Context menu close is handled by the ContextMenu component
+
+	// BB3: Status legend popover state
+	let showStatusLegend = $state(false);
+
+	// CB2: Scene preview popover on hover
+	let previewScene = $state<Scene | null>(null);
+	let previewPos = $state({ x: 0, y: 0 });
+	let previewTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function showPreview(scene: Scene, e: MouseEvent) {
+		if (previewTimer) clearTimeout(previewTimer);
+		previewTimer = setTimeout(() => {
+			previewScene = scene;
+			// Position below and to the right of cursor
+			const x = Math.min(e.clientX + 10, window.innerWidth - 280);
+			const y = Math.min(e.clientY + 10, window.innerHeight - 150);
+			previewPos = { x, y };
+		}, 400); // Delay to avoid flickering
+	}
+
+	function hidePreview() {
+		if (previewTimer) clearTimeout(previewTimer);
+		previewTimer = null;
+		previewScene = null;
+	}
+
+	// CB5: Toggle hide scenes by status
+	let hiddenStatuses = new SvelteSet<string>();
+
+	function toggleHideStatus(status: string) {
+		if (hiddenStatuses.has(status)) {
+			hiddenStatuses.delete(status);
+		} else {
+			hiddenStatuses.add(status);
+		}
+	}
+
+	function isSceneHidden(scene: Scene): boolean {
+		return hiddenStatuses.has(scene.status);
+	}
 </script>
 
 <div class="outline">
 	<div class="outline-header">
 		<h2>Manuscript</h2>
-		<Button variant="icon" onclick={handleAddChapter} title="Add Chapter">
-			<Icon name="plus" size={16} />
-		</Button>
+		<div class="header-actions">
+			<!-- UC2: Compact view toggle -->
+			<Button
+				variant="icon"
+				onclick={() => (compactView = !compactView)}
+				title={compactView ? 'Expand view' : 'Compact view'}
+			>
+				<Icon name={compactView ? 'menu' : 'sort'} size={14} />
+			</Button>
+			<!-- BB3: Status legend trigger -->
+			<div class="status-legend-trigger">
+				<Button
+					variant="icon"
+					onclick={() => (showStatusLegend = !showStatusLegend)}
+					title="Status legend"
+				>
+					<Icon name="help-circle" size={14} />
+				</Button>
+				{#if showStatusLegend}
+					<div class="status-legend-popover">
+						<div class="legend-header">Scene Status</div>
+						<!-- CB5: Click to toggle visibility per status -->
+						{#each sceneStatuses as status (status.value)}
+							<button
+								class="legend-item"
+								class:hidden-status={hiddenStatuses.has(status.value)}
+								onclick={() => toggleHideStatus(status.value)}
+								title={hiddenStatuses.has(status.value) ? 'Show scenes' : 'Hide scenes'}
+							>
+								<span class="legend-dot" style="background-color: {statusColors[status.value]}"
+								></span>
+								<span class="legend-label">{status.label}</span>
+								{#if hiddenStatuses.has(status.value)}
+									<Icon name="eye-off" size={12} />
+								{/if}
+							</button>
+						{/each}
+						{#if hiddenStatuses.size > 0}
+							<button class="legend-clear" onclick={() => hiddenStatuses.clear()}>
+								Show all
+							</button>
+						{/if}
+					</div>
+				{/if}
+			</div>
+			<Button variant="icon" onclick={handleAddChapter} title="Add Chapter">
+				<Icon name="plus" size={16} />
+			</Button>
+		</div>
 	</div>
 
-	<div class="outline-tree">
-		{#each chapters as chapter (chapter.id)}
-			{@const chapterScenes = scenes.get(chapter.id) || []}
-			{@const isExpanded = expandedChapters.has(chapter.id)}
+	{#if chapters.length > 0}
+		<!-- AG5: More prominent filter with better placeholder -->
+		<div class="outline-filter">
+			<div class="filter-input-wrapper" class:has-value={filterQuery.length > 0}>
+				<Icon name="search" size={14} />
+				<input
+					type="text"
+					class="filter-input"
+					placeholder="Search scenes..."
+					bind:value={filterQuery}
+					aria-label="Search scenes"
+				/>
+				{#if filterQuery}
+					<button class="filter-clear" onclick={() => (filterQuery = '')} aria-label="Clear filter">
+						<Icon name="close" size={12} />
+					</button>
+				{/if}
+			</div>
+			{#if isFiltering}
+				<span class="filter-count"
+					>{filterResultCount} scene{filterResultCount !== 1 ? 's' : ''}</span
+				>
+			{/if}
+		</div>
+	{/if}
+
+	<div class="outline-tree" class:compact={compactView}>
+		{#each filteredChapters as chapter (chapter.id)}
+			{@const chapterScenes = getFilteredScenes(chapter.id)}
+			{@const isExpanded = isFiltering || expandedChapters.has(chapter.id)}
 			{@const isSelected = appState.selectedChapterId === chapter.id && !appState.selectedSceneId}
 			{@const wordCount = getChapterWordCount(chapter.id)}
 
@@ -365,13 +831,16 @@
 				<div
 					class="chapter-item"
 					class:selected={isSelected}
-					class:drop-target={isDropTarget('chapter', chapter.id)}
-					class:dragging={draggedItem?.type === 'chapter' && draggedItem?.id === chapter.id}
+					class:drag-disabled={isFiltering}
+					class:drop-target={!isFiltering && isDropTarget('chapter', chapter.id)}
+					class:dragging={!isFiltering &&
+						draggedItem?.type === 'chapter' &&
+						draggedItem?.id === chapter.id}
 					role="button"
 					tabindex="0"
-					draggable="true"
+					draggable={!isFiltering}
 					onclick={() => selectChapter(chapter.id)}
-					onkeydown={(e) => e.key === 'Enter' && selectChapter(chapter.id)}
+					onkeydown={(e) => handleChapterKeydown(e, chapter.id)}
 					oncontextmenu={(e) => handleChapterContextMenu(e, chapter.id)}
 					ondblclick={(e) => {
 						e.preventDefault();
@@ -398,6 +867,9 @@
 
 					<span
 						class="status-dot"
+						role="img"
+						aria-label="Chapter status: {chapter.status || 'draft'}"
+						title={chapter.status || 'draft'}
 						style="background-color: {statusColors[chapter.status] || 'var(--color-text-muted)'}"
 					></span>
 
@@ -406,6 +878,7 @@
 						<input
 							type="text"
 							class="inline-rename"
+							maxlength={100}
 							bind:value={editingChapterTitle}
 							onkeydown={(e) => {
 								if (e.key === 'Enter') {
@@ -420,9 +893,14 @@
 							autofocus
 						/>
 					{:else}
-						<span class="chapter-title truncate">{chapter.title}</span>
+						<span
+							class="chapter-title truncate"
+							class:just-saved={justSavedChapterId === chapter.id}>{chapter.title}</span
+						>
 					{/if}
 
+					<!-- CB4: Scene count per chapter -->
+					<span class="scene-count">{chapterScenes.length}</span>
 					<span class="word-count">{formatWordCount(wordCount)}</span>
 
 					<button
@@ -432,6 +910,7 @@
 							handleAddScene(chapter.id);
 						}}
 						title="Add Scene"
+						aria-label="Add Scene"
 					>
 						<Icon name="plus" size={12} />
 					</button>
@@ -442,37 +921,89 @@
 						{#each chapterScenes as scene (scene.id)}
 							{@const isSceneSelected = appState.selectedSceneId === scene.id}
 							{@const health = appState.sceneHealthMap.get(scene.id)}
-							<button
-								class="scene-item"
-								class:selected={isSceneSelected}
-								class:drop-target={isDropTarget('scene', scene.id)}
-								class:dragging={draggedItem?.type === 'scene' && draggedItem?.id === scene.id}
-								draggable="true"
-								onclick={() => selectScene(scene.id, chapter.id)}
-								oncontextmenu={(e) => handleContextMenu(e, scene.id, chapter.id)}
-								ondragstart={(e) => handleDragStart(e, 'scene', scene.id, chapter.id)}
-								ondragend={handleDragEnd}
-								ondragover={(e) => handleDragOver(e, 'scene', scene.id)}
-								ondragleave={handleDragLeave}
-								ondrop={(e) => handleDrop(e, 'scene', scene.id, chapter.id)}
-							>
-								<span
-									class="status-dot small"
-									style="background-color: {statusColors[scene.status] ||
-										'var(--color-text-muted)'}"
-								></span>
-								<span class="scene-title truncate">{scene.title}</span>
-								{#if health && health.score < 1.0}
+							<!-- CB5: Hide scene if its status is hidden -->
+							{#if !isSceneHidden(scene)}
+								<button
+									class="scene-item"
+									class:selected={isSceneSelected}
+									class:drag-disabled={isFiltering}
+									class:drop-target={!isFiltering && isDropTarget('scene', scene.id)}
+									class:just-moved={recentlyMovedId === scene.id}
+									class:dragging={!isFiltering &&
+										draggedItem?.type === 'scene' &&
+										draggedItem?.id === scene.id}
+									draggable={!isFiltering}
+									data-scene-id={scene.id}
+									onclick={() => selectScene(scene.id, chapter.id)}
+									onkeydown={(e) => handleSceneKeydown(e, scene.id, chapter.id)}
+									oncontextmenu={(e) => handleContextMenu(e, scene.id, chapter.id)}
+									ondragstart={(e) => handleDragStart(e, 'scene', scene.id, chapter.id)}
+									ondragend={handleDragEnd}
+									ondragover={(e) => handleDragOver(e, 'scene', scene.id)}
+									ondragleave={handleDragLeave}
+									ondrop={(e) => handleDrop(e, 'scene', scene.id, chapter.id)}
+									onmouseenter={(e) => showPreview(scene, e)}
+									onmouseleave={hidePreview}
+								>
 									<span
-										class="health-dot"
-										title={health.checks
-											.filter((c) => !c.passed)
-											.map((c) => c.label)
-											.join('\n')}
+										class="status-dot small"
+										role="img"
+										aria-label="Scene status: {scene.status || 'draft'}"
+										title={scene.status || 'draft'}
+										style="background-color: {statusColors[scene.status] ||
+											'var(--color-text-muted)'}"
 									></span>
-								{/if}
-								<span class="word-count">{formatWordCount(countWords(scene.text))}</span>
-							</button>
+									{#if editingSceneId === scene.id}
+										<!-- svelte-ignore a11y_autofocus -->
+										<input
+											type="text"
+											class="inline-rename"
+											maxlength={100}
+											bind:value={editingSceneTitle}
+											onkeydown={(e) => {
+												if (e.key === 'Enter') {
+													e.preventDefault();
+													finishRenamingScene();
+												} else if (e.key === 'Escape') {
+													cancelRenamingScene();
+												}
+											}}
+											onblur={finishRenamingScene}
+											onclick={(e) => e.stopPropagation()}
+											autofocus
+										/>
+									{:else}
+										<span
+											class="scene-title truncate"
+											class:just-saved={justSavedSceneId === scene.id}>{scene.title}</span
+										>
+										<!-- CB3: POV initial inline -->
+										{#if scene.pov}
+											<span class="pov-initial" title="POV: {scene.pov}"
+												>{scene.pov.charAt(0).toUpperCase()}</span
+											>
+										{/if}
+										{#if appState.isFavorite(scene.id)}
+											<span class="favorite-star" title="Pinned">&#9733;</span>
+										{/if}
+										{#if recoverySceneIds.has(scene.id)}
+											<span class="recovery-badge" title="Has unsaved recovery draft">
+												<Icon name="alert" size={12} />
+											</span>
+										{/if}
+									{/if}
+									{#if health && health.score < 1.0}
+										<span
+											class="health-dot"
+											title="Health: {Math.round(health.score * 100)}% — Issues: {health.checks
+												.filter((c) => !c.passed)
+												.map((c) => c.label)
+												.join(', ')}"
+										></span>
+									{/if}
+									<span class="word-count">{formatWordCount(countWords(scene.text))}</span>
+								</button>
+							{/if}
 						{/each}
 
 						{#if chapterScenes.length === 0}
@@ -497,17 +1028,34 @@
 								ondrop={(e) => handleDrop(e, 'chapter-end', chapter.id)}
 								role="presentation"
 							></div>
+							<button class="add-scene-inline" onclick={() => handleAddScene(chapter.id)}>
+								+ Add scene
+							</button>
 						{/if}
 					</div>
 				{/if}
 			</div>
 		{/each}
 
-		{#if chapters.length === 0}
-			<div class="empty-outline">
-				<p>No chapters yet</p>
-				<button class="add-first-chapter" onclick={handleAddChapter}> + Add first chapter </button>
-			</div>
+		{#if isFiltering && filteredChapters.length === 0}
+			<!-- AJ3: Specific empty state when filter matches nothing -->
+			<EmptyState
+				compact
+				icon="search"
+				title="No matching scenes"
+				description="No scenes match '{filterQuery}'"
+				actionLabel="Clear filter"
+				onaction={() => (filterQuery = '')}
+			/>
+		{:else if chapters.length === 0}
+			<EmptyState
+				compact
+				icon="book"
+				title="Start your manuscript"
+				description="Chapters organize your story. Each chapter contains scenes."
+				actionLabel="Create First Chapter"
+				onaction={handleAddChapter}
+			/>
 		{/if}
 	</div>
 
@@ -515,13 +1063,16 @@
 		<ContextMenu x={contextMenu.x} y={contextMenu.y} onclose={closeContextMenu}>
 			{#if contextMenu.menuType === 'chapter'}
 				<ContextMenuItem
+					icon="edit"
 					label="Rename"
+					shortcut="F2"
 					onclick={() => {
 						startRenamingChapter(contextMenu!.chapterId);
 						closeContextMenu();
 					}}
 				/>
 				<ContextMenuItem
+					icon="settings"
 					label="Edit Details…"
 					onclick={() => {
 						openChapterDetails(contextMenu!.chapterId);
@@ -530,6 +1081,24 @@
 				/>
 				<ContextMenuSeparator />
 				<ContextMenuItem
+					label="Move Up"
+					shortcut="⌘⇧↑"
+					onclick={() => {
+						moveChapter(contextMenu!.chapterId, 'up');
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuItem
+					label="Move Down"
+					shortcut="⌘⇧↓"
+					onclick={() => {
+						moveChapter(contextMenu!.chapterId, 'down');
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					icon="trash"
 					label="Delete"
 					danger
 					onclick={() => {
@@ -539,6 +1108,34 @@
 				/>
 			{:else}
 				<ContextMenuItem
+					icon="edit"
+					label="Rename"
+					shortcut="F2"
+					onclick={() => {
+						startRenamingScene(contextMenu!.sceneId);
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					label="Move Up"
+					shortcut="⌘⇧↑"
+					onclick={() => {
+						moveScene(contextMenu!.sceneId, contextMenu!.chapterId, 'up');
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuItem
+					label="Move Down"
+					shortcut="⌘⇧↓"
+					onclick={() => {
+						moveScene(contextMenu!.sceneId, contextMenu!.chapterId, 'down');
+						closeContextMenu();
+					}}
+				/>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					icon="copy"
 					label="Duplicate"
 					onclick={() => {
 						handleDuplicateScene(contextMenu!.sceneId, false);
@@ -546,14 +1143,24 @@
 					}}
 				/>
 				<ContextMenuItem
+					icon="scissors"
 					label="Duplicate (structure only)"
 					onclick={() => {
 						handleDuplicateScene(contextMenu!.sceneId, true);
 						closeContextMenu();
 					}}
 				/>
+				<ContextMenuItem
+					icon="pin"
+					label={appState.isFavorite(contextMenu!.sceneId) ? 'Unpin' : 'Pin'}
+					onclick={() => {
+						appState.toggleFavorite(contextMenu!.sceneId);
+						closeContextMenu();
+					}}
+				/>
 				<ContextMenuSeparator />
 				<ContextMenuItem
+					icon="trash"
 					label="Delete"
 					danger
 					onclick={() => {
@@ -622,6 +1229,34 @@
 			oncancel={() => (impactDialog = null)}
 		/>
 	{/if}
+
+	<div aria-live="polite" class="sr-only">{moveAnnouncement}</div>
+
+	<!-- CB2: Scene preview popover -->
+	{#if previewScene}
+		<div
+			class="scene-preview-popover"
+			style="left: {previewPos.x}px; top: {previewPos.y}px;"
+			role="tooltip"
+		>
+			<div class="preview-header">
+				<span
+					class="preview-status-dot"
+					style="background-color: {statusColors[previewScene.status] || 'var(--color-text-muted)'}"
+				></span>
+				<span class="preview-title">{previewScene.title}</span>
+			</div>
+			{#if previewScene.summary}
+				<p class="preview-summary">{previewScene.summary}</p>
+			{/if}
+			<div class="preview-meta">
+				{#if previewScene.pov}
+					<span>POV: {previewScene.pov}</span>
+				{/if}
+				<span>{formatWordCount(countWords(previewScene.text))} words</span>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -645,6 +1280,153 @@
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--color-text-muted);
+	}
+
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+	}
+
+	/* BB3: Status legend popover */
+	.status-legend-trigger {
+		position: relative;
+	}
+
+	.status-legend-popover {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		margin-top: var(--spacing-xs);
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-elevated);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		box-shadow: var(--shadow-md);
+		z-index: 100;
+		min-width: 140px;
+	}
+
+	.legend-header {
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--color-text-muted);
+		margin-bottom: var(--spacing-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.legend-item {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		padding: 2px var(--spacing-xs);
+		width: 100%;
+		border-radius: var(--border-radius-sm);
+		cursor: pointer;
+		transition: background-color var(--transition-fast);
+	}
+
+	.legend-item:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	/* CB5: Hidden status styling */
+	.legend-item.hidden-status {
+		opacity: 0.5;
+	}
+
+	.legend-item.hidden-status .legend-dot {
+		opacity: 0.3;
+	}
+
+	.legend-clear {
+		margin-top: var(--spacing-xs);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		color: var(--color-accent);
+		border-radius: var(--border-radius-sm);
+		cursor: pointer;
+	}
+
+	.legend-clear:hover {
+		background-color: var(--color-accent-light);
+	}
+
+	.legend-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.legend-label {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.outline-filter {
+		padding: var(--spacing-xs) var(--spacing-md);
+		border-bottom: 1px solid var(--color-border-light);
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.filter-input-wrapper {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-muted);
+		transition: all var(--transition-fast);
+	}
+
+	.filter-input-wrapper:focus-within {
+		border-color: var(--color-accent);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+	}
+
+	/* AG5: Highlight when filter has value */
+	.filter-input-wrapper.has-value {
+		background-color: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-primary));
+		border-color: var(--color-accent);
+	}
+
+	.filter-input {
+		flex: 1;
+		border: none;
+		background: none;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+		outline: none;
+		min-width: 0;
+	}
+
+	.filter-input::placeholder {
+		color: var(--color-text-muted);
+	}
+
+	.filter-clear {
+		display: flex;
+		align-items: center;
+		padding: 2px;
+		color: var(--color-text-muted);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.filter-clear:hover {
+		color: var(--color-text-primary);
+		background-color: var(--color-bg-hover);
+	}
+
+	.filter-count {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		padding-left: var(--spacing-sm);
 	}
 
 	.outline-tree {
@@ -722,9 +1504,64 @@
 		min-width: 0;
 	}
 
+	/* AP5: Flash confirmation when title is saved */
+	.chapter-title.just-saved,
+	.scene-title.just-saved {
+		animation: save-flash 0.5s ease-out;
+		border-radius: var(--border-radius-sm);
+	}
+
+	@keyframes save-flash {
+		0% {
+			background-color: var(--color-success-light, rgba(34, 197, 94, 0.3));
+		}
+		100% {
+			background-color: transparent;
+		}
+	}
+
+	.favorite-star {
+		color: var(--color-warning);
+		font-size: var(--font-size-xs);
+		flex-shrink: 0;
+	}
+
+	/* AJ1: Recovery draft indicator */
+	.recovery-badge {
+		color: var(--color-warning);
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+	}
+
+	/* CB4: Scene count per chapter */
+	.scene-count {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+		padding: 0 var(--spacing-xs);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-sm);
+	}
+
 	.word-count {
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
+		flex-shrink: 0;
+	}
+
+	/* CB3: POV initial indicator */
+	.pov-initial {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--color-accent);
+		background-color: var(--color-accent-light);
+		border-radius: 50%;
 		flex-shrink: 0;
 	}
 
@@ -736,7 +1573,7 @@
 		height: 20px;
 		border-radius: var(--border-radius-sm);
 		color: var(--color-text-muted);
-		opacity: 0;
+		opacity: 0.4;
 		transition: all var(--transition-fast);
 	}
 
@@ -775,41 +1612,78 @@
 		color: var(--color-text-primary);
 	}
 
-	.empty-chapter,
-	.empty-outline {
+	/* AI5: Visual feedback when item is moved via keyboard */
+	.scene-item.just-moved {
+		animation: move-flash 0.6s ease-out;
+	}
+
+	@keyframes move-flash {
+		0% {
+			background-color: var(--color-accent-light);
+			transform: scale(1.02);
+		}
+		100% {
+			background-color: transparent;
+			transform: scale(1);
+		}
+	}
+
+	.empty-chapter {
 		padding: var(--spacing-md);
 		text-align: center;
 	}
 
-	.empty-outline p {
-		color: var(--color-text-muted);
-		margin-bottom: var(--spacing-sm);
-	}
-
 	.add-first-scene,
-	.add-first-chapter {
+	.add-scene-inline {
 		font-size: var(--font-size-sm);
-		color: var(--color-accent);
+		color: var(--color-text-muted);
 		padding: var(--spacing-xs) var(--spacing-sm);
 		border-radius: var(--border-radius-sm);
-		transition: background-color var(--transition-fast);
+		transition: all var(--transition-fast);
+	}
+
+	.add-first-scene {
+		color: var(--color-accent);
+	}
+
+	.add-scene-inline {
+		display: block;
+		width: 100%;
+		text-align: left;
+		padding: var(--spacing-xs) var(--spacing-md);
+		opacity: 0.5;
 	}
 
 	.add-first-scene:hover,
-	.add-first-chapter:hover {
+	.add-scene-inline:hover {
 		background-color: var(--color-accent-light);
+		color: var(--color-accent);
+		opacity: 1;
 	}
 
-	/* Drag and drop styles */
+	/* AK3: Improved drag and drop visual feedback */
 	.chapter-item.dragging,
 	.scene-item.dragging {
 		opacity: 0.5;
+		border: 1px dashed var(--color-accent);
 	}
 
 	.chapter-item.drop-target,
 	.scene-item.drop-target {
 		background-color: var(--color-accent-light);
-		border-top: 2px solid var(--color-accent);
+		position: relative;
+	}
+
+	/* AK3: Drop indicator line */
+	.scene-item.drop-target::before {
+		content: '';
+		position: absolute;
+		top: -2px;
+		left: 0;
+		right: 0;
+		height: 3px;
+		background-color: var(--color-accent);
+		border-radius: 2px;
 	}
 
 	.empty-chapter.drop-target,
@@ -912,5 +1786,127 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: var(--spacing-sm);
+	}
+
+	.scene-item.drag-disabled,
+	.chapter-item.drag-disabled {
+		cursor: default;
+	}
+
+	.scene-item.drag-disabled:active {
+		cursor: default;
+	}
+
+	/* CB2: Scene preview popover */
+	.scene-preview-popover {
+		position: fixed;
+		z-index: 1000;
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--spacing-sm);
+		width: 250px;
+		max-width: 90vw;
+		pointer-events: none;
+	}
+
+	.preview-header {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.preview-status-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.preview-title {
+		font-weight: 500;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.preview-summary {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-secondary);
+		margin: 0 0 var(--spacing-xs);
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.preview-meta {
+		display: flex;
+		gap: var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	/* UC2: Compact view mode */
+	.outline-tree.compact .chapter-item {
+		padding: 2px var(--spacing-md);
+	}
+
+	.outline-tree.compact .scene-item {
+		padding: 2px var(--spacing-md);
+	}
+
+	.outline-tree.compact .word-count,
+	.outline-tree.compact .pov-initial,
+	.outline-tree.compact .health-dot {
+		display: none;
+	}
+
+	.outline-tree.compact .scenes-list {
+		padding-left: calc(var(--spacing-sm) + 16px);
+	}
+
+	.outline-tree.compact .add-scene-inline {
+		padding: 2px var(--spacing-md);
+		font-size: var(--font-size-xs);
+	}
+
+	/* UC3: Enhanced drag and drop feedback */
+	.chapter-item.dragging,
+	.scene-item.dragging {
+		opacity: 0.5;
+		transform: scale(0.98);
+		box-shadow: inset 0 0 0 2px var(--color-accent);
+	}
+
+	.chapter-item.drop-target,
+	.scene-item.drop-target {
+		background-color: var(--color-accent-light);
+		box-shadow: inset 0 0 0 2px var(--color-accent);
+	}
+
+	/* UC3: Drop indicator line */
+	.chapter-item.drop-target::after,
+	.scene-item.drop-target::after {
+		content: '';
+		position: absolute;
+		left: var(--spacing-md);
+		right: var(--spacing-md);
+		bottom: -1px;
+		height: 2px;
+		background-color: var(--color-accent);
+		border-radius: 1px;
+	}
+
+	.drop-zone.drop-target {
+		height: 8px;
+		background-color: var(--color-accent-light);
+		border: 2px dashed var(--color-accent);
+		margin-top: var(--spacing-xs);
 	}
 </style>

@@ -29,7 +29,6 @@
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
 	import { bibleEntryTypes, countWords, formatWordCount } from '$lib/utils';
-	import { getRevisionPass } from '$lib/utils/revision-passes';
 
 	import AnnotationsPanel from './AnnotationsPanel.svelte';
 	import CharacterThread from './CharacterThread.svelte';
@@ -52,12 +51,40 @@
 		selectedSceneId ? appState.sceneHealthMap.get(selectedSceneId) : undefined
 	);
 
-	// Revision pass filtering
-	let activePass = $derived(appState.revisionPass);
-	function isSectionVisible(sectionName: string): boolean {
-		if (!activePass) return true;
-		const pass = getRevisionPass(activePass);
-		return pass.sections.includes(sectionName);
+	// Collapsible sections (persisted per project)
+	function getCollapsedKey(): string {
+		return `contextPanelCollapsed:${appState.projectPath || 'default'}`;
+	}
+	let collapsedSections = $state<Set<string>>(
+		new Set(
+			(() => {
+				try {
+					return JSON.parse(localStorage.getItem(getCollapsedKey()) || '[]');
+				} catch {
+					return [];
+				}
+			})()
+		)
+	);
+
+	$effect(() => {
+		try {
+			localStorage.setItem(getCollapsedKey(), JSON.stringify([...collapsedSections]));
+		} catch {
+			/* ignore */
+		}
+	});
+
+	function toggleSection(name: string) {
+		if (collapsedSections.has(name)) {
+			collapsedSections = new Set([...collapsedSections].filter((s) => s !== name));
+		} else {
+			collapsedSections = new Set([...collapsedSections, name]);
+		}
+	}
+
+	function isSectionCollapsed(name: string): boolean {
+		return collapsedSections.has(name);
 	}
 
 	// World State collapsible toggle (defaults closed, auto-opens in revision mode)
@@ -120,6 +147,13 @@
 	let associations = $state<BibleEntry[]>([]);
 	let isAddingAssociation = $state(false);
 	let searchQuery = $state('');
+	let associationSearchIndex = $state(0);
+
+	// Reset search index when query changes
+	$effect(() => {
+		void searchQuery; // Track searchQuery changes
+		associationSearchIndex = 0;
+	});
 
 	// State for arcs, template step, and linked events
 	let sceneArcs = $state<Arc[]>([]);
@@ -181,18 +215,44 @@
 	);
 
 	let loadGeneration = 0;
+	// AA2: Loading states for skeleton loaders
+	let isLoadingAssociations = $state(false);
+	let isLoadingArcs = $state(false);
+	let isLoadingEvents = $state(false);
 
+	// AW6: Progressive loading - associations first (immediate), then arcs/events/issues (delayed 100ms)
 	$effect(() => {
-		if (selectedSceneId) {
-			const gen = ++loadGeneration;
-			loadAssociations(gen);
-			loadSceneArcs(gen);
+		if (!selectedSceneId) return;
+
+		const gen = ++loadGeneration;
+		// AA2: Set loading states
+		isLoadingAssociations = true;
+		isLoadingArcs = true;
+		isLoadingEvents = true;
+
+		// Phase 1: Load associations immediately (most commonly used)
+		loadAssociations(gen).finally(() => {
+			if (gen === loadGeneration) isLoadingAssociations = false;
+		});
+
+		// Phase 2: Delay secondary data to avoid blocking UI
+		const delayedLoadTimeout = setTimeout(() => {
+			if (gen !== loadGeneration) return; // Stale request
+
+			loadSceneArcs(gen).finally(() => {
+				if (gen === loadGeneration) isLoadingArcs = false;
+			});
 			loadAllArcs();
 			loadTemplateStep(gen);
-			loadLinkedEvents(gen);
+			loadLinkedEvents(gen).finally(() => {
+				if (gen === loadGeneration) isLoadingEvents = false;
+			});
 			loadAllEvents();
 			loadSceneIssues(gen);
-		}
+		}, 100);
+
+		// Cleanup timeout on scene change
+		return () => clearTimeout(delayedLoadTimeout);
 	});
 
 	let filteredEntries = $derived(
@@ -439,539 +499,863 @@
 	function getTypeIcon(type: string): string {
 		return bibleEntryTypes.find((t) => t.value === type)?.icon || '?';
 	}
+
+	// AG3: Badge counts for collapsed sections
+	let notesBadge = $derived(selectedScene?.notes && isSectionCollapsed('notes') ? 1 : 0);
+	let todosBadge = $derived(() => {
+		if (!selectedScene?.todos || !isSectionCollapsed('todos')) return 0;
+		return selectedScene.todos.split('\n').filter((t) => t.trim()).length;
+	});
+	let associationsBadge = $derived(isSectionCollapsed('associations') ? associations.length : 0);
+	let arcsBadge = $derived(isSectionCollapsed('arcs') ? sceneArcs.length : 0);
+	let eventsBadge = $derived(isSectionCollapsed('events') ? linkedEvents.length : 0);
 </script>
 
 <div class="context-panel">
+	<div class="panel-tabs">
+		<button
+			class="panel-tab"
+			class:active={appState.contextPanelTab === 'writing'}
+			onclick={() => (appState.contextPanelTab = 'writing')}>Writing</button
+		>
+		<button
+			class="panel-tab"
+			class:active={appState.contextPanelTab === 'links'}
+			onclick={() => (appState.contextPanelTab = 'links')}>Links</button
+		>
+		<button
+			class="panel-tab"
+			class:active={appState.contextPanelTab === 'analysis'}
+			onclick={() => (appState.contextPanelTab = 'analysis')}>Analysis</button
+		>
+	</div>
+
+	<!-- BC3: Quick actions bar for common operations -->
+	{#if selectedScene}
+		<div class="quick-actions">
+			<button
+				class="quick-action-btn"
+				onclick={() => {
+					appState.contextPanelTab = 'links';
+					isAddingAssociation = true;
+				}}
+				title="Link character or location"
+			>
+				<Icon name="user" size={14} />
+			</button>
+			<button
+				class="quick-action-btn"
+				onclick={() => {
+					appState.contextPanelTab = 'links';
+					isAddingArc = true;
+				}}
+				title="Link to arc"
+			>
+				<Icon name="bookmark" size={14} />
+			</button>
+			<button
+				class="quick-action-btn"
+				onclick={() => {
+					appState.contextPanelTab = 'writing';
+					if (isSectionCollapsed('notes')) {
+						toggleSection('notes');
+					}
+					isEditingNotes = true;
+				}}
+				title="Add note"
+			>
+				<Icon name="edit" size={14} />
+			</button>
+		</div>
+	{/if}
+
+	<!-- BD5: Tab content with transition animation -->
 	{#if selectedScene}
 		{@const sceneWords = countWords(selectedScene.text)}
 
-		<!-- Health Section — only shown when there are problems -->
-		{#if sceneHealth && sceneHealth.score < 1.0}
-			<section class="panel-section">
-				<h3>Problems</h3>
-				<div class="health-checks">
-					{#each sceneHealth.checks.filter((c) => !c.passed) as check (check.name)}
-						<div class="health-check check-failed">
-							<span class="check-icon">!</span>
-							<span class="check-label">{check.label}</span>
+		<!-- Use key block to trigger animation on tab change -->
+		{#key appState.contextPanelTab}
+			<div class="tab-content">
+				<!-- Analysis tab: Health/Problems -->
+				{#if appState.contextPanelTab === 'analysis' && sceneHealth && sceneHealth.score < 1.0}
+					<section class="panel-section">
+						<h3>Problems</h3>
+						<div class="health-checks">
+							{#each sceneHealth.checks.filter((c) => !c.passed) as check (check.name)}
+								<div class="health-check check-failed">
+									<span class="check-icon">!</span>
+									<span class="check-label">{check.label}</span>
+								</div>
+							{/each}
 						</div>
-					{/each}
-				</div>
-			</section>
-		{/if}
+					</section>
+				{/if}
 
-		<!-- Word Count Section -->
-		{#if isSectionVisible('word-count')}
-			<section class="panel-section">
-				<h3>Word Count</h3>
-				<div class="word-stats">
-					<div class="stat">
-						<span class="stat-value">{formatWordCount(sceneWords)}</span>
-						<span class="stat-label">Scene (~{Math.max(1, Math.ceil(sceneWords / 250))} min)</span>
-					</div>
-					{#if appState.wordCounts && appState.selectedChapterId}
-						{@const chapterStats = appState.wordCounts.by_chapter.find(
-							(c) => c.chapter_id === appState.selectedChapterId
-						)}
-						{#if chapterStats}
-							<div class="stat">
-								<span class="stat-value">{formatWordCount(chapterStats.word_count)}</span>
-								<span class="stat-label">Chapter</span>
+				<!-- Writing tab: Word Count, POV, Tags, Notes, TODOs -->
+				{#if appState.contextPanelTab === 'writing'}
+					<section class="panel-section">
+						<button class="section-toggle" onclick={() => toggleSection('wordCount')}>
+							<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('wordCount')}>
+								<svg
+									width="12"
+									height="12"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+								>
+							</span>
+							<h3>Word Count</h3>
+						</button>
+						{#if !isSectionCollapsed('wordCount')}
+							<div class="word-stats">
+								<div class="stat">
+									<span class="stat-value">{formatWordCount(sceneWords)}</span>
+									<span class="stat-label"
+										>Scene (~{Math.max(1, Math.ceil(sceneWords / 250))} min)</span
+									>
+								</div>
+								{#if appState.wordCounts && appState.selectedChapterId}
+									{@const chapterStats = appState.wordCounts.by_chapter.find(
+										(c) => c.chapter_id === appState.selectedChapterId
+									)}
+									{#if chapterStats}
+										<div class="stat">
+											<span class="stat-value">{formatWordCount(chapterStats.word_count)}</span>
+											<span class="stat-label">Chapter</span>
+										</div>
+									{/if}
+								{/if}
+								{#if appState.wordCounts}
+									<div class="stat">
+										<span class="stat-value">{formatWordCount(appState.wordCounts.total)}</span>
+										<span class="stat-label">Total</span>
+									</div>
+								{/if}
+							</div>
+							<div class="word-target-section">
+								{#if isEditingWordTarget}
+									<div class="word-target-edit">
+										<input
+											type="number"
+											class="inline-input"
+											placeholder="Word target..."
+											bind:value={editedWordTarget}
+											onkeydown={(e) => {
+												if (e.key === 'Enter') saveWordTarget();
+												if (e.key === 'Escape') cancelEditingWordTarget();
+											}}
+										/>
+										<div class="edit-actions">
+											<Button variant="ghost" size="sm" onclick={cancelEditingWordTarget}
+												>Cancel</Button
+											>
+											<Button variant="primary" size="sm" onclick={saveWordTarget}>Save</Button>
+										</div>
+									</div>
+								{:else if selectedScene.word_target}
+									{@const progress = Math.min(
+										100,
+										(countWords(selectedScene.text) / selectedScene.word_target) * 100
+									)}
+									<div class="word-progress">
+										<div class="progress-bar">
+											<div class="progress-fill" style="width: {progress}%"></div>
+										</div>
+										<span class="progress-text">
+											{countWords(selectedScene.text)} / {selectedScene.word_target}
+										</span>
+										<Button
+											variant="icon"
+											size="sm"
+											onclick={startEditingWordTarget}
+											title="Edit word target"
+										>
+											<Icon name="edit" size={12} />
+										</Button>
+									</div>
+								{:else}
+									<button class="set-target-btn" onclick={startEditingWordTarget}>
+										Set word target
+									</button>
+								{/if}
 							</div>
 						{/if}
-					{/if}
-					{#if appState.wordCounts}
-						<div class="stat">
-							<span class="stat-value">{formatWordCount(appState.wordCounts.total)}</span>
-							<span class="stat-label">Total</span>
-						</div>
-					{/if}
-				</div>
-				<div class="word-target-section">
-					{#if isEditingWordTarget}
-						<div class="word-target-edit">
-							<input
-								type="number"
-								class="inline-input"
-								placeholder="Word target..."
-								bind:value={editedWordTarget}
-								onkeydown={(e) => {
-									if (e.key === 'Enter') saveWordTarget();
-									if (e.key === 'Escape') cancelEditingWordTarget();
-								}}
-							/>
-							<div class="edit-actions">
-								<Button variant="ghost" size="sm" onclick={cancelEditingWordTarget}>Cancel</Button>
-								<Button variant="primary" size="sm" onclick={saveWordTarget}>Save</Button>
-							</div>
-						</div>
-					{:else if selectedScene.word_target}
-						{@const progress = Math.min(
-							100,
-							(countWords(selectedScene.text) / selectedScene.word_target) * 100
-						)}
-						<div class="word-progress">
-							<div class="progress-bar">
-								<div class="progress-fill" style="width: {progress}%"></div>
-							</div>
-							<span class="progress-text">
-								{countWords(selectedScene.text)} / {selectedScene.word_target}
+					</section>
+				{/if}
+
+				{#if appState.contextPanelTab === 'writing'}
+					<!-- POV Section -->
+					<section class="panel-section">
+						<button class="section-toggle" onclick={() => toggleSection('pov')}>
+							<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('pov')}>
+								<svg
+									width="12"
+									height="12"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+								>
 							</span>
+							<h3>POV</h3>
+						</button>
+						{#if !isSectionCollapsed('pov')}
+							<input
+								type="text"
+								class="inline-input"
+								placeholder="Set POV character..."
+								value={selectedScene.pov || ''}
+								onblur={(e) => savePov(e.currentTarget.value)}
+							/>
+						{/if}
+					</section>
+
+					<!-- Tags Section -->
+					<section class="panel-section">
+						<button class="section-toggle" onclick={() => toggleSection('tags')}>
+							<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('tags')}>
+								<svg
+									width="12"
+									height="12"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+								>
+							</span>
+							<h3>Tags</h3>
+						</button>
+						{#if !isSectionCollapsed('tags')}
+							<input
+								type="text"
+								class="inline-input"
+								placeholder="Add tags (comma separated)..."
+								value={selectedScene.tags || ''}
+								onblur={(e) => saveTags(e.currentTarget.value)}
+							/>
+						{/if}
+					</section>
+				{/if}
+
+				<!-- Links tab: Associations Section -->
+				{#if appState.contextPanelTab === 'links'}
+					<section class="panel-section">
+						<div class="section-header">
+							<button class="section-toggle-inline" onclick={() => toggleSection('associations')}>
+								<span
+									class="section-toggle-icon"
+									class:collapsed={isSectionCollapsed('associations')}
+								>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+									>
+								</span>
+								<h3>Characters & Locations</h3>
+								{#if associationsBadge > 0}
+									<span class="section-badge">{associationsBadge}</span>
+								{/if}
+							</button>
 							<Button
 								variant="icon"
 								size="sm"
-								onclick={startEditingWordTarget}
-								title="Edit word target"
+								onclick={() => (isAddingAssociation = !isAddingAssociation)}
 							>
-								<Icon name="edit" size={12} />
+								{#if isAddingAssociation}
+									<Icon name="close" size={16} />
+								{:else}
+									<Icon name="plus" size={16} />
+								{/if}
 							</Button>
 						</div>
-					{:else}
-						<button class="set-target-btn" onclick={startEditingWordTarget}>
-							Set word target
-						</button>
-					{/if}
-				</div>
-			</section>
-		{/if}
 
-		<!-- POV Section -->
-		<section class="panel-section">
-			<h3>POV</h3>
-			<input
-				type="text"
-				class="inline-input"
-				placeholder="Point of view character..."
-				value={selectedScene.pov || ''}
-				onblur={(e) => savePov(e.currentTarget.value)}
-			/>
-		</section>
-
-		<!-- Tags Section -->
-		<section class="panel-section">
-			<h3>Tags</h3>
-			<input
-				type="text"
-				class="inline-input"
-				placeholder="tag1, tag2, tag3..."
-				value={selectedScene.tags || ''}
-				onblur={(e) => saveTags(e.currentTarget.value)}
-			/>
-		</section>
-
-		<!-- Associations Section -->
-		{#if isSectionVisible('associations')}
-			<section class="panel-section">
-				<div class="section-header">
-					<h3>Characters & Locations</h3>
-					<Button
-						variant="icon"
-						size="sm"
-						onclick={() => (isAddingAssociation = !isAddingAssociation)}
-					>
-						{#if isAddingAssociation}
-							<Icon name="close" size={16} />
-						{:else}
-							<Icon name="plus" size={16} />
-						{/if}
-					</Button>
-				</div>
-
-				{#if isAddingAssociation}
-					<div class="association-search">
-						<input type="text" placeholder="Search bible entries..." bind:value={searchQuery} />
-						{#if filteredEntries.length > 0}
-							<div class="search-results">
-								{#each filteredEntries.slice(0, 10) as entry (entry.id)}
-									<button class="search-result" onclick={() => addAssociation(entry)}>
-										<span class="entry-icon">{getTypeIcon(entry.entry_type)}</span>
-										<span class="entry-name">{entry.name}</span>
-										<span class="entry-type">{entry.entry_type}</span>
-									</button>
-								{/each}
-							</div>
-						{/if}
-					</div>
-				{/if}
-
-				<div class="associations-list">
-					{#each associations as entry (entry.id)}
-						<div
-							class="association-item"
-							style="--entry-color: {entry.color || 'var(--color-accent)'}"
-						>
-							<span class="entry-icon">{getTypeIcon(entry.entry_type)}</span>
-							<span class="entry-name">{entry.name}</span>
-							<button
-								class="remove-btn"
-								onclick={() => removeAssociation(entry.id)}
-								title="Remove association"
-							>
-								×
-							</button>
-						</div>
-					{:else}
-						<p class="empty-message">No characters or locations linked to this scene.</p>
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		<!-- Linked Arcs Section -->
-		{#if isSectionVisible('arcs')}
-			<section class="panel-section">
-				<div class="section-header">
-					<h3>Arcs</h3>
-					<Button variant="icon" size="sm" onclick={() => (isAddingArc = !isAddingArc)}>
-						{#if isAddingArc}
-							<Icon name="close" size={16} />
-						{:else}
-							<Icon name="plus" size={16} />
-						{/if}
-					</Button>
-				</div>
-
-				{#if isAddingArc}
-					<div class="arc-search">
-						<select bind:value={selectedArcToAdd} onchange={addArcToScene}>
-							<option value="">Select an arc...</option>
-							{#each availableArcs as arc (arc.id)}
-								<option value={arc.id}>{arc.name}</option>
-							{/each}
-						</select>
-					</div>
-				{/if}
-
-				<div class="arcs-list">
-					{#each sceneArcs as arc (arc.id)}
-						<div class="arc-item" style="--arc-color: {arc.color || 'var(--color-accent)'}">
-							<span class="arc-color-dot"></span>
-							<span class="arc-name">{arc.name}</span>
-							<span class="arc-status">{arc.status}</span>
-							<button
-								class="remove-btn"
-								onclick={() => removeArcFromScene(arc.id)}
-								title="Remove from arc"
-							>
-								&times;
-							</button>
-						</div>
-					{:else}
-						<p class="empty-message">No arcs linked to this scene.</p>
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		<!-- Template Step Section -->
-		{#if isSectionVisible('template') && (allTemplateSteps.length > 0 || templateStep)}
-			<section class="panel-section">
-				<div class="section-header">
-					<h3>Template Step</h3>
-					<Button variant="icon" size="sm" onclick={() => (isSelectingStep = !isSelectingStep)}>
-						{#if isSelectingStep}
-							<Icon name="close" size={16} />
-						{:else}
-							<Icon name="edit" size={16} />
-						{/if}
-					</Button>
-				</div>
-
-				{#if isSelectingStep}
-					<div class="step-search">
-						<select bind:value={selectedStepToAssign} onchange={assignSceneToStep}>
-							<option value="">Select a step...</option>
-							{#each allTemplateSteps as step (step.id)}
-								<option value={step.id}>{step.name} ({step.typical_position}%)</option>
-							{/each}
-						</select>
-					</div>
-				{/if}
-
-				{#if templateStep && !isSelectingStep}
-					<div
-						class="template-step"
-						style="--step-color: {templateStep.color || 'var(--color-accent)'}"
-					>
-						<span class="step-color-dot"></span>
-						<div class="step-info">
-							<span class="step-name">{templateStep.name}</span>
-							{#if templateStep.description}
-								<span class="step-description">{templateStep.description}</span>
+						{#if !isSectionCollapsed('associations')}
+							{#if isAddingAssociation}
+								<div class="association-search">
+									<input
+										type="text"
+										placeholder="Search bible entries..."
+										bind:value={searchQuery}
+										onkeydown={(e) => {
+											const entries = filteredEntries.slice(0, 10);
+											if (e.key === 'ArrowDown') {
+												e.preventDefault();
+												associationSearchIndex = Math.min(
+													associationSearchIndex + 1,
+													entries.length - 1
+												);
+											} else if (e.key === 'ArrowUp') {
+												e.preventDefault();
+												associationSearchIndex = Math.max(associationSearchIndex - 1, 0);
+											} else if (e.key === 'Enter' && entries.length > 0) {
+												e.preventDefault();
+												addAssociation(entries[associationSearchIndex]);
+											} else if (e.key === 'Escape') {
+												e.stopPropagation();
+												searchQuery = '';
+												isAddingAssociation = false;
+											}
+										}}
+									/>
+									{#if filteredEntries.length > 0}
+										<div class="search-results">
+											{#each filteredEntries.slice(0, 10) as entry, i (entry.id)}
+												<button
+													class="search-result"
+													class:selected={i === associationSearchIndex}
+													onclick={() => addAssociation(entry)}
+												>
+													<span class="entry-icon">{getTypeIcon(entry.entry_type)}</span>
+													<span class="entry-name">{entry.name}</span>
+													<span class="entry-type">{entry.entry_type}</span>
+												</button>
+											{/each}
+										</div>
+									{/if}
+								</div>
 							{/if}
-						</div>
-					</div>
-				{:else if !isSelectingStep}
-					<p class="empty-message">No template step assigned.</p>
-				{/if}
-			</section>
-		{/if}
 
-		<!-- Linked Timeline Events Section -->
-		<section class="panel-section">
-			<div class="section-header">
-				<h3>Linked Events</h3>
-				<Button variant="icon" size="sm" onclick={() => (isAddingEvent = !isAddingEvent)}>
-					{#if isAddingEvent}
-						<Icon name="close" size={16} />
-					{:else}
-						<Icon name="plus" size={16} />
-					{/if}
-				</Button>
-			</div>
-
-			{#if isAddingEvent}
-				<div class="arc-search">
-					<select bind:value={selectedEventToAdd} onchange={addEventToScene}>
-						<option value="">Select an event...</option>
-						{#each availableEvents as event (event.id)}
-							<option value={event.id}>{event.title}</option>
-						{/each}
-					</select>
-				</div>
-			{/if}
-
-			<div class="events-list">
-				{#each linkedEvents as event (event.id)}
-					<div class="event-item">
-						<div class="event-header">
-							<span class="event-title">{event.title}</span>
-							<span class="event-type">{event.event_type}</span>
-							<button
-								class="remove-btn"
-								onclick={() => removeEventFromScene(event.id)}
-								title="Unlink event"
-							>
-								&times;
-							</button>
-						</div>
-						{#if event.time_point || event.time_start}
-							<div class="event-time">
-								{event.time_point ||
-									`${event.time_start}${event.time_end ? ` - ${event.time_end}` : ''}`}
-							</div>
-						{/if}
-					</div>
-				{:else}
-					<p class="empty-message">No events linked to this scene.</p>
-				{/each}
-			</div>
-		</section>
-
-		<!-- Linked Issues Section -->
-		{#if isSectionVisible('issues') && sceneIssues.length > 0}
-			<section class="panel-section">
-				<h3>Issues ({sceneIssues.length})</h3>
-				<div class="issues-list">
-					{#each sceneIssues as issue (issue.id)}
-						<div class="issue-item" data-severity={issue.severity} data-status={issue.status}>
-							<span class="issue-severity-dot"></span>
-							<div class="issue-info">
-								<span class="issue-title">{issue.title}</span>
-								<span class="issue-meta">
-									{issue.severity} &middot; {issue.status}
-								</span>
-							</div>
-						</div>
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		<!-- Scene Timeline Info -->
-		{#if isSectionVisible('timeline')}
-			<section class="panel-section">
-				<div class="section-header">
-					<h3>Timeline</h3>
-					{#if !isEditingTimeline}
-						<Button variant="icon" size="sm" onclick={startEditingTimeline} title="Edit timeline">
-							<Icon name="edit" size={14} />
-						</Button>
-					{/if}
-				</div>
-				{#if isEditingTimeline}
-					<div class="timeline-edit-form">
-						<label class="checkbox-label">
-							<input type="checkbox" bind:checked={editedOnTimeline} />
-							Show on timeline
-						</label>
-						<input
-							type="text"
-							class="inline-input"
-							placeholder="Time point (e.g., Day 3)"
-							bind:value={editedTimePoint}
-						/>
-						<input
-							type="text"
-							class="inline-input"
-							placeholder="Time start"
-							bind:value={editedTimeStart}
-						/>
-						<input
-							type="text"
-							class="inline-input"
-							placeholder="Time end"
-							bind:value={editedTimeEnd}
-						/>
-						<div class="edit-actions">
-							<Button variant="ghost" size="sm" onclick={cancelEditingTimeline}>Cancel</Button>
-							<Button variant="primary" size="sm" onclick={saveTimeline}>Save</Button>
-						</div>
-					</div>
-				{:else}
-					<div class="timeline-info">
-						{#if selectedScene.on_timeline}
-							<div class="timeline-badge">On Timeline</div>
-						{/if}
-						{#if selectedScene.time_point}
-							<div class="timeline-time">
-								<span class="time-label">Time:</span>
-								<span class="time-value">{selectedScene.time_point}</span>
-							</div>
-						{:else if selectedScene.time_start}
-							<div class="timeline-time">
-								<span class="time-label">From:</span>
-								<span class="time-value">{selectedScene.time_start}</span>
-								{#if selectedScene.time_end}
-									<span class="time-label">To:</span>
-									<span class="time-value">{selectedScene.time_end}</span>
+							<!-- AA2: Skeleton loader for associations -->
+							<div class="associations-list">
+								{#if isLoadingAssociations}
+									<div class="skeleton-item"></div>
+									<div class="skeleton-item"></div>
+								{:else}
+									{#each associations as entry (entry.id)}
+										<div
+											class="association-item"
+											style="--entry-color: {entry.color || 'var(--color-accent)'}"
+										>
+											<span class="entry-icon">{getTypeIcon(entry.entry_type)}</span>
+											<button
+												class="entry-link"
+												onclick={() => appState.navigateToBibleEntry(entry.id)}
+												title="Go to {entry.name}">{entry.name}</button
+											>
+											<button
+												class="remove-btn"
+												onclick={() => removeAssociation(entry.id)}
+												title="Remove association"
+											>
+												×
+											</button>
+										</div>
+									{:else}
+										<p class="empty-message">No characters or locations linked to this scene.</p>
+									{/each}
 								{/if}
 							</div>
-						{:else if !selectedScene.on_timeline}
-							<p class="empty-message">Not on timeline.</p>
 						{/if}
-					</div>
+					</section>
 				{/if}
-			</section>
-		{/if}
 
-		<!-- Notes Section -->
-		{#if isSectionVisible('notes')}
-			<section class="panel-section">
-				<div class="section-header">
-					<h3>Notes</h3>
-					{#if !isEditingNotes}
-						<Button variant="icon" size="sm" onclick={startEditingNotes} title="Edit notes">
-							<Icon name="edit" size={14} />
-						</Button>
-					{/if}
-				</div>
-				<div class="notes-content">
-					{#if isEditingNotes}
-						<textarea
-							bind:value={editedNotes}
-							placeholder="Add private notes..."
-							rows="4"
-							class="edit-textarea"
-						></textarea>
-						<div class="edit-actions">
-							<Button variant="ghost" size="sm" onclick={cancelEditingNotes}>Cancel</Button>
-							<Button variant="primary" size="sm" onclick={saveNotes}>Save</Button>
+				<!-- Links tab: Arcs Section -->
+				{#if appState.contextPanelTab === 'links'}
+					<section class="panel-section">
+						<div class="section-header">
+							<button class="section-toggle-inline" onclick={() => toggleSection('arcs')}>
+								<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('arcs')}>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+									>
+								</span>
+								<h3>Arcs</h3>
+								{#if arcsBadge > 0}
+									<span class="section-badge">{arcsBadge}</span>
+								{/if}
+							</button>
+							<Button variant="icon" size="sm" onclick={() => (isAddingArc = !isAddingArc)}>
+								{#if isAddingArc}
+									<Icon name="close" size={16} />
+								{:else}
+									<Icon name="plus" size={16} />
+								{/if}
+							</Button>
 						</div>
-					{:else if selectedScene.notes}
-						<p>{selectedScene.notes}</p>
-					{:else}
-						<p class="empty-message">
-							No notes for this scene. <button class="add-link" onclick={startEditingNotes}
-								>Add notes</button
-							>
-						</p>
-					{/if}
-				</div>
-			</section>
-		{/if}
 
-		<!-- TODOs Section -->
-		{#if isSectionVisible('todos')}
-			<section class="panel-section">
-				<div class="section-header">
-					<h3>TODOs</h3>
-					{#if !isEditingTodos}
-						<Button variant="icon" size="sm" onclick={startEditingTodos} title="Edit TODOs">
-							<Icon name="edit" size={14} />
-						</Button>
-					{/if}
-				</div>
-				<div class="todos-content">
-					{#if isEditingTodos}
-						<textarea
-							bind:value={editedTodos}
-							placeholder="Add TODOs (one per line)..."
-							rows="4"
-							class="edit-textarea"
-						></textarea>
-						<div class="edit-actions">
-							<Button variant="ghost" size="sm" onclick={cancelEditingTodos}>Cancel</Button>
-							<Button variant="primary" size="sm" onclick={saveTodos}>Save</Button>
+						{#if !isSectionCollapsed('arcs')}
+							{#if isAddingArc}
+								<div class="arc-search">
+									<select bind:value={selectedArcToAdd} onchange={addArcToScene}>
+										<option value="">Select an arc...</option>
+										{#each availableArcs as arc (arc.id)}
+											<option value={arc.id}>{arc.name}</option>
+										{/each}
+									</select>
+								</div>
+							{/if}
+
+							<!-- AA2: Skeleton loader for arcs -->
+							<div class="arcs-list">
+								{#if isLoadingArcs}
+									<div class="skeleton-item"></div>
+									<div class="skeleton-item"></div>
+								{:else}
+									{#each sceneArcs as arc (arc.id)}
+										<div class="arc-item" style="--arc-color: {arc.color || 'var(--color-accent)'}">
+											<span class="arc-color-dot"></span>
+											<button
+												class="entry-link arc-name"
+												onclick={() => appState.navigateToArc(arc.id)}
+												title="Go to {arc.name}">{arc.name}</button
+											>
+											<span class="arc-status">{arc.status}</span>
+											<button
+												class="remove-btn"
+												onclick={() => removeArcFromScene(arc.id)}
+												title="Remove from arc"
+											>
+												&times;
+											</button>
+										</div>
+									{:else}
+										<p class="empty-message">No arcs linked to this scene.</p>
+									{/each}
+								{/if}
+							</div>
+						{/if}
+					</section>
+				{/if}
+
+				<!-- Links tab: Template Step Section -->
+				{#if appState.contextPanelTab === 'links' && (allTemplateSteps.length > 0 || templateStep)}
+					<section class="panel-section">
+						<div class="section-header">
+							<button class="section-toggle-inline" onclick={() => toggleSection('template')}>
+								<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('template')}>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+									>
+								</span>
+								<h3>Template Step</h3>
+							</button>
+							<Button variant="icon" size="sm" onclick={() => (isSelectingStep = !isSelectingStep)}>
+								{#if isSelectingStep}
+									<Icon name="close" size={16} />
+								{:else}
+									<Icon name="edit" size={16} />
+								{/if}
+							</Button>
 						</div>
-					{:else if selectedScene.todos}
-						<ul class="todos-list">
-							{#each selectedScene.todos.split('\n').filter((t) => t.trim()) as todo, index (index)}
-								<li>{todo}</li>
+
+						{#if !isSectionCollapsed('template')}
+							{#if isSelectingStep}
+								<div class="step-search">
+									<select bind:value={selectedStepToAssign} onchange={assignSceneToStep}>
+										<option value="">Select a step...</option>
+										{#each allTemplateSteps as step (step.id)}
+											<option value={step.id}>{step.name} ({step.typical_position}%)</option>
+										{/each}
+									</select>
+								</div>
+							{/if}
+
+							{#if templateStep && !isSelectingStep}
+								<div
+									class="template-step"
+									style="--step-color: {templateStep.color || 'var(--color-accent)'}"
+								>
+									<span class="step-color-dot"></span>
+									<div class="step-info">
+										<span class="step-name">{templateStep.name}</span>
+										{#if templateStep.description}
+											<span class="step-description">{templateStep.description}</span>
+										{/if}
+									</div>
+								</div>
+							{:else if !isSelectingStep}
+								<p class="empty-message">No template step assigned.</p>
+							{/if}
+						{/if}
+					</section>
+				{/if}
+
+				<!-- Links tab: Linked Timeline Events Section -->
+				{#if appState.contextPanelTab === 'links'}
+					<section class="panel-section">
+						<div class="section-header">
+							<button class="section-toggle-inline" onclick={() => toggleSection('events')}>
+								<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('events')}>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+									>
+								</span>
+								<h3>Linked Events</h3>
+								{#if eventsBadge > 0}
+									<span class="section-badge">{eventsBadge}</span>
+								{/if}
+							</button>
+							<Button variant="icon" size="sm" onclick={() => (isAddingEvent = !isAddingEvent)}>
+								{#if isAddingEvent}
+									<Icon name="close" size={16} />
+								{:else}
+									<Icon name="plus" size={16} />
+								{/if}
+							</Button>
+						</div>
+
+						{#if !isSectionCollapsed('events')}
+							{#if isAddingEvent}
+								<div class="arc-search">
+									<select bind:value={selectedEventToAdd} onchange={addEventToScene}>
+										<option value="">Select an event...</option>
+										{#each availableEvents as event (event.id)}
+											<option value={event.id}>{event.title}</option>
+										{/each}
+									</select>
+								</div>
+							{/if}
+
+							<!-- AA2: Skeleton loader for events -->
+							<div class="events-list">
+								{#if isLoadingEvents}
+									<div class="skeleton-item"></div>
+									<div class="skeleton-item"></div>
+								{:else}
+									{#each linkedEvents as event (event.id)}
+										<div class="event-item">
+											<div class="event-header">
+												<button
+													class="entry-link event-title"
+													onclick={() => appState.navigateToEvent(event.id)}
+													title="Go to {event.title}">{event.title}</button
+												>
+												<span class="event-type">{event.event_type}</span>
+												<button
+													class="remove-btn"
+													onclick={() => removeEventFromScene(event.id)}
+													title="Unlink event"
+												>
+													&times;
+												</button>
+											</div>
+											{#if event.time_point || event.time_start}
+												<div class="event-time">
+													{event.time_point ||
+														`${event.time_start}${event.time_end ? ` - ${event.time_end}` : ''}`}
+												</div>
+											{/if}
+										</div>
+									{:else}
+										<p class="empty-message">No events linked to this scene.</p>
+									{/each}
+								{/if}
+							</div>
+						{/if}
+					</section>
+				{/if}
+
+				<!-- Analysis tab: Linked Issues Section -->
+				{#if appState.contextPanelTab === 'analysis' && sceneIssues.length > 0}
+					<section class="panel-section">
+						<h3>Continuity ({sceneIssues.length})</h3>
+						<div class="issues-list">
+							{#each sceneIssues as issue (issue.id)}
+								<div class="issue-item" data-severity={issue.severity} data-status={issue.status}>
+									<span class="issue-severity-dot"></span>
+									<div class="issue-info">
+										<span class="issue-title">{issue.title}</span>
+										<span class="issue-meta">
+											{issue.severity} &middot; {issue.status}
+										</span>
+									</div>
+								</div>
 							{/each}
-						</ul>
-					{:else}
-						<p class="empty-message">
-							No TODOs for this scene. <button class="add-link" onclick={startEditingTodos}
-								>Add TODOs</button
-							>
-						</p>
-					{/if}
-				</div>
-			</section>
-		{/if}
-
-		<!-- Narrative Context (World State) / Character Thread -->
-		<section class="panel-section">
-			{#if appState.characterThreadId}
-				<CharacterThread />
-			{:else}
-				<button class="section-toggle" onclick={() => (worldStateExpanded = !worldStateExpanded)}>
-					<span class="toggle-icon">{worldStateExpanded ? '▾' : '▸'}</span>
-					<h3>World State</h3>
-				</button>
-				{#if worldStateExpanded}
-					<NarrativeContext />
+						</div>
+					</section>
 				{/if}
-			{/if}
-		</section>
 
-		<!-- Annotations Section (all modes) -->
-		{#if isSectionVisible('annotations')}
-			<section class="panel-section annotations-section">
-				<AnnotationsPanel sceneId={selectedSceneId || ''} {onSelectAnnotation} />
-			</section>
-		{/if}
+				<!-- Links tab: Scene Timeline Info -->
+				{#if appState.contextPanelTab === 'links'}
+					<section class="panel-section">
+						<div class="section-header">
+							<button class="section-toggle-inline" onclick={() => toggleSection('timeline')}>
+								<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('timeline')}>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+									>
+								</span>
+								<h3>Timeline</h3>
+							</button>
+							{#if !isEditingTimeline}
+								<Button
+									variant="icon"
+									size="sm"
+									onclick={startEditingTimeline}
+									title="Edit timeline"
+								>
+									<Icon name="edit" size={14} />
+								</Button>
+							{/if}
+						</div>
+						{#if !isSectionCollapsed('timeline')}
+							{#if isEditingTimeline}
+								<div class="timeline-edit-form">
+									<label class="checkbox-label">
+										<input type="checkbox" bind:checked={editedOnTimeline} />
+										Show on timeline
+									</label>
+									<input
+										type="text"
+										class="inline-input"
+										placeholder="Time point (e.g., Day 3)"
+										bind:value={editedTimePoint}
+									/>
+									<input
+										type="text"
+										class="inline-input"
+										placeholder="Time start"
+										bind:value={editedTimeStart}
+									/>
+									<input
+										type="text"
+										class="inline-input"
+										placeholder="Time end"
+										bind:value={editedTimeEnd}
+									/>
+									<div class="edit-actions">
+										<Button variant="ghost" size="sm" onclick={cancelEditingTimeline}>Cancel</Button
+										>
+										<Button variant="primary" size="sm" onclick={saveTimeline}>Save</Button>
+									</div>
+								</div>
+							{:else}
+								<div class="timeline-info">
+									{#if selectedScene.on_timeline}
+										<div class="timeline-badge">On Timeline</div>
+									{/if}
+									{#if selectedScene.time_point}
+										<div class="timeline-time">
+											<span class="time-label">Time:</span>
+											<span class="time-value">{selectedScene.time_point}</span>
+										</div>
+									{:else if selectedScene.time_start}
+										<div class="timeline-time">
+											<span class="time-label">From:</span>
+											<span class="time-value">{selectedScene.time_start}</span>
+											{#if selectedScene.time_end}
+												<span class="time-label">To:</span>
+												<span class="time-value">{selectedScene.time_end}</span>
+											{/if}
+										</div>
+									{:else if !selectedScene.on_timeline}
+										<p class="empty-message">Not on timeline.</p>
+									{/if}
+								</div>
+							{/if}
+						{/if}
+					</section>
+				{/if}
 
-		<!-- Revision Checklist Section (revision mode only) -->
-		{#if isSectionVisible('annotations') && appState.workMode === 'revision'}
-			<section class="panel-section">
-				<RevisionChecklist
-					checklist={(() => {
-						if (!selectedScene.revision_checklist) return {};
-						try {
-							return JSON.parse(selectedScene.revision_checklist);
-						} catch {
-							return {};
-						}
-					})()}
-					onchange={async (checklist) => {
-						if (selectedSceneId) {
-							try {
-								await sceneApi.update(selectedSceneId, {
-									revision_checklist: JSON.stringify(checklist),
-								});
-							} catch (_err) {
-								showError('Failed to save checklist');
-							}
-						}
-					}}
-				/>
-			</section>
-		{/if}
+				<!-- Writing tab: Notes Section -->
+				{#if appState.contextPanelTab === 'writing'}
+					<section class="panel-section">
+						<div class="section-header">
+							<button class="section-toggle-inline" onclick={() => toggleSection('notes')}>
+								<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('notes')}>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+									>
+								</span>
+								<h3>Notes</h3>
+								{#if notesBadge > 0}
+									<span class="section-badge">{notesBadge}</span>
+								{/if}
+							</button>
+							{#if !isEditingNotes}
+								<Button variant="icon" size="sm" onclick={startEditingNotes} title="Edit notes">
+									<Icon name="edit" size={14} />
+								</Button>
+							{/if}
+						</div>
+						{#if !isSectionCollapsed('notes')}
+							<div class="notes-content">
+								{#if isEditingNotes}
+									<textarea
+										bind:value={editedNotes}
+										placeholder="Add private notes..."
+										rows="4"
+										class="edit-textarea"
+									></textarea>
+									<div class="edit-actions">
+										<Button variant="ghost" size="sm" onclick={cancelEditingNotes}>Cancel</Button>
+										<Button variant="primary" size="sm" onclick={saveNotes}>Save</Button>
+									</div>
+								{:else if selectedScene.notes}
+									<button class="editable-field" onclick={startEditingNotes}>
+										<p>{selectedScene.notes}</p>
+										<span class="edit-hint"><Icon name="edit" size={12} /></span>
+									</button>
+								{:else}
+									<button class="editable-field empty" onclick={startEditingNotes}>
+										<p class="placeholder-text">Click to add notes...</p>
+										<span class="edit-hint"><Icon name="edit" size={12} /></span>
+									</button>
+								{/if}
+							</div>
+						{/if}
+					</section>
+				{/if}
+
+				<!-- Writing tab: TODOs Section -->
+				{#if appState.contextPanelTab === 'writing'}
+					<section class="panel-section">
+						<div class="section-header">
+							<button class="section-toggle-inline" onclick={() => toggleSection('todos')}>
+								<span class="section-toggle-icon" class:collapsed={isSectionCollapsed('todos')}>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg
+									>
+								</span>
+								<h3>TODOs</h3>
+								{#if todosBadge() > 0}
+									<span class="section-badge">{todosBadge()}</span>
+								{/if}
+							</button>
+							{#if !isEditingTodos}
+								<Button variant="icon" size="sm" onclick={startEditingTodos} title="Edit TODOs">
+									<Icon name="edit" size={14} />
+								</Button>
+							{/if}
+						</div>
+						{#if !isSectionCollapsed('todos')}
+							<div class="todos-content">
+								{#if isEditingTodos}
+									<textarea
+										bind:value={editedTodos}
+										placeholder="Add TODOs (one per line)..."
+										rows="4"
+										class="edit-textarea"
+									></textarea>
+									<div class="edit-actions">
+										<Button variant="ghost" size="sm" onclick={cancelEditingTodos}>Cancel</Button>
+										<Button variant="primary" size="sm" onclick={saveTodos}>Save</Button>
+									</div>
+								{:else if selectedScene.todos}
+									<button class="editable-field" onclick={startEditingTodos}>
+										<ul class="todos-list">
+											{#each selectedScene.todos
+												.split('\n')
+												.filter((t) => t.trim()) as todo, index (index)}
+												<li>{todo}</li>
+											{/each}
+										</ul>
+										<span class="edit-hint"><Icon name="edit" size={12} /></span>
+									</button>
+								{:else}
+									<button class="editable-field empty" onclick={startEditingTodos}>
+										<p class="placeholder-text">Click to add TODOs...</p>
+										<span class="edit-hint"><Icon name="edit" size={12} /></span>
+									</button>
+								{/if}
+							</div>
+						{/if}
+					</section>
+				{/if}
+
+				<!-- Analysis tab: World State / Character Thread -->
+				{#if appState.contextPanelTab === 'analysis'}
+					<section class="panel-section">
+						{#if appState.characterThreadId}
+							<CharacterThread />
+						{:else}
+							<button
+								class="section-toggle"
+								onclick={() => (worldStateExpanded = !worldStateExpanded)}
+							>
+								<span class="toggle-icon">{worldStateExpanded ? '▾' : '▸'}</span>
+								<h3>World State</h3>
+							</button>
+							{#if worldStateExpanded}
+								<NarrativeContext />
+							{/if}
+						{/if}
+					</section>
+				{/if}
+
+				<!-- Analysis tab: Annotations Section -->
+				{#if appState.contextPanelTab === 'analysis'}
+					<section class="panel-section annotations-section">
+						<AnnotationsPanel sceneId={selectedSceneId || ''} {onSelectAnnotation} />
+					</section>
+				{/if}
+
+				<!-- Analysis tab: Revision Checklist Section (revision mode only) -->
+				{#if appState.contextPanelTab === 'analysis' && appState.workMode === 'revision'}
+					<section class="panel-section">
+						<RevisionChecklist
+							checklist={(() => {
+								if (!selectedScene.revision_checklist) return {};
+								try {
+									return JSON.parse(selectedScene.revision_checklist);
+								} catch {
+									return {};
+								}
+							})()}
+							onchange={async (checklist) => {
+								if (selectedSceneId) {
+									try {
+										await sceneApi.update(selectedSceneId, {
+											revision_checklist: JSON.stringify(checklist),
+										});
+									} catch (_err) {
+										showError('Failed to save checklist');
+									}
+								}
+							}}
+						/>
+					</section>
+				{/if}
+			</div>
+		{/key}
 	{:else}
+		<!-- AL2: Empty state with keyboard shortcut tips -->
 		<div class="no-selection">
-			<p>Select a scene to see context information.</p>
+			<div class="no-selection-icon">
+				<Icon name="file" size={32} />
+			</div>
+			<h4>No scene selected</h4>
+			<p>Select a scene from the outline to edit its metadata.</p>
+			<div class="tips">
+				<p class="tip"><kbd>↑</kbd><kbd>↓</kbd> Navigate scenes</p>
+				<p class="tip"><kbd>⌘K</kbd> Quick Open</p>
+				<p class="tip"><kbd>⌘N</kbd> New scene</p>
+			</div>
 		</div>
 	{/if}
 </div>
@@ -982,6 +1366,76 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--spacing-md);
+	}
+
+	.panel-tabs {
+		display: flex;
+		gap: 2px;
+		background-color: var(--color-bg-tertiary);
+		border-radius: var(--border-radius-md);
+		padding: 2px;
+	}
+
+	/* BD5: Tab content transition */
+	.tab-content {
+		animation: fadeIn 150ms ease-out;
+	}
+
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+			transform: translateY(4px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	/* BC3: Quick actions bar */
+	.quick-actions {
+		display: flex;
+		justify-content: center;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-xs) 0;
+		border-bottom: 1px solid var(--color-border-light);
+	}
+
+	.quick-action-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-muted);
+		transition: all var(--transition-fast);
+	}
+
+	.quick-action-btn:hover {
+		background-color: var(--color-bg-hover);
+		color: var(--color-accent);
+	}
+
+	.panel-tab {
+		flex: 1;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-secondary);
+		text-align: center;
+		transition: all var(--transition-fast);
+	}
+
+	.panel-tab:hover {
+		color: var(--color-text-primary);
+	}
+
+	.panel-tab.active {
+		background-color: var(--color-bg-primary);
+		color: var(--color-text-primary);
+		box-shadow: var(--shadow-sm);
 	}
 
 	.panel-section {
@@ -1133,7 +1587,8 @@
 		transition: background-color var(--transition-fast);
 	}
 
-	.search-result:hover {
+	.search-result:hover,
+	.search-result.selected {
 		background-color: var(--color-bg-hover);
 	}
 
@@ -1147,6 +1602,25 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.entry-link {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: left;
+		color: inherit;
+		cursor: pointer;
+		text-decoration: none;
+		transition: color var(--transition-fast);
+	}
+
+	.entry-link:hover {
+		color: var(--color-accent);
+		text-decoration: underline;
+		text-underline-offset: 2px;
 	}
 
 	.entry-type {
@@ -1206,6 +1680,47 @@
 		line-height: var(--line-height-normal);
 	}
 
+	.editable-field {
+		position: relative;
+		display: block;
+		width: 100%;
+		text-align: left;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border: 1px dashed transparent;
+		border-radius: var(--border-radius-sm);
+		cursor: text;
+		transition: all var(--transition-fast);
+	}
+
+	.editable-field:hover {
+		border-color: var(--color-border);
+		background-color: var(--color-bg-secondary);
+	}
+
+	.editable-field .edit-hint {
+		position: absolute;
+		top: var(--spacing-xs);
+		right: var(--spacing-xs);
+		opacity: 0;
+		color: var(--color-text-muted);
+		transition: opacity var(--transition-fast);
+	}
+
+	.editable-field:hover .edit-hint {
+		opacity: 1;
+	}
+
+	.editable-field.empty {
+		border-color: var(--color-border-light, var(--color-border));
+		border-style: dashed;
+	}
+
+	.placeholder-text {
+		color: var(--color-text-muted);
+		font-style: italic;
+		font-size: var(--font-size-sm);
+	}
+
 	.section-header {
 		display: flex;
 		align-items: center;
@@ -1238,15 +1753,6 @@
 		justify-content: flex-end;
 		gap: var(--spacing-sm);
 		margin-top: var(--spacing-sm);
-	}
-
-	.add-link {
-		color: var(--color-accent);
-		font-style: normal;
-	}
-
-	.add-link:hover {
-		text-decoration: underline;
 	}
 
 	.todos-list {
@@ -1454,13 +1960,60 @@
 		font-weight: 500;
 	}
 
+	/* AL2: Enhanced empty state with tips */
 	.no-selection {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-xl);
+		text-align: center;
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+	}
+
+	.no-selection-icon {
+		opacity: 0.5;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.no-selection h4 {
+		font-size: var(--font-size-base);
+		font-weight: 600;
+		color: var(--color-text-secondary);
+		margin: 0;
+	}
+
+	.no-selection p {
+		margin: 0;
+		max-width: 200px;
+	}
+
+	.tips {
+		margin-top: var(--spacing-md);
+		padding-top: var(--spacing-md);
+		border-top: 1px solid var(--color-border-light);
+	}
+
+	.tip {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		height: 200px;
+		gap: var(--spacing-xs);
+		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
-		font-size: var(--font-size-sm);
+		margin: var(--spacing-xs) 0;
+	}
+
+	.tip kbd {
+		display: inline-block;
+		padding: 2px 6px;
+		background-color: var(--color-bg-tertiary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		font-family: var(--font-family-mono);
+		font-size: 10px;
 	}
 
 	.annotations-section {
@@ -1479,14 +2032,20 @@
 		width: 100%;
 		padding: var(--spacing-xs) var(--spacing-sm);
 		font-size: var(--font-size-sm);
-		border: 1px solid var(--color-border);
+		border: 1px dashed transparent;
 		border-radius: var(--border-radius-sm);
 		background-color: var(--color-bg-primary);
+		transition: border-color var(--transition-fast);
+	}
+
+	.inline-input:hover {
+		border-color: var(--color-border);
 	}
 
 	.inline-input:focus {
 		outline: none;
 		border-color: var(--color-accent);
+		border-style: solid;
 	}
 
 	/* Timeline edit form */
@@ -1622,10 +2181,48 @@
 		background: none;
 		border: none;
 		text-align: left;
+		cursor: default;
 	}
 
 	.section-toggle h3 {
 		margin: 0;
+	}
+
+	.section-toggle-inline {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		padding: 0;
+		background: none;
+		border: none;
+		cursor: default;
+	}
+
+	.section-toggle-inline h3 {
+		margin: 0;
+	}
+
+	.section-toggle-icon {
+		display: flex;
+		color: var(--color-text-muted);
+		transition: transform var(--transition-fast);
+	}
+
+	.section-toggle-icon.collapsed {
+		transform: rotate(-90deg);
+	}
+
+	/* AG3: Badge for collapsed sections with content */
+	.section-badge {
+		background-color: var(--color-accent);
+		color: var(--text-on-accent);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		padding: 0 6px;
+		border-radius: 10px;
+		min-width: 18px;
+		text-align: center;
+		margin-left: auto;
 	}
 
 	.toggle-icon {
@@ -1633,5 +2230,28 @@
 		color: var(--color-text-muted);
 		width: 14px;
 		flex-shrink: 0;
+	}
+
+	/* AA2: Skeleton loader styles */
+	.skeleton-item {
+		height: 36px;
+		background: linear-gradient(
+			90deg,
+			var(--color-bg-tertiary) 25%,
+			var(--color-bg-secondary) 50%,
+			var(--color-bg-tertiary) 75%
+		);
+		background-size: 200% 100%;
+		border-radius: var(--border-radius-sm);
+		animation: skeleton-shimmer 1.5s ease-in-out infinite;
+	}
+
+	@keyframes skeleton-shimmer {
+		0% {
+			background-position: 200% 0;
+		}
+		100% {
+			background-position: -200% 0;
+		}
 	}
 </style>

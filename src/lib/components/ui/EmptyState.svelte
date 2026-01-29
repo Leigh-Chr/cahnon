@@ -72,15 +72,24 @@
 		actionLabel?: string;
 		onaction?: () => void;
 		children?: Snippet;
+		compact?: boolean;
 	}
 
-	let { icon, title, description, actionLabel, onaction, children }: Props = $props();
+	let {
+		icon,
+		title,
+		description,
+		actionLabel,
+		onaction,
+		children,
+		compact = false,
+	}: Props = $props();
 </script>
 
-<div class="empty-state">
+<div class="empty-state" class:compact>
 	{#if icon}
 		<div class="empty-icon">
-			<Icon name={icon} size={48} strokeWidth={1.5} />
+			<Icon name={icon} size={compact ? 32 : 48} strokeWidth={1.5} />
 		</div>
 	{/if}
 	<h3 class="empty-title">{title}</h3>
@@ -137,5 +146,23 @@
 
 	.empty-state :global(.btn) {
 		margin-top: var(--spacing-md);
+	}
+
+	.empty-state.compact {
+		min-height: 120px;
+		padding: var(--spacing-md);
+	}
+
+	.compact .empty-icon {
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.compact .empty-title {
+		font-size: var(--font-size-base);
+	}
+
+	.compact .empty-description {
+		font-size: var(--font-size-xs);
+		max-width: 240px;
 	}
 </style>

@@ -13,10 +13,11 @@
 	import { type BibleEntry, eventApi, type Scene, type TimelineEvent } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
-	import { bibleEntryTypes } from '$lib/utils';
+	import { bibleEntryTypes, formatDate } from '$lib/utils';
+	import { trapFocus } from '$lib/utils/focus-trap';
 	import { nativeConfirm } from '$lib/utils/native-dialog';
 
-	import { Button, EmptyState, FormActions, FormGroup, Icon } from './ui';
+	import { Button, EmptyState, FormActions, FormGroup, Icon, LoadingState } from './ui';
 	import ContextMenu from './ui/ContextMenu.svelte';
 	import ContextMenuItem from './ui/ContextMenuItem.svelte';
 	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
@@ -44,6 +45,11 @@
 	let isCreating = $state(false);
 	let isEditing = $state(false);
 	let isLoading = $state(false);
+
+	// Search and filter state
+	let searchQuery = $state('');
+	let filterType = $state('');
+	let filterImportance = $state('');
 
 	// Form state
 	let formTitle = $state('');
@@ -95,6 +101,15 @@
 	let linkedBibleIds = $derived(linkedBibleEntries.map((e) => e.id));
 
 	let availableScenes = $derived(allScenes.filter((s) => !linkedSceneIds.includes(s.id)));
+
+	let filteredEvents = $derived(
+		events.filter(
+			(e) =>
+				(!searchQuery || e.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
+				(!filterType || e.event_type === filterType) &&
+				(!filterImportance || e.importance === filterImportance)
+		)
+	);
 
 	let filteredBibleEntries = $derived(
 		bibleSearchQuery
@@ -307,14 +322,16 @@
 		role="presentation"
 		tabindex="-1"
 	>
+		<!-- AE1: Focus trap -->
 		<div
-			class="modal-container"
+			class="modal-container modal-enter"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="events-title"
 			tabindex="-1"
+			use:trapFocus={{ onEscape: onclose }}
 		>
 			<div class="modal-header">
 				<h2 id="events-title">Timeline Events</h2>
@@ -332,13 +349,43 @@
 						</Button>
 					</div>
 
+					<div class="events-filters">
+						<input
+							type="text"
+							class="events-search"
+							placeholder="Search events..."
+							bind:value={searchQuery}
+						/>
+						<div class="filter-row">
+							<select bind:value={filterType} class="filter-select">
+								<option value="">All types</option>
+								{#each eventTypes as type (type.value)}
+									<option value={type.value}>{type.label}</option>
+								{/each}
+							</select>
+							<select bind:value={filterImportance} class="filter-select">
+								<option value="">All importance</option>
+								{#each importanceLevels as level (level.value)}
+									<option value={level.value}>{level.label}</option>
+								{/each}
+							</select>
+						</div>
+					</div>
+
 					<div class="events-list">
 						{#if isLoading}
-							<div class="loading">Loading events...</div>
-						{:else if events.length === 0}
-							<EmptyState title="No events yet" />
+							<LoadingState message="Loading events..." size="sm" />
+						{:else if filteredEvents.length === 0}
+							<EmptyState
+								compact
+								icon="calendar"
+								title={events.length === 0 ? 'No events yet' : 'No matching events'}
+								description={events.length === 0
+									? 'Timeline events help track what happens when in your story.'
+									: 'Try adjusting your search or filters.'}
+							/>
 						{:else}
-							{#each events as event (event.id)}
+							{#each filteredEvents as event (event.id)}
 								<button
 									class="event-item"
 									class:selected={selectedEventId === event.id && !isCreating}
@@ -372,7 +419,13 @@
 							<h3>{isCreating ? 'Create New Event' : 'Edit Event'}</h3>
 
 							<FormGroup label="Title">
-								<input type="text" bind:value={formTitle} placeholder="Event title" required />
+								<input
+									type="text"
+									bind:value={formTitle}
+									placeholder="Event title"
+									maxlength={100}
+									required
+								/>
 							</FormGroup>
 
 							<FormGroup label="Description">
@@ -389,14 +442,17 @@
 									bind:value={formTimePoint}
 									placeholder="e.g., Day 3, Chapter 5, Year 1020"
 								/>
+								<span class="time-hint"
+									>Use consistent format across events (e.g., "Day 1", "Year 1020")</span
+								>
 							</FormGroup>
 
 							<FormGroup label="Time Start">
-								<input type="text" bind:value={formTimeStart} placeholder="Start of time range" />
+								<input type="text" bind:value={formTimeStart} placeholder="e.g., Day 1, Year 500" />
 							</FormGroup>
 
 							<FormGroup label="Time End">
-								<input type="text" bind:value={formTimeEnd} placeholder="End of time range" />
+								<input type="text" bind:value={formTimeEnd} placeholder="e.g., Day 5, Year 510" />
 							</FormGroup>
 
 							<FormGroup label="Event Type">
@@ -580,13 +636,17 @@
 							<div class="detail-section">
 								<h4>Metadata</h4>
 								<div class="meta-info">
-									<span>Created: {new Date(selectedEvent.created_at).toLocaleDateString()}</span>
-									<span>Updated: {new Date(selectedEvent.updated_at).toLocaleDateString()}</span>
+									<span>Created: {formatDate(selectedEvent.created_at)}</span>
+									<span>Updated: {formatDate(selectedEvent.updated_at)}</span>
 								</div>
 							</div>
 						</div>
 					{:else}
-						<EmptyState title="Select an event or create a new one" />
+						<EmptyState
+							icon="calendar"
+							title="Select an event or create a new one"
+							description="Choose an event from the list to view its details, or create a new one to track timeline events."
+						/>
 					{/if}
 				</div>
 			</div>
@@ -685,15 +745,46 @@
 		border-bottom: 1px solid var(--color-border);
 	}
 
+	.events-filters {
+		padding: 0 var(--spacing-sm) var(--spacing-sm);
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.events-search {
+		width: 100%;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background: var(--color-bg-primary);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+	}
+
+	.events-search:focus {
+		outline: none;
+		border-color: var(--color-accent);
+	}
+
+	.filter-row {
+		display: flex;
+		gap: var(--spacing-xs);
+	}
+
+	.filter-select {
+		flex: 1;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background: var(--color-bg-primary);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-primary);
+	}
+
 	.events-list {
 		flex: 1;
 		overflow-y: auto;
-	}
-
-	.loading {
-		padding: var(--spacing-lg);
-		text-align: center;
-		color: var(--color-text-secondary);
 	}
 
 	.event-item {
@@ -959,5 +1050,13 @@
 		gap: var(--spacing-xs);
 		font-size: var(--font-size-sm);
 		color: var(--color-text-secondary);
+	}
+
+	.time-hint {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		font-style: italic;
+		margin-top: var(--spacing-xs);
+		display: block;
 	}
 </style>

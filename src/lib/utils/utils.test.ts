@@ -7,6 +7,7 @@ import {
 	countWords,
 	debounce,
 	formatDate,
+	formatDateTime,
 	formatRelativeTime,
 	formatShortcut,
 	formatWordCount,
@@ -175,6 +176,20 @@ describe('formatDate', () => {
 		// The exact format depends on locale, but it should contain the date parts
 		expect(formatted).toContain('2024');
 		expect(formatted).toContain('15');
+	});
+});
+
+describe('formatDateTime', () => {
+	it('should format ISO date string with time', () => {
+		const date = '2024-01-15T10:30:00Z';
+		const formatted = formatDateTime(date);
+		// The exact format depends on locale, but it should contain date parts
+		expect(formatted).toContain('2024');
+		expect(formatted).toContain('15');
+	});
+
+	it('should return original string for invalid date', () => {
+		expect(formatDateTime('invalid')).toBe('invalid');
 	});
 });
 

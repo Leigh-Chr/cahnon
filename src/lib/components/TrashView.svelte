@@ -11,6 +11,7 @@
 	import { type Chapter, type Scene, trashApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
+	import { formatDateTime } from '$lib/utils';
 
 	import { Button, EmptyState, Icon, LoadingState } from './ui';
 
@@ -68,10 +69,6 @@
 		const deletedChapter = deletedChapters.find((c) => c.id === chapterId);
 		return deletedChapter?.title || 'Unknown Chapter';
 	}
-
-	function formatDate(dateStr: string): string {
-		return new Date(dateStr).toLocaleString();
-	}
 </script>
 
 <div class="trash-view">
@@ -107,7 +104,7 @@
 							<h4>{scene.title}</h4>
 							<div class="item-meta">
 								<span class="chapter">{getChapterTitle(scene.chapter_id)}</span>
-								<span class="date">Deleted {formatDate(scene.updated_at)}</span>
+								<span class="date">Deleted {formatDateTime(scene.updated_at)}</span>
 							</div>
 							{#if scene.summary}
 								<p class="item-summary">{scene.summary}</p>
@@ -137,7 +134,7 @@
 					<div class="item-info">
 						<h4>{chapter.title}</h4>
 						<div class="item-meta">
-							<span class="date">Deleted {formatDate(chapter.updated_at)}</span>
+							<span class="date">Deleted {formatDateTime(chapter.updated_at)}</span>
 						</div>
 						{#if chapter.summary}
 							<p class="item-summary">{chapter.summary}</p>

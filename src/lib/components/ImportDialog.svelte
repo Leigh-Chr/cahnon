@@ -3,6 +3,7 @@
 	import { importFromDocx } from '$lib/export';
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
+	import { trapFocus } from '$lib/utils/focus-trap';
 	import { nativeConfirm } from '$lib/utils/native-dialog';
 
 	import { Button, Icon } from './ui';
@@ -87,6 +88,22 @@
 		} else if (importMode === 'json-backup') {
 			if (!content.trim()) {
 				error = 'Please select a JSON backup file';
+				return;
+			}
+			// Validate JSON structure before confirming
+			try {
+				const parsed = JSON.parse(content);
+				if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+					error = 'Invalid backup file: expected a JSON object';
+					return;
+				}
+				const hasExpectedKey = ['chapters', 'scenes', 'bible_entries'].some((key) => key in parsed);
+				if (!hasExpectedKey) {
+					error = 'Invalid backup file: missing expected data (chapters, scenes, or bible_entries)';
+					return;
+				}
+			} catch {
+				error = 'Invalid JSON: the file could not be parsed';
 				return;
 			}
 			// Confirm before importing (it's destructive)
@@ -206,9 +223,16 @@
 
 {#if isOpen}
 	<div class="dialog-overlay" onclick={handleOverlayClick} role="presentation">
-		<div class="dialog-container">
+		<!-- AE1: Focus trap and ARIA attributes -->
+		<div
+			class="dialog-container modal-enter"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="import-title"
+			use:trapFocus={{ onEscape: handleClose }}
+		>
 			<div class="dialog-header">
-				<h2>Import Content</h2>
+				<h2 id="import-title">Import Content</h2>
 				<Button variant="icon" onclick={handleClose} title="Close">
 					<Icon name="close" size={20} />
 				</Button>
@@ -393,6 +417,14 @@
 						<div class="error-message">{error}</div>
 					{/if}
 				</div>
+
+				<!-- AA4: Progress message for import -->
+				{#if isImporting}
+					<div class="import-progress-message">
+						<span class="progress-spinner"></span>
+						Importing... This may take a moment for large files.
+					</div>
+				{/if}
 
 				<div class="dialog-footer">
 					<Button variant="ghost" onclick={handleClose}>Cancel</Button>
@@ -596,5 +628,34 @@
 		gap: var(--spacing-sm);
 		padding: var(--spacing-md) var(--spacing-lg);
 		border-top: 1px solid var(--color-border-light);
+	}
+
+	/* AA4: Import progress message */
+	.import-progress-message {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-sm) var(--spacing-md);
+		background-color: var(--color-accent-light);
+		color: var(--color-accent);
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-size-sm);
+		margin: var(--spacing-md) var(--spacing-lg);
+	}
+
+	.progress-spinner {
+		display: inline-block;
+		width: 16px;
+		height: 16px;
+		border: 2px solid var(--color-accent);
+		border-top-color: transparent;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>

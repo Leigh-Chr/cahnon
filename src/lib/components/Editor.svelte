@@ -20,14 +20,19 @@
 	import Placeholder from '@tiptap/extension-placeholder';
 	import Typography from '@tiptap/extension-typography';
 	import StarterKit from '@tiptap/starter-kit';
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 
 	import type { Annotation, BibleEntry } from '$lib/api';
-	import { annotationApi, associationApi, cutApi, sceneApi, searchApi } from '$lib/api';
-	import { appState, clearRecoveryDraft, getRecoveryDraft, saveRecoveryDraft } from '$lib/stores';
+	import { annotationApi, associationApi, cutApi, issueApi, sceneApi, searchApi } from '$lib/api';
+	import { appState } from '$lib/stores';
+	import {
+		clearRecoveryDraftForScene,
+		getRecoveryDraft,
+		saveRecoveryDraft,
+	} from '$lib/stores/recovery';
 	import { AnnotationMark } from '$lib/tiptap/annotation-mark';
-	import { showError, showSuccess } from '$lib/toast';
-	import { countWords, debounce, sceneStatuses, statusColors } from '$lib/utils';
+	import { showError, showSuccess, showWarning } from '$lib/toast';
+	import { countWords, debounce, formatShortcut, sceneStatuses, statusColors } from '$lib/utils';
 	import { isModKey } from '$lib/utils';
 	import { truncate } from '$lib/utils';
 	import {
@@ -41,11 +46,22 @@
 	import EditorToolbar from './EditorToolbar.svelte';
 	import type { FindReplaceScope } from './FindReplace.svelte';
 	import FindReplace from './FindReplace.svelte';
+	import NewProjectWelcome from './NewProjectWelcome.svelte';
 	import SceneHistoryModal from './SceneHistoryModal.svelte';
+	import { EmptyState } from './ui';
 
 	// Derived values for proper reactivity tracking in templates
 	let selectedScene = $derived(appState.selectedScene);
 	let selectedChapter = $derived(appState.selectedChapter);
+
+	// UB4: Scene position within chapter
+	let scenePosition = $derived.by(() => {
+		if (!selectedScene || !selectedChapter) return null;
+		const chapterScenes = appState.scenes.get(selectedChapter.id) || [];
+		const index = chapterScenes.findIndex((s) => s.id === selectedScene.id);
+		if (index === -1) return null;
+		return { current: index + 1, total: chapterScenes.length };
+	});
 
 	// Scene operations
 	async function splitSceneAtCursor() {
@@ -60,6 +76,13 @@
 			showError('Cannot split at the beginning of the scene');
 			return;
 		}
+
+		// Z3: Confirmation before Split Scene
+		const confirmed = await nativeConfirm(
+			'Split scene at cursor?\n\nThis will create a new scene with the text after the cursor.',
+			'Split Scene'
+		);
+		if (!confirmed) return;
 
 		const newTitle = `${appState.selectedScene.title} (Part 2)`;
 
@@ -89,8 +112,11 @@
 
 		const nextScene = chapterScenes[currentIndex + 1];
 
+		// Z4: Improved merge scene confirmation message
 		const confirmed = await nativeConfirm(
-			`Merge "${appState.selectedScene.title}" with "${nextScene.title}"? This cannot be undone.`,
+			`Merge "${appState.selectedScene.title}" with "${nextScene.title}"?\n\n` +
+				`The content of "${nextScene.title}" will be appended to this scene, and the second scene will be deleted.\n\n` +
+				`This cannot be undone.`,
 			'Merge Scenes'
 		);
 		if (!confirmed) {
@@ -110,14 +136,55 @@
 
 	let editorElement = $state<HTMLElement | null>(null);
 	let editor = $state<Editor | null>(null);
+	// UB1: Smooth scene transition
+	let isTransitioning = $state(false);
 	let isUpdating = $state(false);
+
+	// T1: Live word count (updated in TipTap onUpdate)
+	let liveWordCount = $state(0);
+
+	// CA5: Session stats tracking
+	let sessionStartTime = $state<Date | null>(null);
+	let sessionStartWordCount = $state(0);
+
+	// Initialize session on first scene load
+	$effect(() => {
+		// Track selectedScene but read sessionStartTime without tracking
+		if (selectedScene && untrack(() => sessionStartTime) === null) {
+			sessionStartTime = new Date();
+			sessionStartWordCount = countWords(selectedScene.text);
+		}
+	});
+
+	// Derived session stats
+	let sessionWordsWritten = $derived(
+		liveWordCount > sessionStartWordCount ? liveWordCount - sessionStartWordCount : 0
+	);
+	let sessionDuration = $derived.by(() => {
+		if (!sessionStartTime) return 0;
+		return Math.floor((Date.now() - sessionStartTime.getTime()) / 60000); // minutes
+	});
+	let sessionWPM = $derived(
+		sessionDuration > 0 ? Math.round(sessionWordsWritten / sessionDuration) : 0
+	);
 
 	// Scene metadata editing
 	let editingTitle = $state(false);
 	let titleInput = $state<HTMLInputElement | null>(null);
+	let titleJustSaved = $state(false); // AD3: Visual confirmation for title save
+
+	// Auto-select title text when entering edit mode
+	$effect(() => {
+		if (editingTitle && titleInput) {
+			tick().then(() => titleInput?.select());
+		}
+	});
 
 	// History modal
 	let showHistoryModal = $state(false);
+
+	// AD1: Summary section expanded state (collapsed by default in writing mode)
+	let summaryExpanded = $state(false);
 
 	// Cut library
 	let showCutLibrary = $state(false);
@@ -131,6 +198,13 @@
 	>(undefined);
 	let searchMarks = $state<Array<{ from: number; to: number }>>([]);
 	let currentSearchIndex = $state(0);
+
+	// AC3: Store last search parameters for re-execution on scene change
+	let lastSearchParams = $state<{
+		query: string;
+		caseSensitive: boolean;
+		wholeWord: boolean;
+	} | null>(null);
 
 	function handleKeydown(event: KeyboardEvent) {
 		// Close context menu or annotation popover on Escape
@@ -170,8 +244,26 @@
 			triggerAnnotationCreation();
 			return;
 		}
+		// AC4: Context menu via keyboard (Shift+F10 or ContextMenu key)
+		if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
+			event.preventDefault();
+			openContextMenuAtCursor();
+			return;
+		}
 		// Undo: Cmd/Ctrl + Z (handled by TipTap, but ensure focus)
 		// Redo: Cmd/Ctrl + Shift + Z or Cmd/Ctrl + Y (handled by TipTap)
+	}
+
+	/** AC4: Open context menu at cursor position for keyboard users */
+	function openContextMenuAtCursor() {
+		if (!editor) return;
+		const { empty } = editor.state.selection;
+		if (empty) return;
+
+		// Get cursor position from editor
+		const { from } = editor.state.selection;
+		const coords = editor.view.coordsAtPos(from);
+		contextMenu = { x: coords.left, y: coords.bottom + 8 };
 	}
 
 	function undo() {
@@ -200,7 +292,7 @@
 			}, 'save scene');
 			if (saved) {
 				// Clear recovery draft after successful save
-				clearRecoveryDraft();
+				clearRecoveryDraftForScene(sceneId);
 			}
 		}
 	}, 1000);
@@ -213,24 +305,60 @@
 		}
 	});
 
-	/** Check for and optionally restore a recovery draft for the given scene */
-	async function checkRecoveryDraft(sceneId: string, targetEditor: Editor) {
-		const recoveryDraft = getRecoveryDraft();
-		if (recoveryDraft && recoveryDraft.sceneId === sceneId) {
-			const shouldRecover = await nativeConfirm(
-				'A recovery draft was found from a previous session. Would you like to restore it?\n\n' +
-					'Click OK to restore the draft, or Cancel to discard it.',
-				'Recovery Draft Found'
-			);
-			if (shouldRecover) {
-				isUpdating = true;
-				targetEditor.commands.setContent(recoveryDraft.text);
-				isUpdating = false;
-				appState.markUnsaved();
-				showSuccess('Draft recovered');
-			}
-			clearRecoveryDraft();
+	// Recovery bar state - Z2: with enriched context
+	let recoveryDraftAvailable = $state<{
+		sceneId: string;
+		text: string;
+		timestamp: number;
+		wordCount: number;
+		preview: string;
+	} | null>(null);
+
+	/** Strip HTML tags from text for preview */
+	function stripHtmlTags(html: string): string {
+		return html
+			.replace(/<[^>]*>/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim();
+	}
+
+	/** Check for a recovery draft for the given scene */
+	function checkRecoveryDraft(sceneId: string, _targetEditor: Editor) {
+		const recoveryDraft = getRecoveryDraft(sceneId);
+		if (recoveryDraft) {
+			// Z2: Enrich with timestamp, word count, and preview
+			const plainText = stripHtmlTags(recoveryDraft.text);
+			const words = countWords(plainText);
+			const preview = plainText.slice(0, 50) + (plainText.length > 50 ? '...' : '');
+			recoveryDraftAvailable = {
+				sceneId: recoveryDraft.sceneId,
+				text: recoveryDraft.text,
+				timestamp: recoveryDraft.timestamp,
+				wordCount: words,
+				preview,
+			};
+			// T3: Show toast to alert user
+			showWarning('Unsaved changes recovered — see the bar above the editor.');
+		} else {
+			recoveryDraftAvailable = null;
 		}
+	}
+
+	function restoreRecoveryDraft() {
+		if (!recoveryDraftAvailable || !editor) return;
+		isUpdating = true;
+		editor.commands.setContent(recoveryDraftAvailable.text);
+		isUpdating = false;
+		appState.markUnsaved();
+		clearRecoveryDraftForScene(recoveryDraftAvailable.sceneId);
+		recoveryDraftAvailable = null;
+		showSuccess('Draft recovered');
+	}
+
+	function discardRecoveryDraft() {
+		if (!recoveryDraftAvailable) return;
+		clearRecoveryDraftForScene(recoveryDraftAvailable.sceneId);
+		recoveryDraftAvailable = null;
 	}
 
 	function initEditor() {
@@ -260,13 +388,50 @@
 					class: 'prose-editor',
 				},
 			},
-			onUpdate: ({ editor }) => {
+			onUpdate: ({ editor: ed, transaction }) => {
+				// T1: Update live word count
+				liveWordCount = countWords(ed.getText());
+
+				// UB2: Update session word count if session active
+				if (appState.writingSessionActive) {
+					appState.updateSessionWordCount(liveWordCount);
+				}
+
 				if (!isUpdating && currentSceneId) {
+					// BA1: Track typing state with character delta
+					const charsDelta = transaction.steps.reduce((acc, step) => {
+						// Rough estimate of chars changed
+						if ('slice' in step && step.slice) {
+							const slice = step.slice as { content?: { size?: number } };
+							return acc + (slice.content?.size ?? 0);
+						}
+						return acc;
+					}, 0);
+					appState.markTyping(charsDelta);
 					const version = appState.markUnsaved();
 					// Capture scene ID at edit time to prevent saving to wrong scene
-					saveScene(currentSceneId, editor.getHTML(), version);
+					saveScene(currentSceneId, ed.getHTML(), version);
 				}
 				updateCanStates();
+			},
+			onSelectionUpdate: ({ editor }) => {
+				// Mark the active paragraph for focus mode
+				const container = editor.view.dom;
+				container.querySelectorAll('.active-paragraph').forEach((el) => {
+					el.classList.remove('active-paragraph');
+				});
+				const { from } = editor.state.selection;
+				const resolved = editor.state.doc.resolve(from);
+				for (let depth = resolved.depth; depth >= 1; depth--) {
+					const node = resolved.node(depth);
+					if (node.isBlock) {
+						const domNode = editor.view.nodeDOM(resolved.before(depth));
+						if (domNode instanceof HTMLElement) {
+							domNode.classList.add('active-paragraph');
+						}
+						break;
+					}
+				}
 			},
 			onTransaction: () => {
 				updateCanStates();
@@ -277,9 +442,47 @@
 	// Track current scene ID to detect when we switch scenes
 	let currentSceneId = $state<string | null>(null);
 
+	// Remember cursor positions per scene (persisted in sessionStorage)
+	const CURSOR_STORAGE_KEY = 'cahnon-cursor-positions';
+	const MAX_CURSOR_ENTRIES = 50;
+
+	function getCursorPositions(): Record<string, number> {
+		try {
+			return JSON.parse(sessionStorage.getItem(CURSOR_STORAGE_KEY) || '{}');
+		} catch {
+			return {};
+		}
+	}
+
+	function setCursorPosition(sceneId: string, pos: number) {
+		const positions = getCursorPositions();
+		positions[sceneId] = pos;
+		// Enforce max entries (FIFO)
+		const keys = Object.keys(positions);
+		if (keys.length > MAX_CURSOR_ENTRIES) {
+			for (const key of keys.slice(0, keys.length - MAX_CURSOR_ENTRIES)) {
+				delete positions[key];
+			}
+		}
+		try {
+			sessionStorage.setItem(CURSOR_STORAGE_KEY, JSON.stringify(positions));
+		} catch {
+			// Storage full or unavailable — ignore
+		}
+	}
+
+	function getSavedCursorPosition(sceneId: string): number | undefined {
+		return getCursorPositions()[sceneId];
+	}
+
 	async function updateTitle() {
 		if (appState.selectedScene && titleInput) {
 			await appState.updateScene(appState.selectedScene.id, { title: titleInput.value });
+			// AD3: Visual confirmation when title is saved
+			titleJustSaved = true;
+			setTimeout(() => {
+				titleJustSaved = false;
+			}, 1500);
 		}
 		editingTitle = false;
 	}
@@ -336,6 +539,9 @@
 		if (!editor) return;
 
 		const { query, caseSensitive, wholeWord } = data;
+
+		// AC3: Store search parameters for re-execution on scene change
+		lastSearchParams = query ? { query, caseSensitive, wholeWord } : null;
 
 		// Clear previous highlights
 		editor.commands.unsetHighlight();
@@ -483,6 +689,8 @@
 		showFindReplace = false;
 		editor?.commands.unsetHighlight();
 		searchMarks = [];
+		// AC3: Clear stored search params on close
+		lastSearchParams = null;
 	}
 
 	// Autosave on window blur
@@ -559,6 +767,26 @@
 	}
 
 	// -------------------------------------------------------------------------
+	// T2: Viewport clamping for popovers
+	// -------------------------------------------------------------------------
+
+	function clampToViewport(
+		x: number,
+		y: number,
+		popWidth: number,
+		popHeight: number
+	): { x: number; y: number } {
+		const vw = window.innerWidth;
+		const vh = window.innerHeight;
+		let clampedX = Math.min(x, vw - popWidth - 16);
+		let clampedY = y;
+		if (y + popHeight > vh - 16) {
+			clampedY = y - popHeight - 16;
+		}
+		return { x: Math.max(8, clampedX), y: Math.max(8, clampedY) };
+	}
+
+	// -------------------------------------------------------------------------
 	// Quick-add Bible entry (Ctrl+Shift+B)
 	// -------------------------------------------------------------------------
 
@@ -566,7 +794,9 @@
 	let quickAddPosition = $state({ x: 0, y: 0 });
 	let quickAddSelectedText = $state('');
 	let quickAddSearchQuery = $state('');
-	let quickAddMode = $state<'choose' | 'create' | 'link'>('choose');
+	// AB4: Added 'created' mode to allow continuing
+	let quickAddMode = $state<'choose' | 'create' | 'link' | 'created'>('choose');
+	let quickAddCreatedName = $state('');
 	let quickAddEntryType = $state('character');
 	let quickAddFilteredEntries = $derived(
 		quickAddSearchQuery
@@ -588,11 +818,11 @@
 		const text = editor.state.doc.textBetween(from, to);
 		if (!text.trim()) return;
 
-		// Position popup near selection
+		// Position popup near selection (T2: clamped to viewport)
 		const coords = editor.view.coordsAtPos(from);
 		quickAddSelectedText = text.trim();
 		quickAddSearchQuery = text.trim();
-		quickAddPosition = { x: coords.left, y: coords.bottom + 8 };
+		quickAddPosition = clampToViewport(coords.left, coords.bottom + 8, 300, 200);
 		quickAddMode = 'choose';
 		showQuickAddBible = true;
 	}
@@ -605,12 +835,26 @@
 				name: quickAddSelectedText,
 			});
 			await associationApi.create(appState.selectedSceneId, entry.id);
-			showSuccess(`Created "${entry.name}" and linked to scene`);
-			showQuickAddBible = false;
+			// AB4: Show success state with option to continue
+			quickAddCreatedName = entry.name;
+			quickAddMode = 'created';
 		} catch (e) {
 			console.error('Failed to create bible entry:', e);
 			showError('Failed to create bible entry');
 		}
+	}
+
+	/** AB4: Close Quick Add after creation */
+	function quickAddClose() {
+		showQuickAddBible = false;
+		quickAddMode = 'choose';
+		quickAddCreatedName = '';
+	}
+
+	/** AB4: Continue creating after success */
+	function quickAddCreateAnother() {
+		quickAddMode = 'create';
+		quickAddCreatedName = '';
 	}
 
 	async function quickAddLinkEntry(entry: BibleEntry) {
@@ -632,6 +876,12 @@
 	let cachedAnnotations = $state<Annotation[]>([]);
 	let tooltipAnnotation = $state<{ annotation: Annotation; x: number; y: number } | null>(null);
 	let tooltipTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+	const prefersReducedMotion =
+		typeof window !== 'undefined'
+			? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+			: false;
+	const TOOLTIP_ENTER_DELAY = prefersReducedMotion ? 0 : 150;
+	const TOOLTIP_EXIT_DELAY = prefersReducedMotion ? 0 : 100;
 
 	// Context menu state
 	let contextMenu = $state<{ x: number; y: number } | null>(null);
@@ -674,7 +924,7 @@
 					y: rect.top - 4,
 				};
 			}
-		}, 300);
+		}, TOOLTIP_ENTER_DELAY);
 	}
 
 	function handleEditorMouseOut(e: MouseEvent) {
@@ -682,7 +932,47 @@
 		if (target?.closest('.annotation-tooltip')) return;
 		if (target?.closest('mark.annotation-highlight')) return;
 		clearTooltipTimer();
-		tooltipAnnotation = null;
+		// Small exit delay to prevent flickering
+		tooltipTimer = setTimeout(() => {
+			tooltipAnnotation = null;
+		}, TOOLTIP_EXIT_DELAY);
+	}
+
+	function handleEditorFocus(e: FocusEvent) {
+		const target = e.target as HTMLElement;
+		const mark = target.closest('mark.annotation-highlight') as HTMLElement | null;
+		if (!mark) {
+			clearTooltipTimer();
+			return;
+		}
+		const annotationId = mark.getAttribute('data-annotation-id');
+		if (!annotationId) return;
+
+		// Don't restart timer if we're already showing this tooltip
+		if (tooltipAnnotation && tooltipAnnotation.annotation.id === annotationId) return;
+
+		clearTooltipTimer();
+		tooltipTimer = setTimeout(() => {
+			const annotation = getAnnotationById(annotationId);
+			if (annotation) {
+				const rect = mark.getBoundingClientRect();
+				tooltipAnnotation = {
+					annotation,
+					x: rect.left + rect.width / 2,
+					y: rect.top - 4,
+				};
+			}
+		}, TOOLTIP_ENTER_DELAY);
+	}
+
+	function handleEditorBlur(e: FocusEvent) {
+		const target = e.relatedTarget as HTMLElement | null;
+		if (target?.closest('.annotation-tooltip')) return;
+		if (target?.closest('mark.annotation-highlight')) return;
+		clearTooltipTimer();
+		tooltipTimer = setTimeout(() => {
+			tooltipAnnotation = null;
+		}, TOOLTIP_EXIT_DELAY);
 	}
 
 	function clearTooltipTimer() {
@@ -745,11 +1035,12 @@
 			isUpdating = false;
 		}
 
-		// Position the popover below the end of the selection
+		// Position the popover below the end of the selection (T2: clamped to viewport)
 		const coords = editor.view.coordsAtPos(to);
+		const clamped = clampToViewport(coords.left, coords.bottom + 8, 300, 200);
 		annotationPopover = {
-			x: coords.left,
-			y: coords.bottom + 8,
+			x: clamped.x,
+			y: clamped.y,
 			startOffset,
 			endOffset,
 		};
@@ -783,6 +1074,40 @@
 		appState.annotationVersion++;
 	}
 
+	// AC1: Tooltip action functions for uniform annotation interactions
+	function tooltipEditAnnotation(annotationId: string) {
+		// Focus the annotation in the panel where inline editing is available
+		appState.focusedAnnotationId = annotationId;
+		if (!appState.showContextPanel) {
+			appState.showContextPanel = true;
+		}
+		appState.contextPanelTab = 'analysis';
+		tooltipAnnotation = null;
+	}
+
+	async function tooltipDeleteAnnotation(annotationId: string) {
+		try {
+			await annotationApi.delete(annotationId);
+			appState.annotationVersion++;
+			tooltipAnnotation = null;
+		} catch (e) {
+			console.error('Failed to delete annotation:', e);
+			showError('Failed to delete annotation');
+		}
+	}
+
+	async function tooltipResolveAnnotation(annotationId: string, currentStatus: string) {
+		const newStatus = currentStatus === 'resolved' ? 'open' : 'resolved';
+		try {
+			await annotationApi.update(annotationId, { status: newStatus });
+			appState.annotationVersion++;
+			tooltipAnnotation = null;
+		} catch (e) {
+			console.error('Failed to update annotation:', e);
+			showError('Failed to update status');
+		}
+	}
+
 	function contextMenuAddAnnotation() {
 		triggerAnnotationCreation();
 		contextMenu = null;
@@ -796,6 +1121,69 @@
 	function contextMenuLinkBible() {
 		openQuickAddBible();
 		contextMenu = null;
+	}
+
+	// UB3: Quick add selection to Bible/Codex
+	function contextMenuAddToBible() {
+		if (!editor) {
+			contextMenu = null;
+			return;
+		}
+		const { from, to, empty } = editor.state.selection;
+		if (empty) {
+			contextMenu = null;
+			return;
+		}
+
+		const text = editor.state.doc.textBetween(from, to).trim();
+		if (!text) {
+			contextMenu = null;
+			return;
+		}
+
+		// Position popup near selection
+		const coords = editor.view.coordsAtPos(from);
+		quickAddSelectedText = text;
+		quickAddSearchQuery = text;
+		quickAddPosition = clampToViewport(coords.left, coords.bottom + 8, 300, 200);
+		quickAddMode = 'create'; // Go directly to create mode
+		showQuickAddBible = true;
+		contextMenu = null;
+	}
+
+	// CD4: Create issue from selected text in editor
+	async function contextMenuCreateIssue() {
+		const selectedText = editor?.state.selection.empty
+			? ''
+			: editor?.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ');
+
+		contextMenu = null;
+
+		if (!selectedScene) return;
+
+		const title = selectedText
+			? `Issue: "${selectedText.slice(0, 50)}${selectedText.length > 50 ? '...' : ''}"`
+			: 'New issue from scene';
+
+		try {
+			const issue = await issueApi.create({
+				issue_type: 'continuity_error',
+				title,
+				description: selectedText ? `Selected text: "${selectedText}"` : '',
+				severity: 'warning',
+			});
+
+			// Link the issue to the current scene
+			await issueApi.linkScene(issue.id, selectedScene.id);
+
+			showSuccess('Issue created and linked to scene');
+
+			// Navigate to issues view
+			appState.setViewMode('issues');
+		} catch (e) {
+			console.error('Failed to create issue:', e);
+			showError('Failed to create issue');
+		}
 	}
 
 	// Focus mode settings - use from store
@@ -824,7 +1212,7 @@
 
 		if (Math.abs(rect.top - editorCenter) > 50) {
 			const scrollTop = editorElement.scrollTop + (rect.top - editorCenter);
-			editorElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
+			editorElement.scrollTo({ top: scrollTop, behavior: 'instant' });
 		}
 	}
 
@@ -866,20 +1254,68 @@
 		}
 
 		if (currentEditor && prevSceneId !== sceneId) {
+			// Save cursor position for the scene we're leaving
+			if (prevSceneId) {
+				try {
+					setCursorPosition(prevSceneId, currentEditor.state.selection.from);
+				} catch {
+					// Ignore if selection state is invalid
+				}
+			}
+
+			// UB1: Trigger transition animation
+			isTransitioning = true;
+
 			// Scene changed - update editor content
 			currentSceneId = sceneId;
 			isUpdating = true;
 			currentEditor.commands.setContent(sceneText || '');
 			isUpdating = false;
 
+			// UB1: End transition after content update
+			requestAnimationFrame(() => {
+				isTransitioning = false;
+			});
+
+			// T1: Initialize live word count for new scene
+			liveWordCount = countWords(sceneText || '');
+
+			// UB2: Reset session baseline for new scene
+			appState.resetSessionSceneBaseline(liveWordCount);
+
+			// Restore cursor position for the scene we're entering
+			const savedPos = getSavedCursorPosition(sceneId);
+			if (savedPos !== undefined) {
+				try {
+					const docSize = currentEditor.state.doc.content.size;
+					const pos = Math.min(savedPos, docSize);
+					currentEditor.commands.setTextSelection(pos);
+				} catch {
+					// Position invalid, ignore
+				}
+			}
+
 			// Check for crash recovery draft
 			checkRecoveryDraft(sceneId, currentEditor);
 
 			// Apply annotation marks (fire-and-forget)
 			applyAnnotationMarks();
+
+			// T5: Auto-focus editor on scene open
+			tick().then(() => {
+				if (currentEditor && !editingTitle) {
+					currentEditor.commands.focus('end');
+				}
+				// AC3: Re-execute search when Find/Replace is open and we change scenes
+				if (showFindReplace && lastSearchParams) {
+					handleFind(lastSearchParams);
+				}
+			});
 		} else {
 			// No editor yet - initialize it
 			currentSceneId = sceneId;
+			// T1: Initialize live word count
+			liveWordCount = countWords(sceneText || '');
 			initEditor();
 
 			// Check for crash recovery draft on initial load
@@ -898,9 +1334,24 @@
 <div class="editor-container" class:revision-mode={appState.workMode === 'revision'}>
 	{#if selectedScene}
 		<div class="editor-header">
+			<!-- UC4: Enhanced Breadcrumb navigation in editor -->
 			<div class="scene-info">
+				<button
+					class="breadcrumb-link"
+					onclick={() => appState.setViewMode('dashboard')}
+					title="Go to Dashboard"
+				>
+					{appState.project?.title || 'Project'}
+				</button>
+				<span class="separator">/</span>
 				{#if selectedChapter}
-					<span class="chapter-name">{selectedChapter.title}</span>
+					<button
+						class="chapter-name breadcrumb-link"
+						onclick={() => appState.setViewMode('corkboard')}
+						title="View chapter in Corkboard"
+					>
+						{selectedChapter.title}
+					</button>
 					<span class="separator">/</span>
 				{/if}
 
@@ -909,19 +1360,60 @@
 						bind:this={titleInput}
 						type="text"
 						class="title-input"
+						maxlength={200}
 						value={selectedScene.title}
 						onblur={updateTitle}
 						onkeydown={(e) => e.key === 'Enter' && updateTitle()}
 					/>
 				{:else}
-					<button
+					<!-- AB1: Title with pencil icon on hover, AD3: just-saved flash -->
+					<span
 						class="scene-title"
-						onclick={() => {
+						class:just-saved={titleJustSaved}
+						role="button"
+						tabindex="0"
+						ondblclick={() => {
 							editingTitle = true;
 						}}
+						onkeydown={(e) => {
+							if (e.key === 'F2') {
+								e.preventDefault();
+								editingTitle = true;
+							}
+						}}
+						title="Double-click or press F2 to rename"
 					>
 						{selectedScene.title}
-					</button>
+						<svg
+							class="edit-pencil"
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+						</svg>
+					</span>
+				{/if}
+
+				<!-- UB4: Scene position indicator -->
+				{#if scenePosition}
+					<span
+						class="scene-position"
+						title="Scene {scenePosition.current} of {scenePosition.total} in this chapter"
+					>
+						{scenePosition.current}/{scenePosition.total}
+					</span>
+				{/if}
+
+				<!-- Z1: Inline save indicator -->
+				{#if appState.hasUnsavedChanges}
+					<span class="inline-save-indicator" title="Unsaved changes">
+						<span class="pulse-dot"></span>
+					</span>
 				{/if}
 
 				<div class="undo-redo-buttons">
@@ -999,23 +1491,50 @@
 				{/if}
 			</div>
 
-			{#if appState.workMode === 'revision'}
-				<div class="scene-meta">
-					<select
-						class="status-select"
-						value={selectedScene.status}
-						onchange={(e) => updateStatus(e.currentTarget.value)}
-						style="border-color: {statusColors[selectedScene.status] || 'var(--color-border)'}"
-					>
-						{#each sceneStatuses as status (status.value)}
-							<option value={status.value}>{status.label}</option>
-						{/each}
-					</select>
+			<div class="scene-meta">
+				<select
+					class="status-select"
+					value={selectedScene.status}
+					onchange={(e) => updateStatus(e.currentTarget.value)}
+					style="border-color: {statusColors[selectedScene.status] || 'var(--color-border)'}"
+				>
+					{#each sceneStatuses as status (status.value)}
+						<option value={status.value}>{status.label}</option>
+					{/each}
+				</select>
 
-					<div class="word-count">
-						{countWords(selectedScene.text)} words
+				<div class="word-count">
+					{liveWordCount.toLocaleString()} words
+				</div>
+				<!-- CA5: Session stats -->
+				{#if sessionWordsWritten > 0}
+					<div class="session-stats" title="Session: {sessionDuration}min, {sessionWPM} WPM">
+						<span class="session-words">+{sessionWordsWritten}</span>
+						{#if sessionWPM > 0}
+							<span class="session-wpm">{sessionWPM} wpm</span>
+						{/if}
 					</div>
+				{/if}
 
+				<!-- AJ2: Find/Replace active indicator -->
+				{#if showFindReplace}
+					<div class="find-replace-indicator" title="Find/Replace is open">
+						<svg
+							width="12"
+							height="12"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<circle cx="11" cy="11" r="8" />
+							<line x1="21" y1="21" x2="16.65" y2="16.65" />
+						</svg>
+						<span>Find active</span>
+					</div>
+				{/if}
+
+				{#if appState.workMode === 'revision'}
 					<button
 						class="header-btn"
 						onclick={() => (showHistoryModal = true)}
@@ -1099,10 +1618,11 @@
 							<path d="M16 6l-4 6 4 6" />
 						</svg>
 					</button>
-				</div>
-			{/if}
+				{/if}
+			</div>
 		</div>
 
+		<!-- AD1: Summary accessible in both modes -->
 		{#if appState.workMode === 'revision'}
 			<div class="summary-section">
 				<label for="summary">Summary</label>
@@ -1114,17 +1634,98 @@
 					rows="2"
 				></textarea>
 			</div>
+		{:else}
+			<!-- Writing mode: collapsible summary -->
+			<div class="summary-section collapsed" class:expanded={summaryExpanded}>
+				<button
+					class="summary-toggle"
+					onclick={() => (summaryExpanded = !summaryExpanded)}
+					title={summaryExpanded ? 'Collapse summary' : 'Expand summary'}
+				>
+					<svg
+						width="12"
+						height="12"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						class:rotated={summaryExpanded}
+					>
+						<polyline points="6 9 12 15 18 9" />
+					</svg>
+					<span>Summary</span>
+					{#if selectedScene.summary && !summaryExpanded}
+						<span class="summary-preview"
+							>{selectedScene.summary.slice(0, 40)}{selectedScene.summary.length > 40
+								? '...'
+								: ''}</span
+						>
+					{/if}
+				</button>
+				{#if summaryExpanded}
+					<textarea
+						id="summary-writing"
+						placeholder="Brief summary of this scene..."
+						value={selectedScene.summary || ''}
+						onblur={updateSummary}
+						rows="2"
+					></textarea>
+				{/if}
+			</div>
+		{/if}
+
+		{#if recoveryDraftAvailable}
+			{@const recoveryTime = new Date(recoveryDraftAvailable.timestamp).toLocaleTimeString([], {
+				hour: 'numeric',
+				minute: '2-digit',
+			})}
+			<div class="recovery-bar">
+				<!-- Z2: Enriched recovery context -->
+				<span class="recovery-info">
+					Recovered draft from {recoveryTime} ({recoveryDraftAvailable.wordCount} words)
+					{#if recoveryDraftAvailable.preview}
+						<span class="recovery-preview">— "{recoveryDraftAvailable.preview}"</span>
+					{/if}
+				</span>
+				<button class="recovery-btn restore" onclick={restoreRecoveryDraft}>Restore</button>
+				<button class="recovery-btn discard" onclick={discardRecoveryDraft}>Discard</button>
+			</div>
 		{/if}
 
 		{#if !appState.isFocusMode}
 			<EditorToolbar {editor} />
 		{/if}
 
-		<!-- svelte-ignore a11y_no_static_element_interactions a11y_mouse_events_have_key_events -->
+		<!-- UB2: Writing Session Progress Bar -->
+		{#if appState.writingSessionActive}
+			<div class="session-progress-container">
+				<div class="session-progress-bar">
+					<div
+						class="session-progress-fill"
+						class:complete={appState.sessionProgress >= 100}
+						style="width: {appState.sessionProgress}%"
+					></div>
+				</div>
+				<div class="session-progress-info">
+					<span class="session-progress-count">
+						{appState.writingSessionWordsWritten} / {appState.writingSessionGoal} words
+					</span>
+					<button class="session-end-btn" onclick={() => appState.endWritingSession()}>
+						End Session
+					</button>
+				</div>
+			</div>
+		{/if}
+
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="editor-content"
 			class:focus-mode={dimSurroundings}
 			class:typewriter-mode={typewriterMode}
+			class:transitioning={isTransitioning}
+			data-editor-theme={appState.editorSettings.theme !== 'default'
+				? appState.editorSettings.theme
+				: undefined}
 			bind:this={editorElement}
 			onkeyup={handleEditorScroll}
 			onclick={(e) => {
@@ -1133,20 +1734,35 @@
 			}}
 			onmouseover={handleEditorMouseOver}
 			onmouseout={handleEditorMouseOut}
+			onfocus={handleEditorFocus}
+			onblur={handleEditorBlur}
 			oncontextmenu={handleEditorContextMenu}
 			style="--editor-font-family: {appState.editorSettings
 				.fontFamily}; --editor-font-size: {appState.editorSettings
 				.fontSize}px; --editor-line-height: {appState.editorSettings
 				.lineHeight}; --editor-text-width: {appState.editorSettings.textWidth}px;"
 		></div>
+		<!-- CA2: Flash "Saved" indicator in editor content area -->
+		{#if appState.justSaved}
+			<div class="content-saved-flash" aria-live="polite">Saved</div>
+		{/if}
 
 		{#if tooltipAnnotation}
 			{@const typeInfo = getAnnotationType(tooltipAnnotation.annotation.annotation_type)}
-			<!-- svelte-ignore a11y_no_static_element_interactions a11y_mouse_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="annotation-tooltip"
 				style="left: {tooltipAnnotation.x}px; top: {tooltipAnnotation.y}px; border-top: 3px solid {typeInfo.color};"
 				onmouseout={(e) => {
+					const related = e.relatedTarget as HTMLElement | null;
+					if (
+						!related?.closest('mark.annotation-highlight') &&
+						!related?.closest('.annotation-tooltip')
+					) {
+						tooltipAnnotation = null;
+					}
+				}}
+				onblur={(e) => {
 					const related = e.relatedTarget as HTMLElement | null;
 					if (
 						!related?.closest('mark.annotation-highlight') &&
@@ -1167,6 +1783,34 @@
 					</span>
 				</div>
 				<p class="tooltip-content">{truncate(tooltipAnnotation.annotation.content, 80)}</p>
+				<!-- AC1: Uniform annotation actions -->
+				<div class="tooltip-actions">
+					<button
+						class="tooltip-action-btn"
+						onclick={() => tooltipEditAnnotation(tooltipAnnotation!.annotation.id)}
+						title="Edit annotation"
+					>
+						Edit
+					</button>
+					<button
+						class="tooltip-action-btn"
+						onclick={() =>
+							tooltipResolveAnnotation(
+								tooltipAnnotation!.annotation.id,
+								tooltipAnnotation!.annotation.status
+							)}
+						title={tooltipAnnotation.annotation.status === 'resolved' ? 'Reopen' : 'Resolve'}
+					>
+						{tooltipAnnotation.annotation.status === 'resolved' ? 'Reopen' : 'Resolve'}
+					</button>
+					<button
+						class="tooltip-action-btn tooltip-action-delete"
+						onclick={() => tooltipDeleteAnnotation(tooltipAnnotation!.annotation.id)}
+						title="Delete annotation"
+					>
+						Delete
+					</button>
+				</div>
 			</div>
 		{/if}
 
@@ -1188,14 +1832,24 @@
 					role="menu"
 					tabindex="-1"
 				>
+					<!-- AB3: Show shortcut for annotation -->
 					<button class="context-menu-item" onclick={contextMenuAddAnnotation} role="menuitem">
-						Add Annotation
+						<span>Add Annotation</span>
+						<span class="context-menu-shortcut">{formatShortcut('M', true, true)}</span>
 					</button>
 					<button class="context-menu-item" onclick={contextMenuCutToLibrary} role="menuitem">
 						Cut to Library
 					</button>
 					<button class="context-menu-item" onclick={contextMenuLinkBible} role="menuitem">
 						Link Bible Entry
+					</button>
+					<!-- UB3: Add to Codex from selection -->
+					<button class="context-menu-item" onclick={contextMenuAddToBible} role="menuitem">
+						Add to Codex
+					</button>
+					<!-- CD4: Create issue from editor -->
+					<button class="context-menu-item" onclick={contextMenuCreateIssue} role="menuitem">
+						Create Issue
 					</button>
 				</div>
 			</div>
@@ -1296,6 +1950,27 @@
 								Link to existing
 							</button>
 						</div>
+					{:else if quickAddMode === 'created'}
+						<!-- AB4: Success state with option to continue -->
+						<div class="quick-add-header quick-add-success">
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<polyline points="20 6 9 17 4 12" />
+							</svg>
+							<span>Created "{quickAddCreatedName}"</span>
+						</div>
+						<div class="quick-add-actions">
+							<button class="quick-add-btn" onclick={quickAddCreateAnother}>
+								Create Another
+							</button>
+							<button class="quick-add-btn primary" onclick={quickAddClose}> Done </button>
+						</div>
 					{:else if quickAddMode === 'create'}
 						<div class="quick-add-header">
 							<span>Create: "{quickAddSelectedText}"</span>
@@ -1342,25 +2017,42 @@
 			</div>
 		{/if}
 	{:else}
+		<!-- AB5: Contextual empty states -->
 		<div class="no-scene">
-			<div class="no-scene-content">
-				<svg
-					width="48"
-					height="48"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-				>
-					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-					<polyline points="14 2 14 8 20 8" />
-					<line x1="16" y1="13" x2="8" y2="13" />
-					<line x1="16" y1="17" x2="8" y2="17" />
-					<polyline points="10 9 9 9 8 9" />
-				</svg>
-				<h3>No scene selected</h3>
-				<p>Select a scene from the outline or create a new one to start writing.</p>
-			</div>
+			{#if appState.chapters.length === 0}
+				<NewProjectWelcome />
+			{:else}
+				{@const totalScenes = Array.from(appState.scenes.values()).flat().length}
+				{#if totalScenes === 0}
+					<EmptyState
+						icon="file"
+						title="No scenes yet"
+						description="Add a scene to your first chapter to start writing."
+						actionLabel="Create first scene"
+						onaction={() => {
+							if (appState.chapters[0]) {
+								appState.createScene(appState.chapters[0].id, 'Scene 1');
+							}
+						}}
+					/>
+				{:else}
+					<EmptyState
+						icon="file"
+						title="No scene selected"
+						description="Select a scene from the outline to start writing."
+					/>
+				{/if}
+			{/if}
+		</div>
+	{/if}
+
+	<!-- AD2: Template hint only when scene is completely empty -->
+	{#if selectedScene && countWords(selectedScene.text) === 0 && !editingTitle}
+		<div class="template-hint">
+			<span>Start writing or</span>
+			<button class="template-link" onclick={() => (appState.requestOpenTemplatesManager = true)}>
+				apply a template
+			</button>
 		</div>
 	{/if}
 </div>
@@ -1404,6 +2096,18 @@
 		color: var(--color-text-muted);
 	}
 
+	/* BB5: Clickable breadcrumb link */
+	.breadcrumb-link {
+		cursor: pointer;
+		transition: color var(--transition-fast);
+	}
+
+	.breadcrumb-link:hover {
+		color: var(--color-accent);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+
 	.separator {
 		color: var(--color-text-muted);
 	}
@@ -1415,11 +2119,81 @@
 		padding: var(--spacing-xs);
 		margin: calc(-1 * var(--spacing-xs));
 		border-radius: var(--border-radius-sm);
-		transition: background-color var(--transition-fast);
+		border-bottom: 1px dashed transparent;
+		transition:
+			background-color var(--transition-fast),
+			border-color var(--transition-fast);
+		cursor: text;
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+	}
+
+	/* AB1: Pencil icon on hover */
+	.scene-title .edit-pencil {
+		opacity: 0;
+		color: var(--color-text-muted);
+		transition: opacity var(--transition-fast);
 	}
 
 	.scene-title:hover {
 		background-color: var(--color-bg-hover);
+		border-bottom-color: var(--color-border);
+	}
+
+	.scene-title:hover .edit-pencil {
+		opacity: 1;
+	}
+
+	/* AD3: Visual confirmation when title is saved */
+	.scene-title.just-saved {
+		background-color: var(--success-subtle);
+		animation: title-saved-flash 1.5s ease-out;
+	}
+
+	@keyframes title-saved-flash {
+		0% {
+			background-color: var(--success-subtle);
+		}
+		100% {
+			background-color: transparent;
+		}
+	}
+
+	/* UB4: Scene position indicator */
+	.scene-position {
+		margin-left: var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		padding: 2px var(--spacing-xs);
+		background-color: var(--color-bg-tertiary);
+		border-radius: var(--border-radius-sm);
+	}
+
+	/* Z1: Inline save indicator */
+	.inline-save-indicator {
+		margin-left: var(--spacing-sm);
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.pulse-dot {
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background-color: var(--warning-default, oklch(75% 0.15 75));
+		animation: pulse-subtle 2s ease-in-out infinite;
+	}
+
+	@keyframes pulse-subtle {
+		0%,
+		100% {
+			opacity: 0.5;
+		}
+		50% {
+			opacity: 1;
+		}
 	}
 
 	.undo-redo-buttons {
@@ -1460,6 +2234,38 @@
 		color: var(--color-text-muted);
 	}
 
+	/* CA5: Session stats display */
+	.session-stats {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		font-size: var(--font-size-xs);
+		padding: 2px var(--spacing-sm);
+		background-color: var(--color-accent-light);
+		border-radius: var(--border-radius-sm);
+	}
+
+	.session-words {
+		color: var(--color-accent);
+		font-weight: 500;
+	}
+
+	.session-wpm {
+		color: var(--color-text-muted);
+	}
+
+	/* AJ2: Find/Replace active indicator */
+	.find-replace-indicator {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		font-size: var(--font-size-xs);
+		color: var(--color-accent);
+		background-color: var(--color-accent-light);
+		padding: 2px var(--spacing-sm);
+		border-radius: var(--border-radius-sm);
+	}
+
 	.header-btn {
 		padding: var(--spacing-xs);
 		color: var(--color-text-muted);
@@ -1498,13 +2304,174 @@
 		width: 100%;
 		resize: none;
 		font-size: var(--font-size-sm);
+	}
+
+	/* AD1: Collapsible summary in writing mode */
+	.summary-section.collapsed {
+		padding: var(--spacing-xs) var(--spacing-lg);
+	}
+
+	.summary-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		background: none;
+		border: none;
+		padding: var(--spacing-xs) 0;
+		width: 100%;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.summary-toggle:hover {
+		color: var(--color-text-secondary);
+	}
+
+	.summary-toggle svg {
+		transition: transform var(--transition-fast);
+	}
+
+	.summary-toggle svg.rotated {
+		transform: rotate(180deg);
+	}
+
+	.summary-preview {
+		color: var(--color-text-muted);
+		font-style: italic;
+		margin-left: var(--spacing-sm);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		flex: 1;
+	}
+
+	.summary-section.collapsed.expanded {
+		padding: var(--spacing-sm) var(--spacing-lg);
+	}
+
+	.summary-section.collapsed textarea {
+		margin-top: var(--spacing-sm);
 		line-height: var(--line-height-normal);
+	}
+
+	/* UB2: Writing Session Progress Bar */
+	.session-progress-container {
+		padding: var(--spacing-sm) var(--spacing-lg);
+		background-color: var(--color-bg-secondary);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.session-progress-bar {
+		height: 6px;
+		background-color: var(--color-border);
+		border-radius: 3px;
+		overflow: hidden;
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.session-progress-fill {
+		height: 100%;
+		background-color: var(--color-accent);
+		border-radius: 3px;
+		transition: width 0.3s ease-out;
+	}
+
+	.session-progress-fill.complete {
+		background-color: var(--color-success);
+		animation: progress-pulse 1s ease-in-out;
+	}
+
+	@keyframes progress-pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.7;
+		}
+	}
+
+	.session-progress-info {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.session-progress-count {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.session-end-btn {
+		padding: 2px var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		border-radius: var(--border-radius-sm);
+		border: 1px solid var(--color-border);
+		background: transparent;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.session-end-btn:hover {
+		color: var(--color-text-primary);
+		border-color: var(--color-text-muted);
 	}
 
 	.editor-content {
 		flex: 1;
 		overflow-y: auto;
 		padding: var(--spacing-lg);
+		position: relative;
+		transition: opacity 0.15s ease-out;
+	}
+
+	/* UB1: Scene transition animation */
+	.editor-content.transitioning {
+		opacity: 0.7;
+	}
+
+	/* CA4: Editor theme support */
+	.editor-content[data-editor-theme] {
+		background-color: var(--editor-bg);
+		color: var(--editor-text);
+	}
+
+	.editor-content[data-editor-theme] :global(.prose-editor) {
+		color: var(--editor-text);
+	}
+
+	/* CA2: Flash "Saved" indicator in editor content area */
+	.content-saved-flash {
+		position: absolute;
+		top: var(--spacing-lg);
+		right: var(--spacing-lg);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		background-color: var(--color-success);
+		color: white;
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		border-radius: var(--border-radius-sm);
+		animation: saved-flash-appear 2s ease-out forwards;
+		pointer-events: none;
+		z-index: 10;
+	}
+
+	@keyframes saved-flash-appear {
+		0% {
+			opacity: 1;
+			transform: translateY(0);
+		}
+		70% {
+			opacity: 1;
+			transform: translateY(0);
+		}
+		100% {
+			opacity: 0;
+			transform: translateY(-10px);
+		}
 	}
 
 	.editor-content :global(.prose-editor) {
@@ -1571,33 +2538,82 @@
 		height: 0;
 	}
 
+	/* T3: More visible recovery bar */
+	.recovery-bar {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-sm) var(--spacing-lg);
+		background-color: var(--warning-subtle, oklch(90% 0.08 80));
+		border-bottom: 2px solid var(--warning-border, oklch(75% 0.12 80));
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+		font-weight: 500;
+	}
+
+	/* Z2: Recovery bar enriched info */
+	.recovery-info {
+		flex: 1;
+	}
+
+	.recovery-preview {
+		color: var(--color-text-muted);
+		font-style: italic;
+		font-weight: 400;
+	}
+
+	.recovery-btn {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		border-radius: var(--border-radius-sm);
+		border: 1px solid var(--color-border);
+		background-color: var(--color-bg-primary);
+	}
+
+	.recovery-btn:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.recovery-btn.restore {
+		color: var(--color-accent);
+		border-color: var(--color-accent);
+	}
+
+	.recovery-btn.discard {
+		color: var(--color-text-muted);
+	}
+
+	.template-hint {
+		position: absolute;
+		bottom: var(--spacing-lg);
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
+		opacity: 0.7;
+	}
+
+	.template-link {
+		color: var(--color-accent);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+	}
+
+	.template-link:hover {
+		color: var(--color-accent-hover);
+	}
+
 	.no-scene {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		height: 100%;
-		padding: var(--spacing-xl);
-	}
-
-	.no-scene-content {
-		text-align: center;
-		color: var(--color-text-muted);
-	}
-
-	.no-scene-content svg {
-		margin-bottom: var(--spacing-md);
-		opacity: 0.5;
-	}
-
-	.no-scene-content h3 {
-		font-size: var(--font-size-lg);
-		font-weight: 500;
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-sm);
-	}
-
-	.no-scene-content p {
-		font-size: var(--font-size-sm);
 	}
 
 	/* Writing mode - even more minimal */
@@ -1631,13 +2647,13 @@
 		transition: opacity var(--transition-normal);
 	}
 
-	.editor-content.focus-mode :global(.prose-editor p:focus-within),
-	.editor-content.focus-mode :global(.prose-editor p:has(.ProseMirror-selectednode)),
-	.editor-content.focus-mode :global(.prose-editor h1:focus-within),
-	.editor-content.focus-mode :global(.prose-editor h2:focus-within),
-	.editor-content.focus-mode :global(.prose-editor h3:focus-within),
-	.editor-content.focus-mode :global(.prose-editor blockquote:focus-within) {
+	.editor-content.focus-mode :global(.prose-editor .active-paragraph),
+	.editor-content.focus-mode :global(.prose-editor p:has(.ProseMirror-selectednode)) {
 		opacity: 1;
+		background-color: var(--color-bg-hover);
+		border-radius: var(--border-radius-sm);
+		margin-inline: calc(-1 * var(--spacing-sm));
+		padding-inline: var(--spacing-sm);
 	}
 
 	/* Use hover as fallback for current paragraph detection */
@@ -1672,29 +2688,30 @@
 		filter: brightness(1.15);
 	}
 
+	/* W1: Annotation colors adapted for light/dark mode */
 	.editor-content :global(.annotation-comment) {
-		background-color: rgba(230, 180, 34, 0.22);
-		border-bottom-color: #e6b422;
+		background-color: var(--annotation-comment);
+		border-bottom-color: oklch(65% 0.15 250);
 	}
 
 	.editor-content :global(.annotation-question) {
-		background-color: rgba(74, 144, 217, 0.22);
-		border-bottom-color: #4a90d9;
+		background-color: var(--annotation-question);
+		border-bottom-color: oklch(55% 0.15 145);
 	}
 
 	.editor-content :global(.annotation-todo) {
-		background-color: rgba(224, 138, 43, 0.22);
-		border-bottom-color: #e08a2b;
+		background-color: var(--annotation-todo);
+		border-bottom-color: oklch(65% 0.15 65);
 	}
 
 	.editor-content :global(.annotation-research) {
-		background-color: rgba(155, 110, 208, 0.22);
-		border-bottom-color: #9b6ed0;
+		background-color: var(--annotation-research);
+		border-bottom-color: oklch(55% 0.15 300);
 	}
 
 	.editor-content :global(.annotation-revision) {
-		background-color: rgba(76, 175, 124, 0.22);
-		border-bottom-color: #4caf7c;
+		background-color: var(--annotation-note);
+		border-bottom-color: oklch(55% 0.12 145);
 	}
 
 	.editor-content :global(.annotation-pending) {
@@ -1781,6 +2798,14 @@
 
 	.quick-add-btn.secondary {
 		background-color: transparent;
+	}
+
+	/* AB4: Quick Add success state */
+	.quick-add-success {
+		color: var(--color-success);
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
 	}
 
 	.quick-add-select {
@@ -1887,6 +2912,35 @@
 		margin: 0;
 	}
 
+	/* AC1: Tooltip action buttons */
+	.tooltip-actions {
+		display: flex;
+		gap: var(--spacing-xs);
+		margin-top: var(--spacing-sm);
+		padding-top: var(--spacing-sm);
+		border-top: 1px solid var(--color-border-light);
+	}
+
+	.tooltip-action-btn {
+		flex: 1;
+		padding: var(--spacing-xs);
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-secondary);
+		transition: all var(--transition-fast);
+	}
+
+	.tooltip-action-btn:hover {
+		background-color: var(--color-bg-hover);
+		color: var(--color-text-primary);
+	}
+
+	.tooltip-action-delete:hover {
+		background-color: var(--color-error);
+		color: var(--text-on-accent);
+	}
+
 	/* Context menu */
 	.context-menu-overlay {
 		position: fixed;
@@ -1921,6 +2975,19 @@
 
 	.context-menu-item:hover {
 		background-color: var(--color-bg-hover);
+	}
+
+	/* AB3: Shortcut hint in context menu */
+	.context-menu-item {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.context-menu-shortcut {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin-left: var(--spacing-md);
 	}
 
 	/* Annotation creation popover */

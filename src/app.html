@@ -9,23 +9,23 @@
 		<script>
 			(function () {
 				// Color mode (light/dark)
-				const savedMode = localStorage.getItem('colorMode');
-				const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-				const mode = savedMode || (prefersDark ? 'dark' : 'light');
-				const effectiveDark = mode === 'system' ? prefersDark : mode === 'dark';
+				var savedMode = localStorage.getItem('colorMode');
+				var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+				var mode = savedMode || (prefersDark ? 'dark' : 'light');
+				var effectiveDark = mode === 'system' ? prefersDark : mode === 'dark';
 				document.documentElement.style.colorScheme = effectiveDark ? 'dark' : 'light';
 				document.documentElement.dataset.colorMode = mode;
 
 				// Theme palette (cool/warm) — read before anti-flash so colors match
-				const savedTheme = localStorage.getItem('themePalette') || 'cool';
+				var savedTheme = localStorage.getItem('themePalette') || 'cool';
 				document.documentElement.dataset.theme = savedTheme;
 
-				// Anti-flash: set background color immediately (palette-aware)
+				// Anti-flash: set background color on html element (body doesn't exist yet)
 				var bg = effectiveDark ? 'oklch(16% 0.012 260)' : 'oklch(99% 0.004 260)';
 				if (savedTheme === 'warm') {
 					bg = effectiveDark ? 'oklch(16% 0.012 50)' : 'oklch(99% 0.006 70)';
 				}
-				document.body.style.backgroundColor = bg;
+				document.documentElement.style.backgroundColor = bg;
 			})();
 		</script>
 		%sveltekit.head%

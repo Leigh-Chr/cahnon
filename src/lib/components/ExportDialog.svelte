@@ -21,8 +21,9 @@
 	import { downloadHtml, exportToDocx, exportToPdf } from '$lib/export';
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
+	import { trapFocus } from '$lib/utils/focus-trap';
 
-	import { Button, Icon } from './ui';
+	import { Button, Icon, ProgressBar } from './ui';
 
 	interface Props {
 		isOpen?: boolean;
@@ -65,6 +66,115 @@
 		markdown: '###',
 		plaintext: '* * *',
 	};
+
+	// CE1: Export presets
+	const PRESETS_KEY = 'cahnon-export-presets';
+
+	interface ExportPreset {
+		name: string;
+		format: typeof exportFormat;
+		options: {
+			includeChapterHeaders: boolean;
+			includeSceneHeaders: boolean;
+			pageBreakBetweenChapters: boolean;
+			includeSceneTitles: boolean;
+			sceneSeparator: string;
+		};
+	}
+
+	function loadPresets(): ExportPreset[] {
+		try {
+			return JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]');
+		} catch {
+			return [];
+		}
+	}
+
+	let presets = $state<ExportPreset[]>(loadPresets());
+	let newPresetName = $state('');
+
+	function savePreset() {
+		if (!newPresetName.trim()) return;
+
+		const preset: ExportPreset = {
+			name: newPresetName.trim(),
+			format: exportFormat,
+			options: {
+				includeChapterHeaders,
+				includeSceneHeaders,
+				pageBreakBetweenChapters,
+				includeSceneTitles,
+				sceneSeparator,
+			},
+		};
+
+		// Replace if exists, otherwise add
+		const idx = presets.findIndex((p) => p.name === preset.name);
+		if (idx >= 0) {
+			presets[idx] = preset;
+		} else {
+			presets = [...presets, preset];
+		}
+
+		try {
+			localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+		} catch {
+			// localStorage unavailable
+		}
+
+		newPresetName = '';
+		showSuccess(`Preset "${preset.name}" saved`);
+	}
+
+	function applyPreset(preset: ExportPreset) {
+		exportFormat = preset.format;
+		includeChapterHeaders = preset.options.includeChapterHeaders;
+		includeSceneHeaders = preset.options.includeSceneHeaders;
+		pageBreakBetweenChapters = preset.options.pageBreakBetweenChapters;
+		includeSceneTitles = preset.options.includeSceneTitles;
+		sceneSeparator = preset.options.sceneSeparator;
+	}
+
+	function deletePreset(name: string) {
+		presets = presets.filter((p) => p.name !== name);
+		try {
+			localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+		} catch {
+			// localStorage unavailable
+		}
+	}
+
+	// CE2: Live preview (simplified)
+	let previewContent = $derived.by(() => {
+		if (!isOpen) return '';
+
+		// Only generate preview for text formats
+		if (!['markdown', 'plaintext'].includes(exportFormat)) return '';
+
+		// Generate a simple preview of the first scene
+		const firstChapter = appState.chapters[0];
+		if (!firstChapter) return 'No content to preview.';
+
+		const scenes = appState.scenes.get(firstChapter.id) || [];
+		const firstScene = scenes[0];
+		if (!firstScene) return 'No scenes to preview.';
+
+		const separator = sceneSeparator || defaultSeparators[exportFormat] || '';
+
+		let preview = '';
+		if (includeChapterHeaders) {
+			preview += `# ${firstChapter.title}\n\n`;
+		}
+		if (includeSceneTitles) {
+			preview += `## ${firstScene.title}\n\n`;
+		}
+		preview += (firstScene.text || '').slice(0, 200);
+		if ((firstScene.text?.length || 0) > 200) preview += '...';
+		preview += `\n\n${separator}\n\n`;
+		preview += '(Preview of first scene)';
+
+		return preview;
+	});
 
 	function toggleChapter(id: string) {
 		if (selectedChapterIds.has(id)) {
@@ -278,14 +388,16 @@
 		role="presentation"
 		tabindex="-1"
 	>
+		<!-- AE1: Focus trap -->
 		<div
-			class="dialog"
+			class="dialog modal-enter"
 			onclick={handleDialogClick}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="export-title"
 			tabindex="-1"
+			use:trapFocus={{ onEscape: close }}
 		>
 			<div class="dialog-header">
 				<h2 id="export-title">Export Project</h2>
@@ -317,7 +429,7 @@
 							</div>
 							<div class="format-info">
 								<span class="format-name">Markdown</span>
-								<span class="format-desc">Formatted with headers and structure</span>
+								<span class="format-desc">For sharing text. Most universal format.</span>
 							</div>
 						</label>
 
@@ -338,7 +450,7 @@
 							</div>
 							<div class="format-info">
 								<span class="format-name">Plain Text</span>
-								<span class="format-desc">Just the text, no formatting</span>
+								<span class="format-desc">Raw text without any markup or styling.</span>
 							</div>
 						</label>
 
@@ -385,7 +497,7 @@
 							</div>
 							<div class="format-info">
 								<span class="format-name">Word Document</span>
-								<span class="format-desc">Microsoft Word .docx format</span>
+								<span class="format-desc">For editors and publishers. Preserves formatting.</span>
 							</div>
 						</label>
 
@@ -408,7 +520,7 @@
 							</div>
 							<div class="format-info">
 								<span class="format-name">HTML</span>
-								<span class="format-desc">Web-ready HTML with styling</span>
+								<span class="format-desc">For web publishing. Ready to use online.</span>
 							</div>
 						</label>
 
@@ -430,13 +542,13 @@
 							</div>
 							<div class="format-info">
 								<span class="format-name">PDF</span>
-								<span class="format-desc">Portable Document Format for printing</span>
+								<span class="format-desc">For printing or final distribution.</span>
 							</div>
 						</label>
 					</div>
 
 					<div class="section-divider">
-						<span>Partial Exports</span>
+						<span>Partial Export</span>
 					</div>
 
 					<div class="format-options">
@@ -516,7 +628,7 @@
 					</div>
 
 					<div class="section-divider">
-						<span>CSV Exports</span>
+						<span>Data &amp; Analysis</span>
 					</div>
 
 					<div class="format-options">
@@ -540,7 +652,7 @@
 							</div>
 							<div class="format-info">
 								<span class="format-name">Bible CSV</span>
-								<span class="format-desc">All bible entries as spreadsheet</span>
+								<span class="format-desc">For spreadsheet analysis of characters and world.</span>
 							</div>
 						</label>
 
@@ -564,7 +676,7 @@
 							</div>
 							<div class="format-info">
 								<span class="format-name">Timeline CSV</span>
-								<span class="format-desc">Events and scene timeline data</span>
+								<span class="format-desc">For spreadsheet analysis of chronology.</span>
 							</div>
 						</label>
 
@@ -681,6 +793,14 @@
 									bind:value={sceneSeparator}
 									placeholder={defaultSeparators[exportFormat] ?? '###'}
 								/>
+								<!-- AZ5: Preview separator in context -->
+								<div class="separator-preview">
+									<span class="preview-text">...end of scene.</span>
+									<span class="preview-separator"
+										>{sceneSeparator || defaultSeparators[exportFormat] || '###'}</span
+									>
+									<span class="preview-text">Next scene begins...</span>
+								</div>
 							</div>
 
 							{#if exportFormat === 'markdown'}
@@ -692,8 +812,66 @@
 						</div>
 					{/if}
 
+					{#if exportFormat === 'json'}
+						<div class="json-summary">
+							<span class="summary-chip">{appState.chapters.length} chapters</span>
+							<span class="summary-chip"
+								>{Array.from(appState.scenes.values()).flat().length} scenes</span
+							>
+							<span class="summary-chip">{appState.bibleEntries.length} bible entries</span>
+						</div>
+					{/if}
+
+					<!-- CE1: Export presets -->
+					<div class="presets-section">
+						<h4>Presets</h4>
+						{#if presets.length > 0}
+							<div class="presets-list">
+								{#each presets as preset (preset.name)}
+									<div class="preset-chip">
+										<button class="preset-apply" onclick={() => applyPreset(preset)}>
+											{preset.name}
+										</button>
+										<button
+											class="preset-delete"
+											onclick={() => deletePreset(preset.name)}
+											title="Delete"
+										>
+											<Icon name="close" size={12} />
+										</button>
+									</div>
+								{/each}
+							</div>
+						{/if}
+						<div class="preset-save">
+							<input
+								type="text"
+								bind:value={newPresetName}
+								placeholder="Preset name..."
+								maxlength="30"
+							/>
+							<Button size="sm" onclick={savePreset} disabled={!newPresetName.trim()}>Save</Button>
+						</div>
+					</div>
+
+					<!-- CE2: Live preview -->
+					{#if previewContent && (exportFormat === 'markdown' || exportFormat === 'plaintext')}
+						<div class="preview-section">
+							<h4>Preview</h4>
+							<pre class="preview-content">{previewContent}</pre>
+						</div>
+					{/if}
+
 					{#if error}
 						<div class="error-message">{error}</div>
+					{/if}
+
+					<!-- AA4, AM2: Progress indicator for export -->
+					{#if isExporting}
+						<div class="export-progress-message">
+							<ProgressBar indeterminate label="Exporting..." showValue={false} />
+							<p class="progress-hint">This may take a moment for large projects.</p>
+						</div>
 					{/if}
 
 					<div class="dialog-actions">
@@ -836,6 +1014,22 @@
 		color: var(--color-text-muted);
 	}
 
+	.json-summary {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-xs);
+		padding: var(--spacing-sm) 0;
+	}
+
+	.summary-chip {
+		font-size: var(--font-size-xs);
+		padding: 2px var(--spacing-sm);
+		background: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		border-radius: 999px;
+		color: var(--color-text-secondary);
+	}
+
 	.error-message {
 		margin-top: var(--spacing-md);
 		padding: var(--spacing-sm) var(--spacing-md);
@@ -906,6 +1100,103 @@
 		font-size: var(--font-size-sm);
 		font-weight: 600;
 		margin-bottom: var(--spacing-sm);
+		color: var(--color-text-secondary);
+	}
+
+	/* CE1: Presets section */
+	.presets-section {
+		margin-top: var(--spacing-lg);
+		padding: var(--spacing-md);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-md);
+	}
+
+	.presets-section h4 {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		margin-bottom: var(--spacing-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.presets-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-xs);
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.preset-chip {
+		display: flex;
+		align-items: center;
+		background-color: var(--color-bg-tertiary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		overflow: hidden;
+	}
+
+	.preset-apply {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		cursor: pointer;
+	}
+
+	.preset-apply:hover {
+		background-color: var(--color-bg-hover);
+	}
+
+	.preset-delete {
+		display: flex;
+		align-items: center;
+		padding: var(--spacing-xs);
+		color: var(--color-text-muted);
+		border-left: 1px solid var(--color-border);
+		cursor: pointer;
+	}
+
+	.preset-delete:hover {
+		color: var(--color-error);
+		background-color: var(--color-error-light, rgba(239, 68, 68, 0.1));
+	}
+
+	.preset-save {
+		display: flex;
+		gap: var(--spacing-sm);
+	}
+
+	.preset-save input {
+		flex: 1;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-primary);
+	}
+
+	/* CE2: Preview section */
+	.preview-section {
+		margin-top: var(--spacing-lg);
+		padding: var(--spacing-md);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-md);
+	}
+
+	.preview-section h4 {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		margin-bottom: var(--spacing-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.preview-content {
+		max-height: 150px;
+		overflow-y: auto;
+		padding: var(--spacing-sm);
+		background-color: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		font-family: var(--font-family-mono);
+		font-size: var(--font-size-xs);
+		white-space: pre-wrap;
 		color: var(--color-text-secondary);
 	}
 
@@ -986,6 +1277,7 @@
 
 	.text-option {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--spacing-sm);
 		margin: var(--spacing-sm) 0;
@@ -998,6 +1290,7 @@
 
 	.text-option input[type='text'] {
 		flex: 1;
+		min-width: 120px;
 		padding: var(--spacing-xs) var(--spacing-sm);
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-sm);
@@ -1006,4 +1299,49 @@
 		font-size: var(--font-size-sm);
 		font-family: var(--font-mono);
 	}
+
+	/* AZ5: Separator preview */
+	.separator-preview {
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--spacing-xs);
+		padding: var(--spacing-sm);
+		margin-top: var(--spacing-xs);
+		background-color: var(--color-bg-tertiary);
+		border-radius: var(--border-radius-sm);
+		font-size: var(--font-size-xs);
+	}
+
+	.preview-text {
+		color: var(--color-text-muted);
+		font-style: italic;
+	}
+
+	.preview-separator {
+		font-family: var(--font-mono);
+		color: var(--color-text-secondary);
+		font-weight: 500;
+	}
+
+	/* AA4, AM2: Export progress with ProgressBar */
+	.export-progress-message {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-md);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--border-radius-md);
+		margin-bottom: var(--spacing-md);
+	}
+
+	.progress-hint {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin: 0;
+		text-align: center;
+	}
+
+	/* Legacy spinner - removed in favor of ProgressBar component */
 </style>

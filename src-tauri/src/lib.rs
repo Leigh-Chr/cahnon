@@ -171,14 +171,14 @@ pub fn run() {
                 .item(&tauri::menu::MenuItem::with_id(
                     app,
                     "view_bible",
-                    "Bible",
+                    "Codex",
                     true,
                     None::<&str>,
                 )?)
                 .item(&tauri::menu::MenuItem::with_id(
                     app,
                     "view_issues",
-                    "Issues",
+                    "Continuity",
                     true,
                     None::<&str>,
                 )?)

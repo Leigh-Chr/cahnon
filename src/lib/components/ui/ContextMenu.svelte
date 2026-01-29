@@ -21,6 +21,9 @@
 	let menuEl: HTMLDivElement | undefined = $state();
 	let menuRect = $state<{ width: number; height: number } | null>(null);
 
+	// X2: Save focus to restore on close
+	let previouslyFocused: Element | null = null;
+
 	// Measure the menu after it renders
 	$effect(() => {
 		if (menuEl) {
@@ -42,11 +45,51 @@
 		return y + menuRect.height > vh ? vh - menuRect.height - 4 : y;
 	});
 
+	function getMenuItems(): HTMLElement[] {
+		if (!menuEl) return [];
+		return Array.from(
+			menuEl.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')
+		);
+	}
+
+	let activeIndex = $state(-1);
+
+	function focusItem(index: number) {
+		const items = getMenuItems();
+		if (items.length === 0) return;
+		activeIndex = ((index % items.length) + items.length) % items.length;
+		items[activeIndex]?.focus();
+	}
+
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
-			event.preventDefault();
-			event.stopPropagation();
-			onclose();
+		switch (event.key) {
+			case 'Escape':
+				event.preventDefault();
+				event.stopPropagation();
+				onclose();
+				break;
+			case 'ArrowDown':
+				event.preventDefault();
+				event.stopPropagation();
+				focusItem(activeIndex + 1);
+				break;
+			case 'ArrowUp':
+				event.preventDefault();
+				event.stopPropagation();
+				focusItem(activeIndex - 1);
+				break;
+			case 'Home':
+				event.preventDefault();
+				event.stopPropagation();
+				focusItem(0);
+				break;
+			case 'End': {
+				event.preventDefault();
+				event.stopPropagation();
+				const items = getMenuItems();
+				focusItem(items.length - 1);
+				break;
+			}
 		}
 	}
 
@@ -63,14 +106,24 @@
 	}
 
 	$effect(() => {
+		// X2: Save focus to restore on close
+		previouslyFocused = document.activeElement;
+
 		// Use capture to intercept before other handlers
 		window.addEventListener('mousedown', handleClickOutside, true);
 		window.addEventListener('keydown', handleKeydown, true);
 		window.addEventListener('resize', handleResize);
+		// Auto-focus the first menu item
+		requestAnimationFrame(() => focusItem(0));
 		return () => {
 			window.removeEventListener('mousedown', handleClickOutside, true);
 			window.removeEventListener('keydown', handleKeydown, true);
 			window.removeEventListener('resize', handleResize);
+
+			// X2: Restore focus on close
+			if (previouslyFocused instanceof HTMLElement) {
+				previouslyFocused.focus();
+			}
 		};
 	});
 </script>

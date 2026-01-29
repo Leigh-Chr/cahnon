@@ -12,10 +12,10 @@
 	import { type BibleEntry, type Issue, issueApi, type Scene, timelineApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
+	import { formatDateTime } from '$lib/utils';
 	import { nativeConfirm } from '$lib/utils/native-dialog';
-	import { getRevisionPass } from '$lib/utils/revision-passes';
 
-	import { Button, EmptyState, FormActions, FormGroup } from './ui';
+	import { Button, EmptyState, FormActions, FormGroup, LoadingState } from './ui';
 	import ContextMenu from './ui/ContextMenu.svelte';
 	import ContextMenuItem from './ui/ContextMenuItem.svelte';
 	import ContextMenuSeparator from './ui/ContextMenuSeparator.svelte';
@@ -99,7 +99,45 @@
 		{ value: 'orphan_mention', label: 'Orphan Mention', icon: 'user-x', auto: true },
 		{ value: 'bible_contradiction', label: 'Bible Contradiction', icon: 'book-x', auto: false },
 		{ value: 'continuity_error', label: 'Continuity Error', icon: 'link-2-off', auto: false },
+		{ value: 'plot_hole', label: 'Plot Hole', icon: 'alert-triangle', auto: false },
+		{ value: 'research_needed', label: 'Research Needed', icon: 'search', auto: false },
 	];
+
+	// CD5: Issue templates
+	const issueTemplates = [
+		{
+			name: 'Timeline Inconsistency',
+			type: 'timeline_conflict',
+			severity: 'warning',
+			description: 'Events occur in an impossible order. Scene X references Y before it happens.',
+		},
+		{
+			name: 'Character Contradiction',
+			type: 'bible_contradiction',
+			severity: 'warning',
+			description: 'Character behavior/appearance contradicts established facts.',
+		},
+		{
+			name: 'Plot Hole',
+			type: 'plot_hole',
+			severity: 'error',
+			description: 'Logical gap in the story that needs resolution.',
+		},
+		{
+			name: 'Research Needed',
+			type: 'research_needed',
+			severity: 'info',
+			description: 'Factual accuracy needs verification.',
+		},
+	];
+
+	function applyTemplate(template: (typeof issueTemplates)[0]) {
+		newIssueType = template.type;
+		newIssueSeverity = template.severity;
+		newIssueTitle = template.name;
+		newIssueDescription = template.description;
+		showCreateForm = true;
+	}
 
 	const severities = [
 		{ value: 'info', label: 'Info', color: 'var(--color-info)' },
@@ -123,15 +161,39 @@
 		if (appState.workMode === 'writing') {
 			result = result.filter((i) => i.severity === 'error');
 		}
-		// In revision mode with a specific pass, filter by pass issue types
-		if (appState.workMode === 'revision' && appState.revisionPass) {
-			const pass = getRevisionPass(appState.revisionPass);
-			result = result.filter((i) => pass.issueTypes.includes(i.issue_type));
-		}
 		if (filterType) result = result.filter((i) => i.issue_type === filterType);
 		if (filterStatus) result = result.filter((i) => i.status === filterStatus);
 		if (filterSeverity) result = result.filter((i) => i.severity === filterSeverity);
 		return result;
+	});
+
+	// CD6: Dashboard metrics
+	let issueStats = $derived.by(() => {
+		const stats = {
+			total: issues.length,
+			open: 0,
+			resolved: 0,
+			ignored: 0,
+			critical: 0,
+			warnings: 0,
+			info: 0,
+		};
+
+		for (const issue of issues) {
+			// By status
+			if (issue.status === 'open') stats.open++;
+			else if (issue.status === 'resolved') stats.resolved++;
+			else if (issue.status === 'ignored') stats.ignored++;
+
+			// By severity (only count open issues)
+			if (issue.status === 'open') {
+				if (issue.severity === 'error') stats.critical++;
+				else if (issue.severity === 'warning') stats.warnings++;
+				else stats.info++;
+			}
+		}
+
+		return stats;
 	});
 
 	$effect(() => {
@@ -391,6 +453,36 @@
 			</div>
 		</div>
 
+		<!-- CD6: Dashboard metrics -->
+		<div class="issues-dashboard">
+			<div class="stat-card" class:has-issues={issueStats.critical > 0}>
+				<span class="stat-value stat-critical">{issueStats.critical}</span>
+				<span class="stat-label">Critical</span>
+			</div>
+			<div class="stat-card" class:has-issues={issueStats.warnings > 0}>
+				<span class="stat-value stat-warning">{issueStats.warnings}</span>
+				<span class="stat-label">Warnings</span>
+			</div>
+			<div class="stat-card">
+				<span class="stat-value stat-info">{issueStats.info}</span>
+				<span class="stat-label">Info</span>
+			</div>
+			<div class="stat-card">
+				<span class="stat-value stat-resolved">{issueStats.resolved}</span>
+				<span class="stat-label">Resolved</span>
+			</div>
+		</div>
+
+		<!-- CD5: Quick templates -->
+		<div class="quick-templates">
+			<span class="templates-label">Quick add:</span>
+			{#each issueTemplates as template (template.name)}
+				<button class="template-chip" onclick={() => applyTemplate(template)}>
+					{template.name}
+				</button>
+			{/each}
+		</div>
+
 		<div class="filters">
 			<select bind:value={filterType}>
 				<option value="">All Types</option>
@@ -416,9 +508,13 @@
 
 		<div class="issues-list">
 			{#if isLoading}
-				<div class="loading">Loading issues...</div>
+				<LoadingState message="Loading issues..." />
 			{:else if filteredIssues.length === 0}
-				<EmptyState title="No issues found" />
+				<EmptyState
+					icon="check"
+					title="No issues found"
+					description="Your manuscript is looking good! Issues will appear here when continuity checks detect problems."
+				/>
 			{:else}
 				{#each filteredIssues as issue (issue.id)}
 					<button
@@ -657,13 +753,17 @@
 					{/if}
 
 					<div class="meta">
-						<small>Created: {new Date(selectedIssue.created_at).toLocaleString()}</small>
-						<small>Updated: {new Date(selectedIssue.updated_at).toLocaleString()}</small>
+						<small>Created: {formatDateTime(selectedIssue.created_at)}</small>
+						<small>Updated: {formatDateTime(selectedIssue.updated_at)}</small>
 					</div>
 				{/if}
 			</div>
 		{:else}
-			<EmptyState title="Select an issue to view details" />
+			<EmptyState
+				icon="info"
+				title="Select an issue to view details"
+				description="Click on an issue from the list to see its details and linked scenes."
+			/>
 		{/if}
 	</div>
 </div>
@@ -745,6 +845,85 @@
 		gap: var(--spacing-sm);
 	}
 
+	/* CD6: Dashboard metrics */
+	.issues-dashboard {
+		display: flex;
+		gap: var(--spacing-xs);
+		padding: var(--spacing-sm);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.stat-card {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: var(--spacing-xs);
+		border-radius: var(--border-radius-sm);
+		background-color: var(--color-bg-tertiary);
+	}
+
+	.stat-card.has-issues {
+		background-color: var(--color-error-light, rgba(239, 68, 68, 0.1));
+	}
+
+	.stat-value {
+		font-size: var(--font-size-lg);
+		font-weight: 600;
+	}
+
+	.stat-value.stat-critical {
+		color: var(--color-error);
+	}
+
+	.stat-value.stat-warning {
+		color: var(--color-warning);
+	}
+
+	.stat-value.stat-info {
+		color: var(--color-info);
+	}
+
+	.stat-value.stat-resolved {
+		color: var(--color-success);
+	}
+
+	.stat-label {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	/* CD5: Quick templates */
+	.quick-templates {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--spacing-xs);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.templates-label {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.template-chip {
+		font-size: var(--font-size-xs);
+		padding: 2px var(--spacing-sm);
+		border-radius: 999px;
+		color: var(--color-text-secondary);
+		background-color: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		cursor: pointer;
+	}
+
+	.template-chip:hover {
+		background-color: var(--color-accent-light);
+		border-color: var(--color-accent);
+		color: var(--color-accent);
+	}
+
 	.filters {
 		padding: var(--spacing-sm);
 		border-bottom: 1px solid var(--color-border);
@@ -764,12 +943,6 @@
 	.issues-list {
 		flex: 1;
 		overflow-y: auto;
-	}
-
-	.loading {
-		padding: var(--spacing-lg);
-		text-align: center;
-		color: var(--color-text-secondary);
 	}
 
 	.issue-item {

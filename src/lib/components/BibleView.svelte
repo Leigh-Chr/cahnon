@@ -54,9 +54,11 @@
 		entryContextMenu = null;
 	}
 
-	import { Button, FormActions, FormGroup, Icon } from './ui';
+	import RelationshipMap from './RelationshipMap.svelte';
+	import { Button, EmptyState, FormActions, FormGroup, Icon, LoadingState } from './ui';
 
 	let isCreating = $state(false);
+	let bibleViewMode = $state<'detail' | 'graph'>('detail');
 	let newEntryType = $state('character');
 	let newEntryName = $state('');
 
@@ -66,6 +68,8 @@
 	let linkedScenes = $state<Scene[]>([]);
 	let linkedArcs = $state<Arc[]>([]);
 	let linkedIssues = $state<Issue[]>([]);
+	let loadRelatedError = $state(false);
+	let isLoadingRelated = $state(false);
 	let showRelationshipForm = $state(false);
 	let newRelationshipTarget = $state('');
 	let newRelationshipType = $state('related_to');
@@ -131,13 +135,25 @@
 	// Side effect: load relationships and linked items when selection changes
 	$effect(() => {
 		if (appState.selectedBibleEntryId) {
-			loadRelationships(appState.selectedBibleEntryId);
-			loadLinkedEvents(appState.selectedBibleEntryId);
-			loadLinkedScenes(appState.selectedBibleEntryId);
-			loadLinkedArcs(appState.selectedBibleEntryId);
-			loadLinkedIssues(appState.selectedBibleEntryId);
+			loadRelatedError = false;
+			loadAllRelated(appState.selectedBibleEntryId);
 		}
 	});
+
+	async function loadAllRelated(entryId: string) {
+		isLoadingRelated = true;
+		const results = await Promise.allSettled([
+			loadRelationships(entryId),
+			loadLinkedEvents(entryId),
+			loadLinkedScenes(entryId),
+			loadLinkedArcs(entryId),
+			loadLinkedIssues(entryId),
+		]);
+		if (results.some((r) => r.status === 'rejected')) {
+			loadRelatedError = true;
+		}
+		isLoadingRelated = false;
+	}
 
 	async function loadRelationships(entryId: string) {
 		try {
@@ -331,7 +347,7 @@
 	}
 
 	let customFields = $state<CustomField[]>([]);
-	let lastSyncedEntryId = $state<string | null>(null);
+	let lastSyncedEntryId: string | null = null; // Non-reactive to avoid effect loops
 
 	// Sync custom fields when the selected entry changes (not when custom fields are edited)
 	$effect(() => {
@@ -418,8 +434,20 @@
 		saveCustomFields();
 	}
 
-	// Completion indicator (Phase 6E)
-	function computeCompletion(entry: BibleEntry): number {
+	// CC2: Enhanced completion indicator with detailed breakdown
+	interface CompletionDetails {
+		total: number;
+		breakdown: {
+			name: boolean;
+			description: boolean;
+			aliases: boolean;
+			tags: boolean;
+			notes: boolean;
+			customFields: string; // "X/Y filled"
+		};
+	}
+
+	function computeCompletionDetails(entry: BibleEntry): CompletionDetails {
 		let filled = 0;
 		let total = 0;
 
@@ -469,15 +497,71 @@
 			filled += Math.round((customFieldFilled / customFieldCount) * 20);
 		}
 
-		// Associations (relationships + linked scenes/arcs/etc are not accessible per-entry
-		// without async loading, so we check relationships and associations via the loaded data
-		// for the selected entry only. For the list view, we approximate from custom_fields.)
-		// For list items, we only have the entry data - so associations/relationships
-		// add to the potential total but we can't check them synchronously.
-		// We'll keep the formula simple: out of 100 max.
-
-		return Math.min(100, Math.round((filled / total) * 100));
+		return {
+			total: Math.min(100, Math.round((filled / total) * 100)),
+			breakdown: {
+				name: true, // always filled
+				description: !!(entry.short_description || entry.full_description),
+				aliases: !!entry.aliases,
+				tags: !!entry.tags,
+				notes: !!entry.notes,
+				customFields: customFieldCount > 0 ? `${customFieldFilled}/${customFieldCount}` : 'none',
+			},
+		};
 	}
+
+	// Backwards-compatible wrapper (used in stats computation)
+	function computeCompletion(entry: BibleEntry): number {
+		return computeCompletionDetails(entry).total;
+	}
+
+	// Average completion for stats
+	let avgCompletion = $derived.by(() => {
+		if (appState.bibleEntries.length === 0) return 0;
+		const total = appState.bibleEntries.reduce((sum, e) => sum + computeCompletion(e), 0);
+		return Math.round(total / appState.bibleEntries.length);
+	});
+
+	// CC2: Generate detailed tooltip text for completion
+	function getCompletionTooltip(details: CompletionDetails): string {
+		const { total, breakdown } = details;
+		const check = (ok: boolean) => (ok ? '✓' : '○');
+		return `${total}% complete
+Name: ${check(breakdown.name)}
+Description: ${check(breakdown.description)}
+Aliases: ${check(breakdown.aliases)}
+Tags: ${check(breakdown.tags)}
+Notes: ${check(breakdown.notes)}
+Custom Fields: ${breakdown.customFields}`;
+	}
+
+	// CC4: Bible stats computed from entries
+	let bibleStats = $derived.by(() => {
+		const entries = appState.bibleEntries;
+		const byType: Record<string, number> = {};
+		let relationshipCount = 0;
+
+		for (const entry of entries) {
+			byType[entry.entry_type] = (byType[entry.entry_type] || 0) + 1;
+		}
+
+		// Relationship count is only accurate for selected entry
+		if (selectedEntry) {
+			relationshipCount = relationships.length;
+		}
+
+		return {
+			total: entries.length,
+			byType,
+			characters: byType['character'] || 0,
+			locations: byType['location'] || 0,
+			objects: byType['object'] || 0,
+			factions: byType['faction'] || 0,
+			concepts: byType['concept'] || 0,
+			glossary: byType['glossary'] || 0,
+			relationships: relationshipCount,
+		};
+	});
 
 	function saveCustomFields() {
 		if (!selectedEntry) return;
@@ -521,6 +605,42 @@
 			{/each}
 		</div>
 
+		<div class="bible-search-wrapper">
+			<input
+				type="text"
+				placeholder="Search entries..."
+				bind:value={appState.bibleSearchQuery}
+				class="bible-search"
+			/>
+			{#if appState.bibleSearchQuery}
+				<button
+					class="clear-search"
+					onclick={() => (appState.bibleSearchQuery = '')}
+					title="Clear search"
+				>
+					<Icon name="close" size={14} />
+				</button>
+			{/if}
+		</div>
+
+		<!-- CC4: Bible stats panel -->
+		<div class="bible-stats-panel">
+			<span class="stat-item" title="Total entries">{bibleStats.total} entries</span>
+			<span class="stat-item" title="Average completion">{avgCompletion}% avg</span>
+			{#if bibleStats.characters > 0}
+				<span class="stat-item" title="Characters">👤 {bibleStats.characters}</span>
+			{/if}
+			{#if bibleStats.locations > 0}
+				<span class="stat-item" title="Locations">📍 {bibleStats.locations}</span>
+			{/if}
+			{#if bibleStats.objects > 0}
+				<span class="stat-item" title="Objects">🔮 {bibleStats.objects}</span>
+			{/if}
+			{#if bibleStats.factions > 0}
+				<span class="stat-item" title="Factions">⚔️ {bibleStats.factions}</span>
+			{/if}
+		</div>
+
 		{#if isCreating}
 			<div class="new-entry-form">
 				<select bind:value={newEntryType}>
@@ -531,6 +651,7 @@
 				<input
 					type="text"
 					placeholder="Name..."
+					maxlength={100}
 					bind:value={newEntryName}
 					onkeydown={(e) => e.key === 'Enter' && createEntry()}
 				/>
@@ -544,7 +665,7 @@
 		<div class="entries-list">
 			{#each appState.filteredBibleEntries as entry (entry.id)}
 				{@const typeInfo = getTypeInfo(entry.entry_type)}
-				{@const completion = computeCompletion(entry)}
+				{@const completionDetails = computeCompletionDetails(entry)}
 				<button
 					class="entry-item"
 					class:selected={selectedEntry?.id === entry.id}
@@ -555,16 +676,22 @@
 					<span class="entry-icon">{typeInfo.icon}</span>
 					<div class="entry-info">
 						<span class="entry-name truncate">{entry.name}</span>
-						<div class="entry-completion-bar" title="{completion}% complete">
-							<div class="entry-completion-fill" style="width: {completion}%"></div>
+						<!-- CC2: Enhanced tooltip with detailed breakdown -->
+						<div class="entry-completion-bar" title={getCompletionTooltip(completionDetails)}>
+							<div class="entry-completion-fill" style="width: {completionDetails.total}%"></div>
 						</div>
 					</div>
 					<span class="entry-status">{entry.status}</span>
 				</button>
 			{:else}
-				<div class="empty-list">
-					<p>No entries found</p>
-				</div>
+				<EmptyState
+					compact
+					icon="book"
+					title="No entries found"
+					description="Create a new entry to start building your story bible."
+					actionLabel="Create Entry"
+					onaction={() => (isCreating = true)}
+				/>
 			{/each}
 		</div>
 	</div>
@@ -583,6 +710,18 @@
 					/>
 				</div>
 				<div class="entry-actions">
+					<div class="view-toggle">
+						<button
+							class="toggle-btn"
+							class:active={bibleViewMode === 'detail'}
+							onclick={() => (bibleViewMode = 'detail')}>Detail</button
+						>
+						<button
+							class="toggle-btn"
+							class:active={bibleViewMode === 'graph'}
+							onclick={() => (bibleViewMode = 'graph')}>Graph</button
+						>
+					</div>
 					<select
 						value={selectedEntry.status}
 						onchange={(e) => updateEntry('status', e.currentTarget.value)}
@@ -597,356 +736,383 @@
 				</div>
 			</div>
 
-			<div class="entry-fields">
-				<FormGroup label="Aliases" id="entry-aliases">
-					<input
-						id="entry-aliases"
-						type="text"
-						placeholder="Alternative names (comma-separated)"
-						value={selectedEntry.aliases || ''}
-						onblur={(e) => updateEntry('aliases', e.currentTarget.value)}
-					/>
-				</FormGroup>
+			{#if bibleViewMode === 'graph'}
+				<RelationshipMap entryId={selectedEntry.id} entryName={selectedEntry.name} />
+			{:else}
+				<div class="entry-fields">
+					<FormGroup label="Aliases" id="entry-aliases">
+						<input
+							id="entry-aliases"
+							type="text"
+							placeholder="Alternative names (comma-separated)"
+							value={selectedEntry.aliases || ''}
+							onblur={(e) => updateEntry('aliases', e.currentTarget.value)}
+						/>
+					</FormGroup>
 
-				<FormGroup label="Short Description" id="entry-short-desc">
-					<input
-						id="entry-short-desc"
-						type="text"
-						placeholder="Brief description for tooltips"
-						value={selectedEntry.short_description || ''}
-						onblur={(e) => updateEntry('short_description', e.currentTarget.value)}
-					/>
-				</FormGroup>
+					<FormGroup label="Short Description" id="entry-short-desc">
+						<input
+							id="entry-short-desc"
+							type="text"
+							placeholder="Brief description for tooltips"
+							value={selectedEntry.short_description || ''}
+							onblur={(e) => updateEntry('short_description', e.currentTarget.value)}
+						/>
+					</FormGroup>
 
-				<FormGroup label="Full Description" id="entry-full-desc">
-					<textarea
-						id="entry-full-desc"
-						rows="6"
-						placeholder="Detailed description..."
-						value={selectedEntry.full_description || ''}
-						onblur={(e) => updateEntry('full_description', e.currentTarget.value)}
-					></textarea>
-				</FormGroup>
+					<FormGroup label="Full Description" id="entry-full-desc">
+						<textarea
+							id="entry-full-desc"
+							rows="6"
+							placeholder="Detailed description..."
+							value={selectedEntry.full_description || ''}
+							onblur={(e) => updateEntry('full_description', e.currentTarget.value)}
+						></textarea>
+					</FormGroup>
 
-				<FormGroup label="Tags" id="entry-tags">
-					<input
-						id="entry-tags"
-						type="text"
-						placeholder="Tags (comma-separated)"
-						value={selectedEntry.tags || ''}
-						onblur={(e) => updateEntry('tags', e.currentTarget.value)}
-					/>
-				</FormGroup>
+					<FormGroup label="Tags" id="entry-tags">
+						<input
+							id="entry-tags"
+							type="text"
+							placeholder="Tags (comma-separated)"
+							value={selectedEntry.tags || ''}
+							onblur={(e) => updateEntry('tags', e.currentTarget.value)}
+						/>
+					</FormGroup>
 
-				<FormGroup label="Notes" id="entry-notes">
-					<textarea
-						id="entry-notes"
-						rows="4"
-						placeholder="Private notes..."
-						value={selectedEntry.notes || ''}
-						onblur={(e) => updateEntry('notes', e.currentTarget.value)}
-					></textarea>
-				</FormGroup>
+					<FormGroup label="Notes" id="entry-notes">
+						<textarea
+							id="entry-notes"
+							rows="4"
+							placeholder="Private notes..."
+							value={selectedEntry.notes || ''}
+							onblur={(e) => updateEntry('notes', e.currentTarget.value)}
+						></textarea>
+					</FormGroup>
 
-				<div class="relationships-section">
-					<div class="section-header">
-						<h4>Relationships</h4>
-						<Button variant="secondary" size="sm" onclick={() => (showRelationshipForm = true)}>
-							<Icon name="plus" size={14} />
-							Add
-						</Button>
-					</div>
-
-					{#if showRelationshipForm}
-						<div class="relationship-form">
-							<select bind:value={newRelationshipType}>
-								{#each relationshipTypes as type (type.value)}
-									<option value={type.value}>{type.label}</option>
-								{/each}
-							</select>
-							<select bind:value={newRelationshipTarget}>
-								<option value="">Select entry...</option>
-								{#each appState.bibleEntries.filter((e) => e.id !== selectedEntry?.id) as entry (entry.id)}
-									{@const typeInfo = getTypeInfo(entry.entry_type)}
-									<option value={entry.id}>{typeInfo.icon} {entry.name}</option>
-								{/each}
-							</select>
-							<FormActions>
-								<Button variant="ghost" onclick={() => (showRelationshipForm = false)}
-									>Cancel</Button
-								>
-								<Button
-									variant="primary"
-									onclick={createRelationship}
-									disabled={!newRelationshipTarget}>Add</Button
-								>
-							</FormActions>
+					{#if loadRelatedError}
+						<div class="load-error-banner">
+							<span>Some related data couldn't be loaded.</span>
+							<button
+								onclick={() => {
+									if (appState.selectedBibleEntryId) {
+										loadRelatedError = false;
+										loadAllRelated(appState.selectedBibleEntryId);
+									}
+								}}
+							>
+								Retry
+							</button>
 						</div>
 					{/if}
 
-					{#if relationships.length > 0}
-						<div class="relationships-list">
-							{#each relationships as rel (rel.id)}
-								{#if editingRelationshipId === rel.id}
-									<div class="relationship-edit-form">
-										<select bind:value={editedRelType}>
-											{#each relationshipTypes as type (type.value)}
-												<option value={type.value}>{type.label}</option>
-											{/each}
-										</select>
-										<input
-											type="text"
-											class="rel-note-input"
-											placeholder="Note (optional)"
-											bind:value={editedRelNote}
-										/>
-										<FormActions>
-											<Button variant="ghost" size="sm" onclick={cancelEditingRelationship}
-												>Cancel</Button
-											>
-											<Button variant="primary" size="sm" onclick={saveRelationshipEdit}
-												>Save</Button
-											>
-										</FormActions>
-									</div>
-								{:else}
-									<div class="relationship-item">
-										<span class="relationship-type"
-											>{getRelationshipLabel(rel.relationship_type)}</span
+					{#if isLoadingRelated}
+						<div class="related-loading">
+							<LoadingState message="Loading related data..." />
+						</div>
+					{:else}
+						<div class="relationships-section">
+							<div class="section-header">
+								<h4>Relationships</h4>
+								<Button variant="secondary" size="sm" onclick={() => (showRelationshipForm = true)}>
+									<Icon name="plus" size={14} />
+									Add
+								</Button>
+							</div>
+
+							{#if showRelationshipForm}
+								<div class="relationship-form">
+									<select bind:value={newRelationshipType}>
+										{#each relationshipTypes as type (type.value)}
+											<option value={type.value}>{type.label}</option>
+										{/each}
+									</select>
+									<select bind:value={newRelationshipTarget}>
+										<option value="">Select entry...</option>
+										{#each appState.bibleEntries.filter((e) => e.id !== selectedEntry?.id) as entry (entry.id)}
+											{@const typeInfo = getTypeInfo(entry.entry_type)}
+											<option value={entry.id}>{typeInfo.icon} {entry.name}</option>
+										{/each}
+									</select>
+									<FormActions>
+										<Button variant="ghost" onclick={() => (showRelationshipForm = false)}
+											>Cancel</Button
 										>
-										<button
-											class="relationship-target"
-											onclick={() => (appState.selectedBibleEntryId = rel.related_entry_id)}
+										<Button
+											variant="primary"
+											onclick={createRelationship}
+											disabled={!newRelationshipTarget}>Add</Button
 										>
-											{rel.related_entry_name}
+									</FormActions>
+								</div>
+							{/if}
+
+							{#if relationships.length > 0}
+								<div class="relationships-list">
+									{#each relationships as rel (rel.id)}
+										{#if editingRelationshipId === rel.id}
+											<div class="relationship-edit-form">
+												<select bind:value={editedRelType}>
+													{#each relationshipTypes as type (type.value)}
+														<option value={type.value}>{type.label}</option>
+													{/each}
+												</select>
+												<input
+													type="text"
+													class="rel-note-input"
+													placeholder="Note (optional)"
+													bind:value={editedRelNote}
+												/>
+												<FormActions>
+													<Button variant="ghost" size="sm" onclick={cancelEditingRelationship}
+														>Cancel</Button
+													>
+													<Button variant="primary" size="sm" onclick={saveRelationshipEdit}
+														>Save</Button
+													>
+												</FormActions>
+											</div>
+										{:else}
+											<div class="relationship-item">
+												<span class="relationship-type"
+													>{getRelationshipLabel(rel.relationship_type)}</span
+												>
+												<!-- AO4: Use selectBibleEntry for navigation history -->
+												<button
+													class="relationship-target"
+													onclick={() => appState.selectBibleEntry(rel.related_entry_id)}
+												>
+													{rel.related_entry_name}
+												</button>
+												{#if rel.note}
+													<span class="relationship-note">{rel.note}</span>
+												{/if}
+												<Button
+													variant="icon"
+													size="sm"
+													onclick={() => startEditingRelationship(rel)}
+													title="Edit relationship"
+												>
+													<Icon name="edit" size={12} />
+												</Button>
+												<Button
+													variant="icon"
+													size="sm"
+													onclick={() => deleteRelationship(rel.id)}
+													title="Remove relationship"
+												>
+													<Icon name="close" size={12} />
+												</Button>
+											</div>
+										{/if}
+									{/each}
+								</div>
+							{:else if !showRelationshipForm}
+								<p class="no-relationships">No relationships defined</p>
+							{/if}
+						</div>
+
+						<!-- Linked Events Section -->
+						{#if linkedEvents.length > 0}
+							<div class="events-section">
+								<div class="section-header">
+									<h4>Linked Events ({linkedEvents.length})</h4>
+								</div>
+								<div class="linked-events-list">
+									{#each linkedEvents as event (event.id)}
+										<div class="linked-event-item">
+											<span class="linked-event-type">{event.event_type}</span>
+											<span class="linked-event-title">{event.title}</span>
+											{#if event.time_point}
+												<span class="linked-event-time">{event.time_point}</span>
+											{:else if event.time_start}
+												<span class="linked-event-time">
+													{event.time_start}{event.time_end ? ` - ${event.time_end}` : ''}
+												</span>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
+						<!-- Appears in Scenes -->
+						{#if linkedScenes.length > 0}
+							<div class="scenes-section">
+								<div class="section-header">
+									<h4>Appears in Scenes ({linkedScenes.length})</h4>
+								</div>
+								<div class="linked-scenes-list">
+									{#each linkedScenes as scene (scene.id)}
+										<button class="linked-scene-item" onclick={() => navigateToScene(scene.id)}>
+											<span class="linked-scene-title">{scene.title}</span>
+											<span class="linked-scene-status">{scene.status}</span>
 										</button>
-										{#if rel.note}
-											<span class="relationship-note">{rel.note}</span>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
+						<!-- Story Arcs (for characters) -->
+						{#if linkedArcs.length > 0}
+							<div class="arcs-section">
+								<div class="section-header">
+									<h4>Story Arcs ({linkedArcs.length})</h4>
+								</div>
+								<div class="linked-arcs-list">
+									{#each linkedArcs as arc (arc.id)}
+										<div class="linked-arc-item">
+											<span class="arc-color-dot" style="background-color: {arc.color || '#6366f1'}"
+											></span>
+											<span class="linked-arc-name">{arc.name}</span>
+											<span class="linked-arc-status">{arc.status}</span>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
+						<!-- Related Issues -->
+						{#if linkedIssues.length > 0}
+							<div class="issues-section">
+								<div class="section-header">
+									<h4>Related Issues ({linkedIssues.length})</h4>
+								</div>
+								<div class="linked-issues-list">
+									{#each linkedIssues as issue (issue.id)}
+										<div class="linked-issue-item" data-severity={issue.severity}>
+											<span class="linked-issue-severity">{issue.severity}</span>
+											<span class="linked-issue-title">{issue.title}</span>
+											<span class="linked-issue-status">{issue.status}</span>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					{/if}
+
+					<!-- Image Section -->
+					<div class="image-section">
+						<div class="section-header">
+							<h4>Image</h4>
+						</div>
+						{#if selectedEntry.image_path}
+							<div class="image-preview">
+								<img src={selectedEntry.image_path} alt={selectedEntry.name} />
+								<Button
+									variant="icon"
+									size="sm"
+									onclick={() => updateEntry('image_path', '')}
+									title="Remove image"
+								>
+									<Icon name="close" size={14} />
+								</Button>
+							</div>
+						{:else}
+							<div class="image-upload">
+								<input
+									type="text"
+									placeholder="Enter image path or URL..."
+									onblur={(e) => updateEntry('image_path', e.currentTarget.value)}
+								/>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Color Section -->
+					<div class="color-section">
+						<div class="section-header">
+							<h4>Color</h4>
+						</div>
+						<div class="color-palette">
+							{#each entryColors as color (color)}
+								<button
+									class="color-swatch"
+									class:selected={selectedEntry.color === color}
+									style="background-color: {color}"
+									onclick={() => updateEntry('color', color)}
+									title={color}
+								></button>
+							{/each}
+							{#if selectedEntry.color}
+								<button
+									class="color-swatch clear-color"
+									onclick={() => updateEntry('color', '')}
+									title="Clear color"
+								>
+									<Icon name="close" size={10} />
+								</button>
+							{/if}
+						</div>
+					</div>
+
+					<!-- Custom Fields Section -->
+					<div class="custom-fields-section">
+						<div class="section-header">
+							<h4>Custom Fields</h4>
+							<Button variant="secondary" size="sm" onclick={addCustomField}>
+								<Icon name="plus" size={14} />
+								Add
+							</Button>
+						</div>
+						{#if customFields.length > 0}
+							<div class="custom-fields-list">
+								{#each customFields as field, index (index)}
+									<div
+										class="custom-field"
+										class:textarea-field={getFieldType(field.name) === 'textarea'}
+									>
+										{#if isKnownField(field.name)}
+											<span class="field-label">{getFieldLabel(field.name)}</span>
+										{:else}
+											<input
+												type="text"
+												class="field-name"
+												placeholder="Field name"
+												value={field.name}
+												onblur={(e) => updateCustomFieldName(index, e.currentTarget.value)}
+											/>
+										{/if}
+										{#if getFieldType(field.name) === 'textarea'}
+											<textarea
+												class="field-value"
+												rows="3"
+												placeholder="Value"
+												value={field.value}
+												onblur={(e) => updateCustomFieldValue(index, e.currentTarget.value)}
+											></textarea>
+										{:else}
+											<input
+												type="text"
+												class="field-value"
+												placeholder="Value"
+												value={field.value}
+												onblur={(e) => updateCustomFieldValue(index, e.currentTarget.value)}
+											/>
 										{/if}
 										<Button
 											variant="icon"
 											size="sm"
-											onclick={() => startEditingRelationship(rel)}
-											title="Edit relationship"
+											onclick={() => removeCustomField(index)}
+											title="Remove field"
 										>
-											<Icon name="edit" size={12} />
-										</Button>
-										<Button
-											variant="icon"
-											size="sm"
-											onclick={() => deleteRelationship(rel.id)}
-											title="Remove relationship"
-										>
-											<Icon name="close" size={12} />
+											<Icon name="close" size={14} />
 										</Button>
 									</div>
-								{/if}
-							{/each}
-						</div>
-					{:else if !showRelationshipForm}
-						<p class="no-relationships">No relationships defined</p>
-					{/if}
-				</div>
-
-				<!-- Linked Events Section -->
-				{#if linkedEvents.length > 0}
-					<div class="events-section">
-						<div class="section-header">
-							<h4>Linked Events ({linkedEvents.length})</h4>
-						</div>
-						<div class="linked-events-list">
-							{#each linkedEvents as event (event.id)}
-								<div class="linked-event-item">
-									<span class="linked-event-type">{event.event_type}</span>
-									<span class="linked-event-title">{event.title}</span>
-									{#if event.time_point}
-										<span class="linked-event-time">{event.time_point}</span>
-									{:else if event.time_start}
-										<span class="linked-event-time">
-											{event.time_start}{event.time_end ? ` - ${event.time_end}` : ''}
-										</span>
-									{/if}
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Appears in Scenes -->
-				{#if linkedScenes.length > 0}
-					<div class="scenes-section">
-						<div class="section-header">
-							<h4>Appears in Scenes ({linkedScenes.length})</h4>
-						</div>
-						<div class="linked-scenes-list">
-							{#each linkedScenes as scene (scene.id)}
-								<button class="linked-scene-item" onclick={() => navigateToScene(scene.id)}>
-									<span class="linked-scene-title">{scene.title}</span>
-									<span class="linked-scene-status">{scene.status}</span>
-								</button>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Story Arcs (for characters) -->
-				{#if linkedArcs.length > 0}
-					<div class="arcs-section">
-						<div class="section-header">
-							<h4>Story Arcs ({linkedArcs.length})</h4>
-						</div>
-						<div class="linked-arcs-list">
-							{#each linkedArcs as arc (arc.id)}
-								<div class="linked-arc-item">
-									<span class="arc-color-dot" style="background-color: {arc.color || '#6366f1'}"
-									></span>
-									<span class="linked-arc-name">{arc.name}</span>
-									<span class="linked-arc-status">{arc.status}</span>
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Related Issues -->
-				{#if linkedIssues.length > 0}
-					<div class="issues-section">
-						<div class="section-header">
-							<h4>Related Issues ({linkedIssues.length})</h4>
-						</div>
-						<div class="linked-issues-list">
-							{#each linkedIssues as issue (issue.id)}
-								<div class="linked-issue-item" data-severity={issue.severity}>
-									<span class="linked-issue-severity">{issue.severity}</span>
-									<span class="linked-issue-title">{issue.title}</span>
-									<span class="linked-issue-status">{issue.status}</span>
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Image Section -->
-				<div class="image-section">
-					<div class="section-header">
-						<h4>Image</h4>
-					</div>
-					{#if selectedEntry.image_path}
-						<div class="image-preview">
-							<img src={selectedEntry.image_path} alt={selectedEntry.name} />
-							<Button
-								variant="icon"
-								size="sm"
-								onclick={() => updateEntry('image_path', '')}
-								title="Remove image"
-							>
-								<Icon name="close" size={14} />
-							</Button>
-						</div>
-					{:else}
-						<div class="image-upload">
-							<input
-								type="text"
-								placeholder="Enter image path or URL..."
-								onblur={(e) => updateEntry('image_path', e.currentTarget.value)}
-							/>
-						</div>
-					{/if}
-				</div>
-
-				<!-- Color Section -->
-				<div class="color-section">
-					<div class="section-header">
-						<h4>Color</h4>
-					</div>
-					<div class="color-palette">
-						{#each entryColors as color (color)}
-							<button
-								class="color-swatch"
-								class:selected={selectedEntry.color === color}
-								style="background-color: {color}"
-								onclick={() => updateEntry('color', color)}
-								title={color}
-							></button>
-						{/each}
-						{#if selectedEntry.color}
-							<button
-								class="color-swatch clear-color"
-								onclick={() => updateEntry('color', '')}
-								title="Clear color"
-							>
-								<Icon name="close" size={10} />
-							</button>
+								{/each}
+							</div>
+						{:else}
+							<p class="no-custom-fields">No custom fields defined</p>
 						{/if}
 					</div>
 				</div>
-
-				<!-- Custom Fields Section -->
-				<div class="custom-fields-section">
-					<div class="section-header">
-						<h4>Custom Fields</h4>
-						<Button variant="secondary" size="sm" onclick={addCustomField}>
-							<Icon name="plus" size={14} />
-							Add
-						</Button>
-					</div>
-					{#if customFields.length > 0}
-						<div class="custom-fields-list">
-							{#each customFields as field, index (index)}
-								<div
-									class="custom-field"
-									class:textarea-field={getFieldType(field.name) === 'textarea'}
-								>
-									{#if isKnownField(field.name)}
-										<span class="field-label">{getFieldLabel(field.name)}</span>
-									{:else}
-										<input
-											type="text"
-											class="field-name"
-											placeholder="Field name"
-											value={field.name}
-											onblur={(e) => updateCustomFieldName(index, e.currentTarget.value)}
-										/>
-									{/if}
-									{#if getFieldType(field.name) === 'textarea'}
-										<textarea
-											class="field-value"
-											rows="3"
-											placeholder="Value"
-											value={field.value}
-											onblur={(e) => updateCustomFieldValue(index, e.currentTarget.value)}
-										></textarea>
-									{:else}
-										<input
-											type="text"
-											class="field-value"
-											placeholder="Value"
-											value={field.value}
-											onblur={(e) => updateCustomFieldValue(index, e.currentTarget.value)}
-										/>
-									{/if}
-									<Button
-										variant="icon"
-										size="sm"
-										onclick={() => removeCustomField(index)}
-										title="Remove field"
-									>
-										<Icon name="close" size={14} />
-									</Button>
-								</div>
-							{/each}
-						</div>
-					{:else}
-						<p class="no-custom-fields">No custom fields defined</p>
-					{/if}
-				</div>
-			</div>
+			{/if}
 		{:else}
-			<div class="no-selection">
-				<Icon name="info" size={48} strokeWidth={1.5} />
-				<h3>No entry selected</h3>
-				<p>Select an entry from the list or create a new one.</p>
-			</div>
+			<EmptyState
+				icon="info"
+				title="No entry selected"
+				description="Select an entry from the list or create a new one."
+			/>
 		{/if}
 	</div>
 </div>
@@ -1040,6 +1206,61 @@
 		color: var(--color-text-primary);
 	}
 
+	.bible-search-wrapper {
+		position: relative;
+		padding: 0 var(--spacing-sm) var(--spacing-sm);
+	}
+
+	.bible-search {
+		width: 100%;
+		padding: var(--spacing-xs) var(--spacing-sm);
+		padding-right: 28px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-sm);
+		background: var(--color-bg-primary);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-primary);
+	}
+
+	.bible-search:focus {
+		outline: none;
+		border-color: var(--color-accent);
+	}
+
+	.clear-search {
+		position: absolute;
+		right: var(--spacing-md);
+		top: 50%;
+		transform: translateY(-50%);
+		color: var(--color-text-muted);
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		padding: 2px;
+	}
+
+	.clear-search:hover {
+		color: var(--color-text-primary);
+	}
+
+	/* CC4: Bible stats panel */
+	.bible-stats-panel {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-xs);
+		padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		border-bottom: 1px solid var(--color-border-light);
+	}
+
+	.stat-item {
+		padding: 2px var(--spacing-xs);
+		background-color: var(--color-bg-tertiary);
+		border-radius: var(--border-radius-sm);
+		white-space: nowrap;
+	}
+
 	.new-entry-form {
 		padding: var(--spacing-md);
 		border-bottom: 1px solid var(--color-border-light);
@@ -1120,12 +1341,6 @@
 		flex-shrink: 0;
 	}
 
-	.empty-list {
-		padding: var(--spacing-lg);
-		text-align: center;
-		color: var(--color-text-muted);
-	}
-
 	.bible-content {
 		flex: 1;
 		overflow-y: auto;
@@ -1156,8 +1371,15 @@
 		font-size: var(--font-size-xl);
 		font-weight: 600;
 		border: none;
+		border-bottom: 1px dashed transparent;
 		background: none;
 		padding: 0;
+		cursor: text;
+		transition: border-color var(--transition-fast);
+	}
+
+	.entry-name-input:hover {
+		border-bottom-color: var(--color-border);
 	}
 
 	.entry-name-input:focus {
@@ -1176,6 +1398,32 @@
 		padding: var(--spacing-xs) var(--spacing-sm);
 	}
 
+	.view-toggle {
+		display: flex;
+		gap: 1px;
+		background-color: var(--color-bg-tertiary);
+		border-radius: var(--border-radius-sm);
+		padding: 2px;
+	}
+
+	.toggle-btn {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		font-size: var(--font-size-xs);
+		border-radius: var(--border-radius-sm);
+		color: var(--color-text-secondary);
+		transition: all var(--transition-fast);
+	}
+
+	.toggle-btn:hover {
+		color: var(--color-text-primary);
+	}
+
+	.toggle-btn.active {
+		background-color: var(--color-bg-primary);
+		color: var(--color-text-primary);
+		box-shadow: var(--shadow-sm);
+	}
+
 	/* Danger variant for icon buttons */
 	.entry-actions :global(.btn-icon.danger:hover) {
 		color: var(--color-error);
@@ -1187,29 +1435,6 @@
 		flex-direction: column;
 		gap: var(--spacing-lg);
 		max-width: 700px;
-	}
-
-	.no-selection {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		text-align: center;
-		color: var(--color-text-muted);
-		padding: var(--spacing-xl);
-	}
-
-	.no-selection :global(.icon) {
-		margin-bottom: var(--spacing-md);
-		opacity: 0.5;
-	}
-
-	.no-selection h3 {
-		font-size: var(--font-size-lg);
-		font-weight: 500;
-		color: var(--color-text-secondary);
-		margin-bottom: var(--spacing-sm);
 	}
 
 	.relationships-section {
@@ -1638,5 +1863,31 @@
 		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
 		text-transform: capitalize;
+	}
+
+	.load-error-banner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--spacing-sm) var(--spacing-md);
+		background-color: var(--color-warning-bg, light-dark(#fef3c7, #422006));
+		border: 1px solid var(--color-warning);
+		border-radius: var(--border-radius-sm);
+		margin: var(--spacing-sm) 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-warning);
+	}
+
+	.load-error-banner button {
+		padding: 2px var(--spacing-sm);
+		border-radius: var(--border-radius-sm);
+		font-weight: 500;
+		color: var(--color-warning);
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.related-loading {
+		padding: var(--spacing-lg) 0;
 	}
 </style>

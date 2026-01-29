@@ -95,9 +95,10 @@
 
 	/* -------------------------------------------------------------------------
 	   Primitive Transitions
+	   AZ4: Snappier transitions (reduced from 150ms to 120ms)
 	   ------------------------------------------------------------------------- */
 	--duration-fast: 100ms;
-	--duration-normal: 150ms;
+	--duration-normal: 120ms;
 	--ease: ease-out;
 
 	/* -------------------------------------------------------------------------
@@ -107,6 +108,9 @@
 	--width-panel: 300px;
 	--height-toolbar: 44px;
 	--height-statusbar: 28px;
+
+	/* Disabled state */
+	--opacity-disabled: 0.5;
 }
 
 /* ==========================================================================
@@ -133,7 +137,8 @@
 
 	--text-primary: light-dark(oklch(18% 0.01 260), oklch(94% 0.006 260));
 	--text-secondary: light-dark(oklch(40% 0.008 260), oklch(70% 0.008 260));
-	--text-muted: light-dark(oklch(55% 0.006 260), oklch(52% 0.006 260));
+	/* AE2, AY1: Improved contrast for WCAG AA (4.5:1 minimum) - 42% in light mode */
+	--text-muted: light-dark(oklch(42% 0.006 260), oklch(58% 0.006 260));
 	--text-disabled: light-dark(oklch(72% 0.004 260), oklch(38% 0.008 260));
 	--text-inverse: light-dark(oklch(99% 0.004 260), oklch(16% 0.012 260));
 
@@ -151,8 +156,9 @@
 	--status-to-write: light-dark(oklch(55% 0.08 260), oklch(55% 0.08 260));
 	--status-draft: light-dark(oklch(48% 0.12 255), oklch(62% 0.12 255));
 	--status-in-revision: light-dark(oklch(42% 0.15 250), oklch(70% 0.15 250));
-	--status-done: light-dark(oklch(35% 0.18 245), oklch(78% 0.18 245));
-	--status-to-cut: light-dark(oklch(60% 0.03 265 / 50%), oklch(45% 0.03 265 / 50%));
+	/* W2: Done = green (success), To Cut = red-ish (semi-transparent) */
+	--status-done: light-dark(oklch(45% 0.15 145), oklch(65% 0.12 145));
+	--status-to-cut: light-dark(oklch(55% 0.12 25 / 60%), oklch(50% 0.1 25 / 60%));
 
 	/* Overlay/backdrop for modals */
 	--overlay-backdrop: oklch(20% 0.02 260 / 50%);
@@ -175,6 +181,13 @@
 	/* Info color (blue - same as accent for cool theme) */
 	--info-default: var(--accent-default);
 	--info-subtle: var(--accent-subtle);
+
+	/* W1: Annotation colors (adapted for light/dark mode) */
+	--annotation-comment: light-dark(oklch(85% 0.12 250 / 40%), oklch(35% 0.12 250 / 50%));
+	--annotation-question: light-dark(oklch(85% 0.15 145 / 40%), oklch(35% 0.12 145 / 50%));
+	--annotation-todo: light-dark(oklch(90% 0.12 65 / 40%), oklch(35% 0.1 65 / 50%));
+	--annotation-research: light-dark(oklch(85% 0.12 300 / 40%), oklch(35% 0.1 300 / 50%));
+	--annotation-note: light-dark(oklch(90% 0.08 90 / 40%), oklch(35% 0.06 90 / 50%));
 }
 
 /* --------------------------------------------------------------------------
@@ -214,8 +227,9 @@
 	--status-to-write: light-dark(oklch(58% 0.08 60), oklch(52% 0.08 60));
 	--status-draft: light-dark(oklch(52% 0.12 45), oklch(60% 0.12 45));
 	--status-in-revision: light-dark(oklch(46% 0.15 35), oklch(68% 0.15 35));
-	--status-done: light-dark(oklch(40% 0.18 25), oklch(76% 0.18 25));
-	--status-to-cut: light-dark(oklch(60% 0.03 70 / 50%), oklch(45% 0.03 60 / 50%));
+	/* W2: Done = green (success), To Cut = red-ish (semi-transparent) */
+	--status-done: light-dark(oklch(45% 0.15 145), oklch(65% 0.12 145));
+	--status-to-cut: light-dark(oklch(55% 0.12 25 / 60%), oklch(50% 0.1 25 / 60%));
 
 	/* Overlay/backdrop for modals */
 	--overlay-backdrop: oklch(20% 0.02 50 / 50%);
@@ -238,6 +252,39 @@
 	/* Info color (same as accent for warm theme) */
 	--info-default: var(--accent-default);
 	--info-subtle: var(--accent-subtle);
+
+	/* W1: Annotation colors for warm theme */
+	--annotation-comment: light-dark(oklch(85% 0.1 30 / 40%), oklch(35% 0.1 30 / 50%));
+	--annotation-question: light-dark(oklch(85% 0.15 145 / 40%), oklch(35% 0.12 145 / 50%));
+	--annotation-todo: light-dark(oklch(90% 0.12 55 / 40%), oklch(35% 0.1 55 / 50%));
+	--annotation-research: light-dark(oklch(85% 0.1 280 / 40%), oklch(35% 0.08 280 / 50%));
+	--annotation-note: light-dark(oklch(90% 0.08 80 / 40%), oklch(35% 0.06 80 / 50%));
+}
+
+/* ==========================================================================
+   CA4: Editor Color Themes
+   Applied via data-editor-theme attribute on .editor-content
+   ========================================================================== */
+
+/* Sepia theme - warm paper-like appearance */
+[data-editor-theme='sepia'] {
+	--editor-bg: oklch(96% 0.02 70);
+	--editor-text: oklch(25% 0.02 50);
+	--editor-text-muted: oklch(45% 0.01 55);
+}
+
+/* Dark theme - pure dark mode for editor only */
+[data-editor-theme='dark'] {
+	--editor-bg: oklch(15% 0.01 260);
+	--editor-text: oklch(90% 0.01 260);
+	--editor-text-muted: oklch(60% 0.01 260);
+}
+
+/* Low contrast theme - reduced eye strain */
+[data-editor-theme='low-contrast'] {
+	--editor-bg: oklch(92% 0.005 260);
+	--editor-text: oklch(35% 0.01 260);
+	--editor-text-muted: oklch(55% 0.008 260);
 }
 
 /* ==========================================================================
@@ -306,6 +353,15 @@
 	--statusbar-height: var(--height-statusbar);
 
 	/* -------------------------------------------------------------------------
+	   Spinner / Loading
+	   ------------------------------------------------------------------------- */
+	--spinner-speed: 0.7s;
+	--spinner-size-sm: 8px;
+	--spinner-size-md: 16px;
+	--spinner-size-lg: 24px;
+	--spinner-width: 2px;
+
+	/* -------------------------------------------------------------------------
 	   Editor-specific
 	   ------------------------------------------------------------------------- */
 	--editor-text-width: 700px;
@@ -320,6 +376,19 @@
 
 	/* Neutral color for unassigned custom colors (arcs, steps, etc.) */
 	--color-neutral: var(--text-muted);
+
+	/* -------------------------------------------------------------------------
+	   User Color Palette (theme-aware)
+	   ------------------------------------------------------------------------- */
+	--palette-red: light-dark(#ef4444, #f87171);
+	--palette-orange: light-dark(#f97316, #fb923c);
+	--palette-yellow: light-dark(#eab308, #facc15);
+	--palette-green: light-dark(#22c55e, #4ade80);
+	--palette-cyan: light-dark(#06b6d4, #22d3ee);
+	--palette-blue: light-dark(#3b82f6, #60a5fa);
+	--palette-indigo: light-dark(#6366f1, #818cf8);
+	--palette-violet: light-dark(#8b5cf6, #a78bfa);
+	--palette-pink: light-dark(#ec4899, #f472b6);
 
 	/* -------------------------------------------------------------------------
 	   Text on colored backgrounds
@@ -420,8 +489,7 @@ body {
 	-moz-osx-font-smoothing: grayscale;
 	text-rendering: optimizeLegibility;
 	overflow: hidden;
-	-webkit-user-select: none;
-	user-select: none;
+	/* AE3: Removed global user-select: none — applied selectively to UI elements instead */
 }
 
 input,
@@ -433,6 +501,24 @@ pre,
 code {
 	-webkit-user-select: text;
 	user-select: text;
+}
+
+/* AE3: Selectively disable text selection on UI chrome elements */
+button,
+nav,
+aside,
+footer,
+.toolbar,
+.status-bar,
+.sidebar,
+.context-panel,
+[role='button'],
+[role='menu'],
+[role='menuitem'],
+[role='tab'],
+[role='tablist'] {
+	-webkit-user-select: none;
+	user-select: none;
 }
 
 ul,
@@ -486,6 +572,12 @@ a {
 	cursor: default;
 }
 
+/* U1: Pointer cursor for actionable links */
+a[role='link'],
+a[href] {
+	cursor: pointer;
+}
+
 a[href^='http'],
 a[href^='mailto'] {
 	text-decoration: underline;
@@ -507,8 +599,9 @@ a[href^='mailto']:hover {
    Buttons
    ========================================================================== */
 
+/* U1: cursor: pointer for clickable affordance */
 button {
-	cursor: default;
+	cursor: pointer;
 	border: none;
 	background: none;
 	font: inherit;
@@ -517,7 +610,14 @@ button {
 
 button:disabled {
 	cursor: not-allowed;
-	opacity: 0.5;
+	opacity: var(--opacity-disabled);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+	cursor: not-allowed;
+	opacity: var(--opacity-disabled);
 }
 
 /* ==========================================================================
@@ -549,9 +649,11 @@ textarea::placeholder {
    Focus Management - Accessibility
    ========================================================================== */
 
+/* BE4: Amplified focus ring with glow effect */
 :focus-visible {
 	outline: 2px solid var(--accent-default);
 	outline-offset: 2px;
+	box-shadow: 0 0 0 4px oklch(from var(--accent-default) l c h / 20%);
 }
 
 :focus:not(:focus-visible) {
@@ -620,6 +722,35 @@ textarea::placeholder {
 	white-space: nowrap;
 }
 
+/* AI1, AI7: Screen reader only content - visually hidden but accessible */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* U2: Scroll shadows for indicating overflowing content */
+.scroll-shadow {
+	background:
+		linear-gradient(var(--surface-primary) 30%, transparent) center top,
+		linear-gradient(transparent, var(--surface-primary) 70%) center bottom,
+		radial-gradient(farthest-side at 50% 0, oklch(0% 0 0 / 12%), transparent) center top,
+		radial-gradient(farthest-side at 50% 100%, oklch(0% 0 0 / 12%), transparent) center bottom;
+	background-repeat: no-repeat;
+	background-size:
+		100% 40px,
+		100% 40px,
+		100% 14px,
+		100% 14px;
+	background-attachment: local, local, scroll, scroll;
+}
+
 /* Screen reader only - Accessibility */
 .sr-only {
 	position: absolute;
@@ -648,6 +779,154 @@ textarea::placeholder {
 /* ==========================================================================
    Accessibility Media Queries
    ========================================================================== */
+
+/* AI6: Responsive breakpoints for smaller screens */
+@media (max-width: 1200px) {
+	:root {
+		--spacing-md: 12px;
+		--spacing-lg: 16px;
+	}
+}
+
+@media (max-width: 768px) {
+	:root {
+		--spacing-md: 8px;
+		--spacing-lg: 12px;
+		--font-size-base: 14px;
+	}
+}
+
+/* ==========================================================================
+   AJ6: Active State for Toggle Buttons
+   ========================================================================== */
+
+.btn-icon.active,
+.btn-toggle.active,
+.icon-btn.active {
+	background-color: var(--accent-subtle);
+	color: var(--accent-default);
+}
+
+.btn-icon.active:hover,
+.btn-toggle.active:hover,
+.icon-btn.active:hover {
+	background-color: var(--accent-subtle);
+}
+
+/* ==========================================================================
+   AM5: Subtle Animations for State Changes
+   ========================================================================== */
+
+.scene-item,
+.chapter-item,
+.entry-item,
+.track-item {
+	transition:
+		background-color var(--transition-fast),
+		border-color var(--transition-fast),
+		transform var(--transition-fast),
+		box-shadow var(--transition-fast);
+}
+
+/* Selection with subtle shift */
+.scene-item.selected,
+.entry-item.selected {
+	transform: translateX(2px);
+}
+
+/* Hover with subtle elevation */
+.scene-item:hover:not(.selected),
+.entry-item:hover:not(.selected) {
+	transform: translateX(1px);
+}
+
+/* Fade for content appearance/disappearance */
+.fade-enter {
+	animation: fadeIn var(--transition-normal) ease-out;
+}
+
+.fade-exit {
+	animation: fadeOut var(--transition-normal) ease-out;
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes fadeOut {
+	from {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+}
+
+/* Attention pulse for elements needing user attention */
+.attention-pulse {
+	animation: attentionPulse 2s ease-in-out infinite;
+}
+
+@keyframes attentionPulse {
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 var(--accent-subtle);
+	}
+	50% {
+		box-shadow: 0 0 0 4px var(--accent-subtle);
+	}
+}
+
+/* ==========================================================================
+   Modal Animations (F2)
+   ========================================================================== */
+
+@keyframes modal-enter {
+	from {
+		opacity: 0;
+		transform: scale(0.95) translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
+}
+
+@keyframes backdrop-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.modal-enter {
+	animation: modal-enter 0.2s ease-out;
+}
+
+/* ==========================================================================
+   Session word count pulse (F4)
+   ========================================================================== */
+
+@keyframes goal-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.7;
+	}
+}
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {

@@ -98,7 +98,8 @@
 		try {
 			await appState.loadProject(project.path);
 		} catch (e) {
-			appState.error = e instanceof Error ? e.message : String(e);
+			const errorMsg = e instanceof Error ? e.message : String(e);
+			appState.error = `Could not open "${project.title}" — ${errorMsg}`;
 			// Remove from recent if file doesn't exist
 			recentProjects = recentProjects.filter((p) => p.path !== project.path);
 		}
