@@ -19,7 +19,8 @@
 		"test:all": "vitest run && cargo test --manifest-path src-tauri/Cargo.toml",
 		"test:e2e": "pnpm tauri build && wdio run ./wdio.conf.ts",
 		"tauri": "tauri",
-		"prepare": "husky"
+		"prepare": "husky",
+		"dictionaries:download": "./scripts/download-dictionaries.sh"
 	},
 	"lint-staged": {
 		"*.{ts,svelte,js}": [

@@ -386,6 +386,8 @@
 			editorProps: {
 				attributes: {
 					class: 'prose-editor',
+					// Enable native browser spellcheck
+					spellcheck: 'true',
 				},
 			},
 			onUpdate: ({ editor: ed, transaction }) => {
@@ -1006,6 +1008,7 @@
 
 	function handleEditorContextMenu(e: MouseEvent) {
 		if (!editor) return;
+
 		const { empty } = editor.state.selection;
 		if (empty) return;
 

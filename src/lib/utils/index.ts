@@ -170,3 +170,102 @@ export function truncate(text: string, maxLength: number): string {
 	if (text.length <= maxLength) return text;
 	return text.substring(0, maxLength - 3) + '...';
 }
+
+// =============================================================================
+// Text encoding utilities
+// =============================================================================
+
+/**
+ * Returns the number of Unicode characters (code points) in a string.
+ * Unlike string.length which returns UTF-16 code units, this correctly
+ * handles emoji and other multi-byte characters.
+ *
+ * @example
+ * charCount("hello") // 5
+ * charCount("café")  // 4
+ * charCount("👋")    // 1 (string.length would return 2)
+ * charCount("👨‍👩‍👧")  // 5 (family emoji with ZWJ sequences)
+ */
+export function charCount(str: string): number {
+	return [...str].length;
+}
+
+/**
+ * Returns the number of UTF-8 bytes needed to encode a string.
+ * Useful for matching Rust byte offsets.
+ *
+ * @example
+ * byteCount("hello") // 5
+ * byteCount("café")  // 5 (é is 2 bytes in UTF-8)
+ * byteCount("👋")    // 4 (emoji is 4 bytes in UTF-8)
+ */
+export function byteCount(str: string): number {
+	return new TextEncoder().encode(str).length;
+}
+
+/**
+ * Converts a byte offset to a character offset in a UTF-8 string.
+ * This is needed because Rust operates on byte offsets while
+ * JavaScript/ProseMirror use character positions.
+ *
+ * @param text - The text string
+ * @param byteOffset - The byte offset to convert
+ * @returns The character offset corresponding to the byte position
+ *
+ * @example
+ * byteOffsetToCharOffset("café", 0) // 0 (start)
+ * byteOffsetToCharOffset("café", 3) // 3 (before 'é')
+ * byteOffsetToCharOffset("café", 5) // 4 (end, 'é' is 2 bytes)
+ * byteOffsetToCharOffset("👋hi", 4) // 1 (after emoji which is 4 bytes)
+ */
+export function byteOffsetToCharOffset(text: string, byteOffset: number): number {
+	// Handle edge cases
+	if (!text || byteOffset <= 0) return 0;
+
+	const encoder = new TextEncoder();
+	let charOffset = 0;
+	let currentByteOffset = 0;
+
+	for (const char of text) {
+		// If we've reached or passed the target byte offset, return current char position
+		if (currentByteOffset >= byteOffset) {
+			return charOffset;
+		}
+		currentByteOffset += encoder.encode(char).length;
+		charOffset++;
+	}
+
+	// Byte offset is at or beyond end of string
+	return charOffset;
+}
+
+/**
+ * Converts a character offset to a byte offset in a UTF-8 string.
+ * This is the inverse of byteOffsetToCharOffset.
+ *
+ * @param text - The text string
+ * @param charOffset - The character offset to convert
+ * @returns The byte offset corresponding to the character position
+ *
+ * @example
+ * charOffsetToByteOffset("café", 3) // 3 (before 'é')
+ * charOffsetToByteOffset("café", 4) // 5 (end)
+ * charOffsetToByteOffset("👋hi", 1) // 4 (after emoji)
+ */
+export function charOffsetToByteOffset(text: string, charOffset: number): number {
+	if (!text || charOffset <= 0) return 0;
+
+	const encoder = new TextEncoder();
+	let currentCharOffset = 0;
+	let byteOffset = 0;
+
+	for (const char of text) {
+		if (currentCharOffset >= charOffset) {
+			return byteOffset;
+		}
+		byteOffset += encoder.encode(char).length;
+		currentCharOffset++;
+	}
+
+	return byteOffset;
+}

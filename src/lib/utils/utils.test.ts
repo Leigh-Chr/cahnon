@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	bibleEntryTypes,
 	bibleStatuses,
+	byteCount,
+	byteOffsetToCharOffset,
 	chapterStatuses,
+	charCount,
+	charOffsetToByteOffset,
 	countWords,
 	debounce,
 	formatDate,
@@ -375,5 +379,270 @@ describe('formatShortcut', () => {
 			configurable: true,
 		});
 		expect(formatShortcut('tab', false, true)).toBe('Shift+TAB');
+	});
+});
+
+// =============================================================================
+// Text encoding utilities tests
+// =============================================================================
+
+describe('charCount', () => {
+	it('should count ASCII characters correctly', () => {
+		expect(charCount('hello')).toBe(5);
+		expect(charCount('')).toBe(0);
+		expect(charCount('a')).toBe(1);
+	});
+
+	it('should count accented characters correctly', () => {
+		expect(charCount('café')).toBe(4);
+		expect(charCount('naïve')).toBe(5);
+		expect(charCount('résumé')).toBe(6);
+	});
+
+	it('should count emoji as single characters', () => {
+		expect(charCount('👋')).toBe(1);
+		expect(charCount('hi👋')).toBe(3);
+		expect(charCount('👋👋👋')).toBe(3);
+	});
+
+	it('should handle ZWJ emoji sequences', () => {
+		// Family emoji: 👨‍👩‍👧 is actually multiple code points joined by ZWJ
+		// The spread operator counts each code point
+		const family = '👨‍👩‍👧';
+		// Note: ZWJ sequences are counted as multiple characters
+		// because [...str] splits on code points, not grapheme clusters
+		expect(charCount(family)).toBeGreaterThan(1);
+	});
+
+	it('should count Chinese characters correctly', () => {
+		expect(charCount('中文')).toBe(2);
+		expect(charCount('你好世界')).toBe(4);
+	});
+
+	it('should handle mixed content', () => {
+		expect(charCount('Hello 世界 👋')).toBe(10); // H-e-l-l-o-space-世-界-space-👋
+	});
+});
+
+describe('byteCount', () => {
+	it('should count ASCII bytes correctly', () => {
+		expect(byteCount('hello')).toBe(5);
+		expect(byteCount('')).toBe(0);
+		expect(byteCount('a')).toBe(1);
+	});
+
+	it('should count UTF-8 bytes for accented characters', () => {
+		// 'é' is 2 bytes in UTF-8 (c3 a9)
+		expect(byteCount('é')).toBe(2);
+		expect(byteCount('café')).toBe(5); // c-a-f-é = 1+1+1+2 = 5
+	});
+
+	it('should count UTF-8 bytes for emoji', () => {
+		// Emoji are typically 4 bytes in UTF-8
+		expect(byteCount('👋')).toBe(4);
+		expect(byteCount('hi👋')).toBe(6); // h-i-👋 = 1+1+4 = 6
+	});
+
+	it('should count UTF-8 bytes for Chinese characters', () => {
+		// Chinese characters are typically 3 bytes in UTF-8
+		expect(byteCount('中')).toBe(3);
+		expect(byteCount('中文')).toBe(6);
+	});
+
+	it('should handle mixed content', () => {
+		// "café👋" = c(1) + a(1) + f(1) + é(2) + 👋(4) = 9 bytes
+		expect(byteCount('café👋')).toBe(9);
+	});
+});
+
+describe('byteOffsetToCharOffset', () => {
+	it('should handle ASCII text', () => {
+		expect(byteOffsetToCharOffset('hello', 0)).toBe(0);
+		expect(byteOffsetToCharOffset('hello', 2)).toBe(2);
+		expect(byteOffsetToCharOffset('hello', 5)).toBe(5);
+	});
+
+	it('should handle empty string', () => {
+		expect(byteOffsetToCharOffset('', 0)).toBe(0);
+		expect(byteOffsetToCharOffset('', 5)).toBe(0);
+	});
+
+	it('should handle negative offset', () => {
+		expect(byteOffsetToCharOffset('hello', -1)).toBe(0);
+	});
+
+	it('should handle accented characters', () => {
+		const text = 'café';
+		// Byte positions: c=0, a=1, f=2, é=3-4 (2 bytes)
+		expect(byteOffsetToCharOffset(text, 0)).toBe(0); // before 'c'
+		expect(byteOffsetToCharOffset(text, 1)).toBe(1); // before 'a'
+		expect(byteOffsetToCharOffset(text, 2)).toBe(2); // before 'f'
+		expect(byteOffsetToCharOffset(text, 3)).toBe(3); // before 'é'
+		expect(byteOffsetToCharOffset(text, 5)).toBe(4); // after 'é' (end)
+	});
+
+	it('should handle emoji', () => {
+		const text = 'hi👋';
+		// Byte positions: h=0, i=1, 👋=2-5 (4 bytes)
+		expect(byteOffsetToCharOffset(text, 0)).toBe(0); // before 'h'
+		expect(byteOffsetToCharOffset(text, 1)).toBe(1); // before 'i'
+		expect(byteOffsetToCharOffset(text, 2)).toBe(2); // before emoji
+		expect(byteOffsetToCharOffset(text, 6)).toBe(3); // after emoji (end)
+	});
+
+	it('should handle byte offset in middle of multi-byte char', () => {
+		const text = 'café';
+		// 'é' spans bytes 3-4 (2 bytes in UTF-8)
+		// Byte offset 4 is past the start of 'é', so we've consumed it
+		// The function returns the next character position (after 'é')
+		expect(byteOffsetToCharOffset(text, 4)).toBe(4);
+		// Byte offset 3 is at the start of 'é', so returns position 3
+		expect(byteOffsetToCharOffset(text, 3)).toBe(3);
+	});
+
+	it('should handle byte offset beyond string length', () => {
+		expect(byteOffsetToCharOffset('hi', 10)).toBe(2);
+	});
+
+	it('should handle Chinese characters', () => {
+		const text = '中文';
+		// Each Chinese char is 3 bytes
+		expect(byteOffsetToCharOffset(text, 0)).toBe(0); // before '中'
+		expect(byteOffsetToCharOffset(text, 3)).toBe(1); // before '文'
+		expect(byteOffsetToCharOffset(text, 6)).toBe(2); // end
+	});
+
+	it('should handle mixed ASCII and multi-byte', () => {
+		const text = 'a中b';
+		// a=0 (1 byte), 中=1-3 (3 bytes), b=4 (1 byte)
+		expect(byteOffsetToCharOffset(text, 0)).toBe(0); // before 'a'
+		expect(byteOffsetToCharOffset(text, 1)).toBe(1); // before '中'
+		expect(byteOffsetToCharOffset(text, 4)).toBe(2); // before 'b'
+		expect(byteOffsetToCharOffset(text, 5)).toBe(3); // end
+	});
+});
+
+describe('charOffsetToByteOffset', () => {
+	it('should handle ASCII text', () => {
+		expect(charOffsetToByteOffset('hello', 0)).toBe(0);
+		expect(charOffsetToByteOffset('hello', 2)).toBe(2);
+		expect(charOffsetToByteOffset('hello', 5)).toBe(5);
+	});
+
+	it('should handle empty string', () => {
+		expect(charOffsetToByteOffset('', 0)).toBe(0);
+		expect(charOffsetToByteOffset('', 5)).toBe(0);
+	});
+
+	it('should handle negative offset', () => {
+		expect(charOffsetToByteOffset('hello', -1)).toBe(0);
+	});
+
+	it('should handle accented characters', () => {
+		const text = 'café';
+		// Char positions: c=0, a=1, f=2, é=3
+		// Byte positions: c=0, a=1, f=2, é=3 (start), end=5
+		expect(charOffsetToByteOffset(text, 0)).toBe(0);
+		expect(charOffsetToByteOffset(text, 1)).toBe(1);
+		expect(charOffsetToByteOffset(text, 2)).toBe(2);
+		expect(charOffsetToByteOffset(text, 3)).toBe(3);
+		expect(charOffsetToByteOffset(text, 4)).toBe(5); // end
+	});
+
+	it('should handle emoji', () => {
+		const text = 'hi👋';
+		expect(charOffsetToByteOffset(text, 0)).toBe(0);
+		expect(charOffsetToByteOffset(text, 1)).toBe(1);
+		expect(charOffsetToByteOffset(text, 2)).toBe(2);
+		expect(charOffsetToByteOffset(text, 3)).toBe(6); // after emoji
+	});
+
+	it('should handle Chinese characters', () => {
+		const text = '中文';
+		expect(charOffsetToByteOffset(text, 0)).toBe(0);
+		expect(charOffsetToByteOffset(text, 1)).toBe(3);
+		expect(charOffsetToByteOffset(text, 2)).toBe(6);
+	});
+
+	it('should be inverse of byteOffsetToCharOffset', () => {
+		const text = 'café👋中文';
+
+		// Test round-trip: char -> byte -> char
+		for (let i = 0; i <= charCount(text); i++) {
+			const byteOff = charOffsetToByteOffset(text, i);
+			const charOff = byteOffsetToCharOffset(text, byteOff);
+			expect(charOff).toBe(i);
+		}
+	});
+});
+
+describe('spellcheck position mapping scenarios', () => {
+	// These tests simulate the actual spellcheck flow:
+	// Rust returns byte offsets, JavaScript converts to char offsets
+
+	it('should correctly map ASCII misspelling', () => {
+		const text = 'hello wrld there';
+		// "wrld" starts at byte 6, ends at byte 10
+		const startChar = byteOffsetToCharOffset(text, 6);
+		const endChar = byteOffsetToCharOffset(text, 10);
+
+		expect(startChar).toBe(6);
+		expect(endChar).toBe(10);
+		expect(text.substring(startChar, endChar)).toBe('wrld');
+	});
+
+	it('should correctly map misspelling after accented word', () => {
+		const text = 'café wrld';
+		// "café" = 5 bytes (c=1, a=1, f=1, é=2)
+		// space = 1 byte (position 5)
+		// "wrld" starts at byte 6
+		const startChar = byteOffsetToCharOffset(text, 6);
+		const endChar = byteOffsetToCharOffset(text, 10);
+
+		expect(startChar).toBe(5); // char position after "café "
+		expect(endChar).toBe(9);
+		expect([...text].slice(startChar, endChar).join('')).toBe('wrld');
+	});
+
+	it('should correctly map misspelling after emoji', () => {
+		const text = '👋 wrld';
+		// "👋" = 4 bytes
+		// space = 1 byte (position 4)
+		// "wrld" starts at byte 5
+		const startChar = byteOffsetToCharOffset(text, 5);
+		const endChar = byteOffsetToCharOffset(text, 9);
+
+		expect(startChar).toBe(2); // char position after "👋 "
+		expect(endChar).toBe(6);
+		expect([...text].slice(startChar, endChar).join('')).toBe('wrld');
+	});
+
+	it('should correctly map misspelling with newlines (multi-paragraph)', () => {
+		const text = 'First paragraph\nSecond wrld here';
+		// "First paragraph" = 15 bytes
+		// "\n" = 1 byte (position 15)
+		// "Second " = 7 bytes (positions 16-22)
+		// "wrld" starts at byte 23
+
+		const startChar = byteOffsetToCharOffset(text, 23);
+		const endChar = byteOffsetToCharOffset(text, 27);
+
+		expect(text.substring(startChar, endChar)).toBe('wrld');
+	});
+
+	it('should handle French text with accents', () => {
+		const text = 'Voilà une errur ici';
+		// "Voilà " (with à = 2 bytes) = 7 bytes
+		// "une " = 4 bytes
+		// "errur" starts at byte 11
+
+		// Find where "errur" is
+		const errurByteStart = byteCount('Voilà une ');
+		const errurByteEnd = errurByteStart + byteCount('errur');
+
+		const startChar = byteOffsetToCharOffset(text, errurByteStart);
+		const endChar = byteOffsetToCharOffset(text, errurByteEnd);
+
+		expect(text.substring(startChar, endChar)).toBe('errur');
 	});
 });
