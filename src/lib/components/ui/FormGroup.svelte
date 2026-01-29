@@ -116,11 +116,15 @@
 		transition: border-color var(--transition-fast);
 	}
 
+	/* Phase 3.5: Enhanced focus state with inset shadow and glow */
 	.form-control :global(input:focus),
 	.form-control :global(textarea:focus),
 	.form-control :global(select:focus) {
 		outline: none;
 		border-color: var(--color-accent);
+		box-shadow:
+			0 0 0 3px var(--focus-glow),
+			inset 0 1px 2px var(--accent-subtle);
 	}
 
 	.form-control :global(textarea) {
@@ -143,9 +147,12 @@
 		padding-right: calc(var(--spacing-sm) * 2 + 16px);
 	}
 
+	/* Error focus state */
 	.has-error .form-control :global(input:focus),
 	.has-error .form-control :global(textarea:focus) {
-		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
+		box-shadow:
+			0 0 0 3px oklch(55% 0.2 25 / 15%),
+			inset 0 1px 2px var(--danger-subtle);
 	}
 
 	.form-hint {

@@ -9,6 +9,8 @@
   - Auto-detect timeline conflicts
 -->
 <script lang="ts">
+	import { slide } from 'svelte/transition';
+
 	import { type BibleEntry, type Issue, issueApi, type Scene, timelineApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
@@ -657,16 +659,18 @@
 							</button>
 						</div>
 						{#if isAddingScene}
-							<select
-								class="link-select"
-								bind:value={selectedSceneToLink}
-								onchange={linkSceneToIssue}
-							>
-								<option value="">Select a scene...</option>
-								{#each availableScenesToLink as scene (scene.id)}
-									<option value={scene.id}>{scene.title}</option>
-								{/each}
-							</select>
+							<div transition:slide={{ duration: 150 }}>
+								<select
+									class="link-select"
+									bind:value={selectedSceneToLink}
+									onchange={linkSceneToIssue}
+								>
+									<option value="">Select a scene...</option>
+									{#each availableScenesToLink as scene (scene.id)}
+										<option value={scene.id}>{scene.title}</option>
+									{/each}
+								</select>
+							</div>
 						{/if}
 						<ul>
 							{#each linkedScenes as scene (scene.id)}
@@ -697,24 +701,26 @@
 							</button>
 						</div>
 						{#if isAddingBibleEntry}
-							<input
-								type="text"
-								class="link-select"
-								placeholder="Search bible entries..."
-								bind:value={bibleSearchQuery}
-							/>
-							{#if filteredBibleEntriesToLink.length > 0}
-								<div class="link-search-results">
-									{#each filteredBibleEntriesToLink as entry (entry.id)}
-										<button
-											class="link-search-result"
-											onclick={() => linkBibleEntryToIssue(entry.id)}
-										>
-											{entry.name}
-										</button>
-									{/each}
-								</div>
-							{/if}
+							<div transition:slide={{ duration: 150 }}>
+								<input
+									type="text"
+									class="link-select"
+									placeholder="Search bible entries..."
+									bind:value={bibleSearchQuery}
+								/>
+								{#if filteredBibleEntriesToLink.length > 0}
+									<div class="link-search-results">
+										{#each filteredBibleEntriesToLink as entry (entry.id)}
+											<button
+												class="link-search-result"
+												onclick={() => linkBibleEntryToIssue(entry.id)}
+											>
+												{entry.name}
+											</button>
+										{/each}
+									</div>
+								{/if}
+							</div>
 						{/if}
 						<ul>
 							{#each linkedBibleEntries as entry (entry.id)}

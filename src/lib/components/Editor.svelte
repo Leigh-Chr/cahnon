@@ -2431,9 +2431,13 @@
 		transition: opacity 0.15s ease-out;
 	}
 
-	/* UB1: Scene transition animation */
+	/* UB1: Scene transition animation - smooth fade */
+	.editor-content {
+		transition: opacity 0.15s ease-out;
+	}
+
 	.editor-content.transitioning {
-		opacity: 0.7;
+		opacity: 0.4;
 	}
 
 	/* CA4: Editor theme support */
@@ -2485,7 +2489,11 @@
 		line-height: var(--editor-line-height, var(--line-height-relaxed));
 		outline: none;
 		min-height: 100%;
+		/* Phase 4.5: Themed caret color */
+		caret-color: var(--accent-default);
 	}
+
+	/* Phase 4.5: Themed text selection in editor - handled via global CSS ::selection */
 
 	.editor-content :global(.prose-editor p) {
 		margin-bottom: 1em;

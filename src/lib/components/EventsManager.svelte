@@ -10,6 +10,8 @@
   - Link/unlink bible entries to events
 -->
 <script lang="ts">
+	import { slide } from 'svelte/transition';
+
 	import { type BibleEntry, eventApi, type Scene, type TimelineEvent } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
@@ -550,7 +552,7 @@
 								</div>
 
 								{#if isAddingScene}
-									<div class="link-search">
+									<div class="link-search" transition:slide={{ duration: 150 }}>
 										<select bind:value={selectedSceneToAdd} onchange={linkScene}>
 											<option value="">Select a scene...</option>
 											{#each availableScenes as scene (scene.id)}
@@ -596,7 +598,7 @@
 								</div>
 
 								{#if isAddingBibleEntry}
-									<div class="link-search">
+									<div class="link-search" transition:slide={{ duration: 150 }}>
 										<input
 											type="text"
 											placeholder="Search bible entries..."

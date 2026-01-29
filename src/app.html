@@ -5,6 +5,21 @@
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Cahnon</title>
+		<!-- Phase 2.3: Preload critical fonts to prevent FOUT -->
+		<link
+			rel="preload"
+			href="/fonts/inter/Inter-Latin.woff2"
+			as="font"
+			type="font/woff2"
+			crossorigin
+		/>
+		<link
+			rel="preload"
+			href="/fonts/source-serif-4/SourceSerif4-Latin.woff2"
+			as="font"
+			type="font/woff2"
+			crossorigin
+		/>
 		<!-- Prevent FOUC: Apply theme settings before render -->
 		<script>
 			(function () {
@@ -21,9 +36,10 @@
 				document.documentElement.dataset.theme = savedTheme;
 
 				// Anti-flash: set background color on html element (body doesn't exist yet)
-				var bg = effectiveDark ? 'oklch(16% 0.012 260)' : 'oklch(99% 0.004 260)';
+				// Phase 1.1: Updated to match new surface-primary values
+				var bg = effectiveDark ? 'oklch(16% 0.016 260)' : 'oklch(99% 0.008 260)';
 				if (savedTheme === 'warm') {
-					bg = effectiveDark ? 'oklch(16% 0.012 50)' : 'oklch(99% 0.006 70)';
+					bg = effectiveDark ? 'oklch(16% 0.016 50)' : 'oklch(99% 0.012 73)';
 				}
 				document.documentElement.style.backgroundColor = bg;
 			})();

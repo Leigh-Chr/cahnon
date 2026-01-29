@@ -85,6 +85,7 @@
 {/if}
 
 <style>
+	/* Phase 3.3: Enhanced dialog animations */
 	.dialog-overlay {
 		position: fixed;
 		top: 0;
@@ -97,6 +98,16 @@
 		justify-content: center;
 		z-index: 1000;
 		padding: var(--spacing-md);
+		animation: backdrop-fade 0.2s ease-out;
+	}
+
+	@keyframes backdrop-fade {
+		from {
+			background-color: transparent;
+		}
+		to {
+			background-color: var(--overlay-backdrop);
+		}
 	}
 
 	.dialog-container {
@@ -108,6 +119,31 @@
 		flex-direction: column;
 		max-height: calc(100vh - var(--spacing-lg) * 2);
 		overflow: hidden;
+	}
+
+	/* Phase 3.3: Enhanced modal entrance with subtle bounce */
+	.dialog-container.modal-enter {
+		animation: dialog-enter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	@keyframes dialog-enter {
+		from {
+			opacity: 0;
+			transform: scale(0.92) translateY(8px);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1) translateY(0);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.dialog-overlay {
+			animation: none;
+		}
+		.dialog-container.modal-enter {
+			animation: none;
+		}
 	}
 
 	/* Size variants */

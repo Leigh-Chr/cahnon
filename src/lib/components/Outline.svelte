@@ -1448,15 +1448,20 @@
 		text-align: left;
 		font-size: var(--font-size-sm);
 		font-weight: 500;
-		transition: background-color var(--transition-fast);
+		border-left: 2px solid transparent;
+		transition:
+			background-color var(--transition-fast),
+			border-color var(--transition-fast);
 	}
 
 	.chapter-item:hover {
 		background-color: var(--color-bg-hover);
+		border-left-color: var(--border-strong);
 	}
 
 	.chapter-item.selected {
 		background-color: var(--color-accent-light);
+		border-left-color: var(--accent-default);
 	}
 
 	.expand-btn {
@@ -1599,17 +1604,25 @@
 		text-align: left;
 		font-size: var(--font-size-sm);
 		color: var(--color-text-secondary);
-		transition: background-color var(--transition-fast);
+		border-left: 2px solid transparent;
+		transition:
+			background-color var(--transition-fast),
+			border-color var(--transition-fast),
+			padding-left var(--transition-fast);
 	}
 
 	.scene-item:hover {
 		background-color: var(--color-bg-hover);
 		color: var(--color-text-primary);
+		padding-left: calc(var(--spacing-md) + 2px);
+		border-left: 2px solid var(--border-strong);
 	}
 
 	.scene-item.selected {
 		background-color: var(--color-accent-light);
 		color: var(--color-text-primary);
+		padding-left: calc(var(--spacing-md) + 2px);
+		border-left: 2px solid var(--accent-default);
 	}
 
 	/* AI5: Visual feedback when item is moved via keyboard */

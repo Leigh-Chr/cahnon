@@ -72,6 +72,7 @@
 </button>
 
 <style>
+	/* Phase 3.2: Enhanced button with tinted shadows and improved interactions */
 	.btn {
 		position: relative;
 		display: inline-flex;
@@ -86,22 +87,28 @@
 			background-color var(--transition-fast),
 			color var(--transition-fast),
 			opacity var(--transition-fast),
-			box-shadow var(--transition-fast),
-			transform var(--transition-fast);
+			box-shadow 0.15s ease,
+			transform 0.15s ease;
 		white-space: nowrap;
 	}
 
-	/* BE1: Depth on hover - subtle lift effect */
+	/* BE1: Depth on hover - subtle lift effect with tinted shadow */
 	.btn:hover:not(:disabled) {
-		box-shadow: 0 2px 8px oklch(0% 0 0 / 8%);
 		transform: translateY(-1px);
 	}
 
-	/* BE1: Press effect */
+	/* BE1: Press effect - slight compression */
 	.btn:active:not(:disabled) {
-		transform: scale(0.98);
+		transform: scale(0.97) translateY(0);
 		box-shadow: none;
 		transition-duration: 50ms;
+	}
+
+	/* Phase 3.2: Focus glow */
+	.btn:focus-visible {
+		outline: 2px solid var(--accent-default);
+		outline-offset: 2px;
+		box-shadow: 0 0 0 4px var(--focus-glow);
 	}
 
 	.btn:disabled {
@@ -171,14 +178,16 @@
 		padding: var(--spacing-sm);
 	}
 
-	/* Primary variant */
+	/* Primary variant - Phase 3.2: Tinted shadow */
 	.btn-primary {
 		background-color: var(--color-accent);
 		color: var(--text-on-accent);
+		box-shadow: 0 1px 3px var(--btn-primary-shadow, oklch(25% 0.15 250 / 30%));
 	}
 
 	.btn-primary:hover:not(:disabled) {
 		background-color: var(--color-accent-hover);
+		box-shadow: 0 4px 12px var(--btn-primary-shadow-hover, oklch(25% 0.15 250 / 40%));
 	}
 
 	/* Secondary variant */
@@ -216,15 +225,16 @@
 		color: var(--color-text-primary);
 	}
 
-	/* Danger variant */
+	/* Danger variant - Phase 3.2: Red-tinted shadow */
 	.btn-danger {
 		background-color: var(--color-error);
 		color: var(--text-on-accent);
+		box-shadow: 0 1px 3px oklch(25% 0.15 25 / 30%);
 	}
 
 	.btn-danger:hover:not(:disabled) {
 		background-color: var(--color-error);
-		opacity: 0.9;
+		box-shadow: 0 4px 12px oklch(25% 0.15 25 / 40%);
 	}
 
 	/* Icon button danger state (for icon-only delete buttons) */

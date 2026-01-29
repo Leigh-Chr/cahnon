@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { slide } from 'svelte/transition';
+
 	import { type Snapshot, snapshotApi } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError, showSuccess } from '$lib/toast';
@@ -397,7 +399,7 @@
 
 			<div class="panel-content">
 				{#if showCreateForm}
-					<div class="create-form">
+					<div class="create-form" transition:slide={{ duration: 200 }}>
 						<h3>Create Snapshot</h3>
 						<FormGroup label="Name" id="snapshot-name">
 							<input
@@ -491,7 +493,7 @@
 						{#if showScenePicker && selectedSnapshot?.data}
 							{@const pickerData = parseSnapshotData(selectedSnapshot.data)}
 							{#if pickerData?.scenes}
-								<div class="scene-picker">
+								<div class="scene-picker" transition:slide={{ duration: 150 }}>
 									<h4>Select scene to restore</h4>
 									<div class="scene-picker-list">
 										{#each pickerData.scenes as scene (scene.id)}

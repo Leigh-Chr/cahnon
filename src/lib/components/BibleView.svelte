@@ -11,6 +11,8 @@
   - Status tracking (active, minor, mentioned, deceased)
 -->
 <script lang="ts">
+	import { slide } from 'svelte/transition';
+
 	import {
 		type Arc,
 		arcApi,
@@ -821,7 +823,7 @@ Custom Fields: ${breakdown.customFields}`;
 							</div>
 
 							{#if showRelationshipForm}
-								<div class="relationship-form">
+								<div class="relationship-form" transition:slide={{ duration: 150 }}>
 									<select bind:value={newRelationshipType}>
 										{#each relationshipTypes as type (type.value)}
 											<option value={type.value}>{type.label}</option>
@@ -1290,12 +1292,15 @@ Custom Fields: ${breakdown.customFields}`;
 		padding: var(--spacing-sm) var(--spacing-md);
 		text-align: left;
 		font-size: var(--font-size-sm);
-		transition: background-color var(--transition-fast);
 		border-left: 3px solid transparent;
+		transition:
+			background-color var(--transition-fast),
+			border-color var(--transition-fast);
 	}
 
 	.entry-item:hover {
 		background-color: var(--color-bg-hover);
+		border-left-color: var(--border-strong);
 	}
 
 	.entry-item.selected {

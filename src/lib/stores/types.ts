@@ -57,7 +57,7 @@ export interface FocusSettings {
 }
 
 export const defaultEditorSettings: EditorSettings = {
-	fontFamily: 'Georgia, serif',
+	fontFamily: '"Source Serif 4", Charter, Georgia, serif',
 	fontSize: 18,
 	lineHeight: 1.8,
 	textWidth: 700,

@@ -13,6 +13,8 @@
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { confirm, message, open } from '@tauri-apps/plugin-dialog';
 	import { onMount, untrack } from 'svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { fade, slide } from 'svelte/transition';
 
 	import type { Scene } from '$lib/api';
 	import { appState, undoStack } from '$lib/stores';
@@ -835,48 +837,66 @@
 
 	<div class="main">
 		{#if appState.showOutline && !appState.isFocusMode}
-			<aside class="sidebar" style="width: {sidebarWidth}px; min-width: {sidebarWidth}px">
-				<Outline />
-			</aside>
-			<Splitter
-				position={sidebarWidth}
-				min={180}
-				max={450}
-				side="left"
-				onresize={handleSidebarResize}
-			/>
+			<div
+				class="sidebar-container"
+				transition:slide={{ duration: 200, axis: 'x', easing: cubicOut }}
+			>
+				<aside class="sidebar" style="width: {sidebarWidth}px; min-width: {sidebarWidth}px">
+					<Outline />
+				</aside>
+				<Splitter
+					position={sidebarWidth}
+					min={180}
+					max={450}
+					side="left"
+					onresize={handleSidebarResize}
+				/>
+			</div>
 		{/if}
 
 		<main id="main-content" class="content" bind:this={contentElement}>
-			{#if appState.viewMode === 'editor'}
-				<Editor />
-			{:else if appState.viewMode === 'corkboard'}
-				<Corkboard />
-			{:else if appState.viewMode === 'bible'}
-				<BibleView />
-			{:else if appState.viewMode === 'timeline'}
-				<TimelineView />
-			{:else if appState.viewMode === 'issues'}
-				<IssuesView />
-			{:else if appState.viewMode === 'dashboard'}
-				<Dashboard />
-			{/if}
+			{#key appState.viewMode}
+				<div
+					class="view-container"
+					in:fade={{ duration: 150, delay: 75 }}
+					out:fade={{ duration: 75 }}
+				>
+					{#if appState.viewMode === 'editor'}
+						<Editor />
+					{:else if appState.viewMode === 'corkboard'}
+						<Corkboard />
+					{:else if appState.viewMode === 'bible'}
+						<BibleView />
+					{:else if appState.viewMode === 'timeline'}
+						<TimelineView />
+					{:else if appState.viewMode === 'issues'}
+						<IssuesView />
+					{:else if appState.viewMode === 'dashboard'}
+						<Dashboard />
+					{/if}
+				</div>
+			{/key}
 		</main>
 
 		{#if appState.showContextPanel && (appState.viewMode === 'editor' || appState.viewMode === 'corkboard' || appState.viewMode === 'timeline' || appState.viewMode === 'bible') && !appState.isFocusMode}
-			<Splitter
-				position={contextPanelWidth}
-				min={200}
-				max={500}
-				side="right"
-				onresize={handleContextPanelResize}
-			/>
-			<aside
-				class="context-panel"
-				style="width: {contextPanelWidth}px; min-width: {contextPanelWidth}px"
+			<div
+				class="context-panel-container"
+				transition:slide={{ duration: 200, axis: 'x', easing: cubicOut }}
 			>
-				<ContextPanel />
-			</aside>
+				<Splitter
+					position={contextPanelWidth}
+					min={200}
+					max={500}
+					side="right"
+					onresize={handleContextPanelResize}
+				/>
+				<aside
+					class="context-panel"
+					style="width: {contextPanelWidth}px; min-width: {contextPanelWidth}px"
+				>
+					<ContextPanel />
+				</aside>
+			</div>
 		{/if}
 	</div>
 
@@ -1156,6 +1176,17 @@
 		overflow: hidden;
 	}
 
+	/* Panel containers for slide transitions */
+	.sidebar-container {
+		display: flex;
+		flex-shrink: 0;
+	}
+
+	.context-panel-container {
+		display: flex;
+		flex-shrink: 0;
+	}
+
 	.sidebar {
 		border-right: 1px solid var(--color-border);
 		background-color: var(--color-bg-secondary);
@@ -1166,7 +1197,17 @@
 		flex: 1;
 		overflow: hidden;
 		display: flex;
+		/* Ensure content fills space during view transitions */
+		position: relative;
 		flex-direction: column;
+	}
+
+	/* View container for fade transitions between views */
+	.view-container {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		overflow: hidden;
 	}
 
 	.context-panel {

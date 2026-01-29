@@ -48,6 +48,7 @@
 </div>
 
 <style>
+	/* Phase 4.4: Enriched progress bar */
 	.progress-container {
 		width: 100%;
 	}
@@ -68,6 +69,7 @@
 		color: var(--color-text-muted);
 		font-family: var(--font-family-mono);
 		font-size: var(--font-size-xs);
+		letter-spacing: var(--tracking-wide, 0.025em);
 	}
 
 	.progress-track {
@@ -75,13 +77,29 @@
 		background-color: var(--color-bg-tertiary);
 		border-radius: 3px;
 		overflow: hidden;
+		/* Inset shadow for depth */
+		box-shadow: inset 0 1px 2px oklch(0% 0 0 / 8%);
 	}
 
 	.progress-fill {
 		height: 100%;
-		background-color: var(--color-accent);
+		/* Gradient for visual interest */
+		background: linear-gradient(90deg, var(--color-accent) 0%, var(--accent-hover) 100%);
 		border-radius: 3px;
 		transition: width 0.3s ease;
+		position: relative;
+	}
+
+	/* Subtle shine effect */
+	.progress-fill::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 50%;
+		background: linear-gradient(180deg, oklch(100% 0 0 / 20%) 0%, oklch(100% 0 0 / 0%) 100%);
+		border-radius: 3px 3px 0 0;
 	}
 
 	.progress-fill.indeterminate {
@@ -95,6 +113,14 @@
 		}
 		100% {
 			transform: translateX(400%);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.progress-fill.indeterminate {
+			animation: none;
+			width: 100%;
+			opacity: 0.6;
 		}
 	}
 </style>

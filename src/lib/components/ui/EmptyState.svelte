@@ -122,15 +122,18 @@
 	}
 
 	.empty-icon {
-		opacity: 0.5;
+		color: var(--accent-default);
+		opacity: 0.6;
 		margin-bottom: var(--spacing-md);
 	}
 
 	.empty-title {
+		font-family: var(--font-heading, var(--font-ui));
 		font-size: var(--font-size-lg);
 		font-weight: 600;
 		color: var(--color-text-secondary);
 		margin-bottom: var(--spacing-sm);
+		letter-spacing: -0.01em;
 	}
 
 	.empty-description {

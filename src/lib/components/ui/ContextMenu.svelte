@@ -138,6 +138,7 @@
 </div>
 
 <style>
+	/* Phase 3.4: Enhanced context menu with entrance animation */
 	.context-menu {
 		position: fixed;
 		z-index: 9999;
@@ -148,5 +149,24 @@
 		box-shadow: var(--shadow-lg);
 		padding: var(--spacing-xs) 0;
 		font-size: var(--font-size-sm);
+		animation: context-menu-enter 0.15s ease-out;
+		transform-origin: top left;
+	}
+
+	@keyframes context-menu-enter {
+		from {
+			opacity: 0;
+			transform: scale(0.95);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.context-menu {
+			animation: none;
+		}
 	}
 </style>

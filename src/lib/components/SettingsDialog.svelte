@@ -40,18 +40,22 @@
 		}
 	}
 
+	// Phase 2.7: Updated font options with new web fonts
 	const fontFamilies = [
+		{ value: '"Source Serif 4", Charter, Georgia, serif', label: 'Source Serif 4 (Recommended)' },
 		{ value: 'Georgia, serif', label: 'Georgia' },
 		{ value: '"Times New Roman", Times, serif', label: 'Times New Roman' },
 		{ value: '"Palatino Linotype", Palatino, serif', label: 'Palatino' },
 		{ value: '"Libre Baskerville", serif', label: 'Libre Baskerville' },
 		{ value: '"Merriweather", serif', label: 'Merriweather' },
 		{
+			value: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+			label: 'Inter (Sans)',
+		},
+		{
 			value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 			label: 'System Sans',
 		},
-		{ value: '"Source Sans Pro", sans-serif', label: 'Source Sans Pro' },
-		{ value: '"Open Sans", sans-serif', label: 'Open Sans' },
 		{ value: '"SF Mono", "Fira Code", monospace', label: 'Monospace' },
 	];
 
@@ -94,7 +98,8 @@
 
 	function resetToDefaults() {
 		appState.editorSettings = {
-			fontFamily: 'Georgia, serif',
+			// Phase 2.7: Default to new Source Serif 4 font
+			fontFamily: '"Source Serif 4", Charter, Georgia, serif',
 			fontSize: 18,
 			lineHeight: 1.8,
 			textWidth: 700,

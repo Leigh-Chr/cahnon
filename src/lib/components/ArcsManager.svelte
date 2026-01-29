@@ -10,6 +10,8 @@
   - View scenes associated with each arc
 -->
 <script lang="ts">
+	import { slide } from 'svelte/transition';
+
 	import { type Arc, arcApi, type Scene } from '$lib/api';
 	import { appState } from '$lib/stores';
 	import { showError } from '$lib/toast';
@@ -473,7 +475,7 @@
 											}}
 										/>
 										{#if showCharacterDropdown && availableCharacters.length > 0}
-											<div class="character-dropdown">
+											<div class="character-dropdown" transition:slide={{ duration: 150 }}>
 												{#each availableCharacters.slice(0, 10) as entry (entry.id)}
 													<button
 														type="button"
@@ -569,7 +571,7 @@
 									</Button>
 								</div>
 								{#if isAddingSceneToArc}
-									<div class="scene-search">
+									<div class="scene-search" transition:slide={{ duration: 150 }}>
 										<input
 											type="text"
 											placeholder="Search scenes..."
