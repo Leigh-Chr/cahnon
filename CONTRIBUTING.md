@@ -51,7 +51,7 @@ cahnon/
 ├── src-tauri/                 # Backend (Rust)
 │   ├── src/
 │   │   ├── commands/          # Tauri command handlers (20 modules)
-│   │   ├── database.rs        # SQLite operations
+│   │   ├── database/           # SQLite operations (modular, split into submodules)
 │   │   ├── models.rs          # Data structures
 │   │   ├── validation.rs      # Input validation
 │   │   └── lib.rs             # App entry and command registration
@@ -76,8 +76,8 @@ cahnon/
 /// Returns the created chapter with generated ID and timestamps.
 #[tauri::command]
 pub fn create_chapter(
-    state: State<'_, AppState>,
     request: CreateChapterRequest,
+    state: State<AppState>,
 ) -> Result<Chapter, String> {
     // ...
 }
@@ -192,7 +192,7 @@ All state mutations go through this flow. The frontend never accesses the databa
 ### Adding a new feature
 
 1. **Define the data model** in `src-tauri/src/models.rs`
-2. **Add database operations** in `src-tauri/src/database.rs`
+2. **Add database operations** in `src-tauri/src/database/` (create or extend a submodule)
 3. **Create Tauri commands** in `src-tauri/src/commands/`
 4. **Register commands** in `src-tauri/src/lib.rs`
 5. **Add TypeScript types and API wrapper** in `src/lib/api/` (create or extend a domain module, re-export from `index.ts`)

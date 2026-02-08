@@ -90,4 +90,4 @@ The built application will be in `src-tauri/target/release/`.
 
 ## License
 
-GPL-3.0 - See [LICENSE](LICENSE) for details.
+GPL-3.0

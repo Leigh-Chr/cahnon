@@ -38,7 +38,7 @@ Cahnon is a desktop application built with Tauri v2, combining a Svelte frontend
 | Backend     | Rust                  | Business logic, file I/O          |
 | Database    | SQLite (rusqlite)     | Local data persistence            |
 | Text Editor | TipTap + ProseMirror  | Rich text editing                 |
-| Export      | docx, pdf-lib         | Document generation               |
+| Export      | docx, pdf-lib (JS)    | PDF & DOCX generation (frontend)  |
 
 ## Directory Structure
 
@@ -82,7 +82,11 @@ cahnon/
 │   ├── src/
 │   │   ├── lib.rs                # App entry, command registration
 │   │   ├── models.rs             # Data structures
-│   │   ├── database.rs           # SQLite operations
+│   │   ├── database/             # SQLite operations (modular)
+│   │   │   ├── mod.rs            # Database struct, connection management
+│   │   │   ├── schema.rs         # Schema init and migrations
+│   │   │   ├── scene/            # Scene CRUD, history, operations
+│   │   │   └── ...               # bible, arc, event, annotation, etc.
 │   │   ├── validation.rs         # Input validation
 │   │   └── commands/             # Tauri command handlers
 │   │       ├── project.rs        # Project CRUD, file locking
@@ -238,13 +242,13 @@ Each command is a Rust function decorated with `#[tauri::command]`:
 // src-tauri/src/commands/scene.rs
 #[tauri::command]
 pub fn update_scene(
-    state: State<'_, AppState>,
     id: String,
     request: UpdateSceneRequest,
+    state: State<AppState>,
 ) -> Result<Scene, String> {
     let db = state.db.lock().unwrap();
     let db = db.as_ref().ok_or("No project open")?;
-    db.update_scene(&id, request)
+    db.update_scene(&id, &request)
 }
 ```
 
@@ -253,7 +257,7 @@ Commands are registered in `lib.rs`:
 ```rust
 .invoke_handler(tauri::generate_handler![
     commands::scene::update_scene,
-    // ... 141 commands
+    // ... 143 commands
 ])
 ```
 
@@ -262,13 +266,16 @@ Commands are registered in `lib.rs`:
 `Database` wraps rusqlite with schema management:
 
 ```rust
-// src-tauri/src/database.rs
+// src-tauri/src/database/mod.rs (connection management)
 impl Database {
     pub fn create(path: &Path) -> Result<Self, String> { ... }
     pub fn open(path: &Path) -> Result<Self, String> { ... }
+}
 
+// src-tauri/src/database/scene/crud.rs (scene operations, also impl Database)
+impl Database {
     pub fn create_scene(&self, req: CreateSceneRequest) -> Result<Scene, String> { ... }
-    pub fn update_scene(&self, id: &str, req: UpdateSceneRequest) -> Result<Scene, String> { ... }
+    pub fn update_scene(&self, id: &str, req: &UpdateSceneRequest) -> Result<Scene, String> { ... }
 }
 ```
 

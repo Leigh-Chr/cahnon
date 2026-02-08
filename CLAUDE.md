@@ -38,7 +38,7 @@ UI Component → Svelte Store → API Layer (invoke) → Tauri IPC → Rust Comm
 
 ### Frontend (`src/`)
 
-- **`lib/api/`** - TypeScript types and Tauri invoke wrappers, split into domain modules (project, bible, timeline, health, etc.) with `index.ts` re-exporting all APIs
+- **`lib/api/`** - TypeScript types and Tauri invoke wrappers, split into 9 domain modules (project, manuscript, bible, timeline, analytics, content, export, issue, search) with `index.ts` re-exporting all APIs
 - **`lib/stores/`** - Svelte 5 runes-based `AppState` class (`app-state.svelte.ts`) + types, recovery utilities
 - **`lib/components/`** - 39 Svelte components (Layout, Editor, Outline, Corkboard, BibleView, Dashboard, etc.) + `ui/` subdir with 12 reusable primitives (Button, Icon, Dialog, EmptyState, etc.)
 
@@ -46,7 +46,7 @@ UI Component → Svelte Store → API Layer (invoke) → Tauri IPC → Rust Comm
 
 - **`lib.rs`** - AppState, plugin setup, command registration via `generate_handler![]`
 - **`models.rs`** - All data structures and request/response types
-- **`database.rs`** - SQLite operations (schema init, migrations, CRUD)
+- **`database/`** - SQLite operations (schema, migrations, CRUD), split into submodules (schema, project, chapter, scene, bible, arc, event, annotation, snapshot, template, issue, search, export, export_csv, cut, trash, detection, health, impact, world_state, timeline, settings)
 - **`validation.rs`** - Input validation
 - **`commands/`** - 20 modules: project, chapter, scene, bible, arc, event, export, export_csv, annotation, association, cut, history, import, issue, relationship, search, snapshot, template, trash, analytics
 
@@ -58,14 +58,14 @@ Projects are single `.cahnon` SQLite files containing:
 - Bible entries (character, location, object, faction, concept, glossary)
 - Arcs, Events, Templates, Snapshots, Annotations
 - Facts, Writing Sessions, Name Registry, Cuts, Issues, Saved Filters
-- N:M relationships: Scene↔BibleEntry, Scene↔Arc, Scene↔Event, BibleEntry↔BibleEntry, Arc↔Character, Issue↔Scene, Issue↔BibleEntry
+- N:M relationships: Scene↔BibleEntry, Scene↔Arc, Scene↔Event, BibleEntry↔BibleEntry, Arc↔Character, Event↔BibleEntry, Issue↔Scene, Issue↔BibleEntry
 
 ## Key Patterns
 
 ### Adding a Full-Stack Feature
 
 1. Define data model in `src-tauri/src/models.rs`
-2. Add database operations in `src-tauri/src/database.rs`
+2. Add database operations in `src-tauri/src/database/` (create or extend a submodule)
 3. Create Tauri commands in `src-tauri/src/commands/`
 4. Register commands in `src-tauri/src/lib.rs` (`generate_handler![]`)
 5. Add TypeScript types in `src/lib/api/types/index.ts` and API wrapper in `src/lib/api/` (create a domain module or add to existing one, re-export from `index.ts`)
@@ -95,7 +95,7 @@ appState.selectedSceneId = sceneId;
 
 ```rust
 #[tauri::command]
-pub fn update_scene(state: State<'_, AppState>, id: String, request: UpdateSceneRequest) -> Result<Scene, String> {
+pub fn update_scene(id: String, request: UpdateSceneRequest, state: State<AppState>) -> Result<Scene, String> {
     let db = state.db.lock().unwrap();
     let db = db.as_ref().ok_or("No project open")?;
     db.update_scene(&id, &request)
