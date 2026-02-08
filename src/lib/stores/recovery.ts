@@ -16,6 +16,28 @@ export interface RecoveryDraft {
 }
 
 /**
+ * Iterate over all recovery keys in localStorage.
+ * Calls `callback(key, draft)` for each valid entry.
+ * Return `true` from callback to stop early.
+ */
+function iterateRecoveryKeys(
+	callback: (key: string, draft: RecoveryDraft) => boolean | void
+): void {
+	try {
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (!key || !key.startsWith(RECOVERY_PREFIX)) continue;
+			const data = localStorage.getItem(key);
+			if (!data) continue;
+			const draft: RecoveryDraft = JSON.parse(data);
+			if (callback(key, draft)) return;
+		}
+	} catch (_e) {
+		// Ignore localStorage errors
+	}
+}
+
+/**
  * Saves a recovery draft to localStorage for a specific scene.
  * Used to recover unsaved work after a crash.
  */
@@ -63,22 +85,13 @@ export function getRecoveryDraft(sceneId: string): RecoveryDraft | null {
 export function getAllRecoveryDrafts(): RecoveryDraft[] {
 	const drafts: RecoveryDraft[] = [];
 	const THREE_DAYS = 72 * 60 * 60 * 1000;
-	try {
-		for (let i = 0; i < localStorage.length; i++) {
-			const key = localStorage.key(i);
-			if (!key || !key.startsWith(RECOVERY_PREFIX)) continue;
-			const data = localStorage.getItem(key);
-			if (!data) continue;
-			const draft: RecoveryDraft = JSON.parse(data);
-			if (Date.now() - draft.timestamp > THREE_DAYS) {
-				localStorage.removeItem(key);
-			} else {
-				drafts.push(draft);
-			}
+	iterateRecoveryKeys((key, draft) => {
+		if (Date.now() - draft.timestamp > THREE_DAYS) {
+			localStorage.removeItem(key);
+		} else {
+			drafts.push(draft);
 		}
-	} catch (_e) {
-		// Ignore
-	}
+	});
 	return drafts.sort((a, b) => b.timestamp - a.timestamp);
 }
 
@@ -89,21 +102,12 @@ export function getExpiringDrafts(): RecoveryDraft[] {
 	const TWO_DAYS = 48 * 60 * 60 * 1000;
 	const THREE_DAYS = 72 * 60 * 60 * 1000;
 	const drafts: RecoveryDraft[] = [];
-	try {
-		for (let i = 0; i < localStorage.length; i++) {
-			const key = localStorage.key(i);
-			if (!key || !key.startsWith(RECOVERY_PREFIX)) continue;
-			const data = localStorage.getItem(key);
-			if (!data) continue;
-			const draft: RecoveryDraft = JSON.parse(data);
-			const age = Date.now() - draft.timestamp;
-			if (age > TWO_DAYS && age <= THREE_DAYS) {
-				drafts.push(draft);
-			}
+	iterateRecoveryKeys((_key, draft) => {
+		const age = Date.now() - draft.timestamp;
+		if (age > TWO_DAYS && age <= THREE_DAYS) {
+			drafts.push(draft);
 		}
-	} catch (_e) {
-		// Ignore
-	}
+	});
 	return drafts;
 }
 
@@ -111,15 +115,12 @@ export function getExpiringDrafts(): RecoveryDraft[] {
  * Returns true if there are any recovery drafts stored.
  */
 export function hasRecoveryDrafts(): boolean {
-	try {
-		for (let i = 0; i < localStorage.length; i++) {
-			const key = localStorage.key(i);
-			if (key && key.startsWith(RECOVERY_PREFIX)) return true;
-		}
-	} catch (_e) {
-		// Ignore
-	}
-	return false;
+	let found = false;
+	iterateRecoveryKeys(() => {
+		found = true;
+		return true; // stop early
+	});
+	return found;
 }
 
 /**
@@ -137,14 +138,11 @@ export function clearRecoveryDraftForScene(sceneId: string) {
  * Clears all recovery drafts.
  */
 export function clearRecoveryDraft() {
+	const keysToRemove: string[] = [];
+	iterateRecoveryKeys((key) => {
+		keysToRemove.push(key);
+	});
 	try {
-		const keysToRemove: string[] = [];
-		for (let i = 0; i < localStorage.length; i++) {
-			const key = localStorage.key(i);
-			if (key && key.startsWith(RECOVERY_PREFIX)) {
-				keysToRemove.push(key);
-			}
-		}
 		for (const key of keysToRemove) {
 			localStorage.removeItem(key);
 		}

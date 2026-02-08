@@ -240,35 +240,86 @@ impl Database {
         result
     }
 
-    /// Aggregate per-scene impacts into chapter-level summary items.
+    /// Aggregate per-scene impacts into chapter-level summary items using batch queries.
     fn aggregate_scene_impacts(&self, scene_ids: &[String]) -> Result<Vec<ImpactItem>, String> {
-        let mut arc_ids = std::collections::HashSet::new();
-        let mut orphan_event_count = 0i32;
-        let mut setup_payoff_count = 0i32;
-        let mut associations_count = 0i32;
-
-        for sid in scene_ids {
-            let impact = self.preview_delete_scene_impact(sid)?;
-            for item in &impact.items {
-                match item.impact_type.as_str() {
-                    "arc_loses_scene" => {
-                        if let Some(ref eid) = item.entity_id {
-                            arc_ids.insert(eid.clone());
-                        }
-                    }
-                    "orphan_event" => orphan_event_count += 1,
-                    "broken_setup_payoff" => setup_payoff_count += 1,
-                    "associations_lost" => associations_count += 1,
-                    _ => {}
-                }
-            }
+        if scene_ids.is_empty() {
+            return Ok(Vec::new());
         }
+
+        let placeholders: Vec<String> = (1..=scene_ids.len()).map(|i| format!("?{}", i)).collect();
+        let in_clause = placeholders.join(", ");
+        let params_refs: Vec<&dyn rusqlite::ToSql> = scene_ids
+            .iter()
+            .map(|s| s as &dyn rusqlite::ToSql)
+            .collect();
+
+        // Batch: distinct arcs affected
+        let arc_count: i32 = {
+            let sql = format!(
+                "SELECT COUNT(DISTINCT sa.arc_id) FROM scene_arcs sa
+                 JOIN arcs a ON sa.arc_id = a.id
+                 WHERE sa.scene_id IN ({}) AND a.deleted_at IS NULL",
+                in_clause
+            );
+            self.conn
+                .query_row(&sql, params_refs.as_slice(), |row| row.get(0))
+                .unwrap_or(0)
+        };
+
+        // Batch: orphan events (only linked to scenes in this set)
+        let orphan_event_count: i32 = {
+            let sql = format!(
+                "SELECT COUNT(*) FROM events e
+                 WHERE e.deleted_at IS NULL
+                   AND EXISTS (SELECT 1 FROM event_scenes es WHERE es.event_id = e.id AND es.scene_id IN ({}))
+                   AND NOT EXISTS (SELECT 1 FROM event_scenes es2 WHERE es2.event_id = e.id AND es2.scene_id NOT IN ({}))",
+                in_clause, in_clause
+            );
+            // Need to pass params twice for the two IN clauses
+            let mut double_params: Vec<&dyn rusqlite::ToSql> =
+                Vec::with_capacity(scene_ids.len() * 2);
+            double_params.extend(params_refs.iter());
+            double_params.extend(params_refs.iter());
+            self.conn
+                .query_row(&sql, double_params.as_slice(), |row| row.get(0))
+                .unwrap_or(0)
+        };
+
+        // Batch: broken setup/payoff links
+        let setup_payoff_count: i32 = {
+            let sql = format!(
+                "SELECT COUNT(*) FROM scenes
+                 WHERE deleted_at IS NULL
+                   AND (setup_for_scene_id IN ({in_c}) OR payoff_of_scene_id IN ({in_c}))
+                   AND id NOT IN ({in_c})",
+                in_c = in_clause
+            );
+            let mut triple_params: Vec<&dyn rusqlite::ToSql> =
+                Vec::with_capacity(scene_ids.len() * 3);
+            triple_params.extend(params_refs.iter());
+            triple_params.extend(params_refs.iter());
+            triple_params.extend(params_refs.iter());
+            self.conn
+                .query_row(&sql, triple_params.as_slice(), |row| row.get(0))
+                .unwrap_or(0)
+        };
+
+        // Batch: associations count
+        let associations_count: i32 = {
+            let sql = format!(
+                "SELECT COUNT(*) FROM canonical_associations WHERE scene_id IN ({})",
+                in_clause
+            );
+            self.conn
+                .query_row(&sql, params_refs.as_slice(), |row| row.get(0))
+                .unwrap_or(0)
+        };
 
         let mut items = Vec::new();
         if let Some(item) = summary_item(
-            arc_ids.len() as i32,
+            arc_count,
             "arcs_affected",
-            format!("{} arc(s) will lose scene points", arc_ids.len()),
+            format!("{} arc(s) will lose scene points", arc_count),
         ) {
             items.push(item);
         }

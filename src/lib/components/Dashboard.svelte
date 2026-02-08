@@ -118,6 +118,7 @@
 
 	// BC2: Chapter breakdown with word counts
 	let chapterStats = $derived(appState.wordCounts?.by_chapter || []);
+	let chapterStatsMap = $derived(new Map(chapterStats.map((c) => [c.chapter_id, c])));
 
 	// BC2: Status percentages for visual bar
 	let totalSceneCount = $derived(draftScenes + revisionScenes + doneScenes);
@@ -291,7 +292,7 @@
 				<h3>Manuscript Breakdown</h3>
 				<div class="breakdown-grid">
 					{#each appState.chapters as chapter (chapter.id)}
-						{@const stats = chapterStats.find((c) => c.chapter_id === chapter.id)}
+						{@const stats = chapterStatsMap.get(chapter.id)}
 						{@const chapterWordCount = stats?.word_count || 0}
 						{@const chapterSceneCount = appState.scenes.get(chapter.id)?.length || 0}
 						<div class="breakdown-row">

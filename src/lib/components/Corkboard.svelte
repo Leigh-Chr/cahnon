@@ -111,16 +111,19 @@
 	async function loadArcs() {
 		try {
 			allArcs = await arcApi.getAll();
-			// Load arcs for all scenes
+			// Load arcs for all scenes in parallel batches
 			sceneArcMap.clear();
-			for (const { scene } of getAllScenes(appState.chapters, appState.scenes)) {
-				try {
-					const arcs = await arcApi.getSceneArcs(scene.id);
-					if (arcs.length > 0) {
-						sceneArcMap.set(scene.id, arcs);
+			const scenes = getAllScenes(appState.chapters, appState.scenes);
+			const BATCH_SIZE = 10;
+			for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
+				const batch = scenes.slice(i, i + BATCH_SIZE);
+				const results = await Promise.all(
+					batch.map(({ scene }) => arcApi.getSceneArcs(scene.id).catch(() => [] as Arc[]))
+				);
+				for (let j = 0; j < batch.length; j++) {
+					if (results[j].length > 0) {
+						sceneArcMap.set(batch[j].scene.id, results[j]);
 					}
-				} catch {
-					// Ignore individual failures
 				}
 			}
 		} catch {
@@ -180,6 +183,23 @@
 		return result;
 	}
 
+	// Pre-build a Map of parsed tags per scene for O(1) lookup during filtering
+	let sceneTagsMap = $derived.by(() => {
+		const map = new SvelteMap<string, Set<string>>();
+		for (const { scene } of allScenes) {
+			if (scene.tags) {
+				const tags = new Set(
+					scene.tags
+						.split(',')
+						.map((t) => t.trim())
+						.filter(Boolean)
+				);
+				if (tags.size > 0) map.set(scene.id, tags);
+			}
+		}
+		return map;
+	});
+
 	function applyFilters(
 		scenesList: Array<{ scene: Scene; chapterId: string; chapterTitle: string }>,
 		filters: typeof currentFilters
@@ -187,14 +207,10 @@
 		return scenesList.filter(({ scene }) => {
 			if (filters.status && scene.status !== filters.status) return false;
 			if (filters.pov && scene.pov !== filters.pov) return false;
-			if (
-				filters.tag &&
-				!scene.tags
-					?.split(',')
-					.map((t) => t.trim())
-					.includes(filters.tag)
-			)
-				return false;
+			if (filters.tag) {
+				const tags = sceneTagsMap.get(scene.id);
+				if (!tags || !tags.has(filters.tag)) return false;
+			}
 			if (filters.arc) {
 				const arcs = sceneArcMap.get(scene.id);
 				if (!arcs || !arcs.some((a) => a.id === filters.arc)) return false;
@@ -207,6 +223,9 @@
 			return true;
 		});
 	}
+
+	// Pre-built Map for status labels (avoids repeated .find() in grouping loop)
+	const statusLabelMap = new Map(sceneStatuses.map((s) => [s.value, s.label]));
 
 	function getGroupedScenes(
 		scenesList: Array<{ scene: Scene; chapterId: string; chapterTitle: string }>,
@@ -228,7 +247,7 @@
 					break;
 				case 'status':
 					groupKey = scene.status;
-					groupTitle = sceneStatuses.find((s) => s.value === scene.status)?.label || scene.status;
+					groupTitle = statusLabelMap.get(scene.status) || scene.status;
 					break;
 				case 'pov':
 					groupKey = scene.pov || 'No POV';

@@ -57,10 +57,10 @@ impl Database {
             .map_err(|e| e.to_string())?;
 
         // Batch-load all arc characters in a single query
-        let char_map = self.get_all_arc_characters_batch()?;
+        let mut char_map = self.get_all_arc_characters_batch()?;
         for arc in &mut arcs {
-            if let Some(chars) = char_map.get(&arc.id) {
-                arc.characters = chars.clone();
+            if let Some(chars) = char_map.remove(&arc.id) {
+                arc.characters = chars;
             }
         }
 
@@ -221,10 +221,12 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        let char_map = self.get_all_arc_characters_batch()?;
-        for arc in &mut arcs {
-            if let Some(chars) = char_map.get(&arc.id) {
-                arc.characters = chars.clone();
+        if !arcs.is_empty() {
+            let mut char_map = self.get_all_arc_characters_batch()?;
+            for arc in &mut arcs {
+                if let Some(chars) = char_map.remove(&arc.id) {
+                    arc.characters = chars;
+                }
             }
         }
 
@@ -325,10 +327,12 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        let char_map = self.get_all_arc_characters_batch()?;
-        for arc in &mut arcs {
-            if let Some(chars) = char_map.get(&arc.id) {
-                arc.characters = chars.clone();
+        if !arcs.is_empty() {
+            let mut char_map = self.get_all_arc_characters_batch()?;
+            for arc in &mut arcs {
+                if let Some(chars) = char_map.remove(&arc.id) {
+                    arc.characters = chars;
+                }
             }
         }
 

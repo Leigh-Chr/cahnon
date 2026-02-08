@@ -94,10 +94,10 @@
 		return icons[type] || icons['overlapping_times'];
 	}
 
+	let sceneTitleMap = $derived(new Map(allScenes.map((s) => [s.id, s.title])));
+
 	function getSceneTitle(sceneId: string): string {
-		const scene =
-			timelineScenes.find((s) => s.id === sceneId) || allScenes.find((s) => s.id === sceneId);
-		return scene?.title || 'Unknown scene';
+		return sceneTitleMap.get(sceneId) || 'Unknown scene';
 	}
 
 	function selectScene(scene: Scene) {
@@ -118,16 +118,17 @@
 		return 'No time set';
 	}
 
+	const STATUS_COLORS: Record<string, string> = {
+		planned: 'var(--status-planned)',
+		'to write': 'var(--status-to-write)',
+		draft: 'var(--status-draft)',
+		'in revision': 'var(--status-in-revision)',
+		done: 'var(--status-done)',
+		'to cut': 'var(--status-to-cut)',
+	};
+
 	function getStatusColor(status: string): string {
-		const colors: Record<string, string> = {
-			planned: 'var(--status-planned)',
-			'to write': 'var(--status-to-write)',
-			draft: 'var(--status-draft)',
-			'in revision': 'var(--status-in-revision)',
-			done: 'var(--status-done)',
-			'to cut': 'var(--status-to-cut)',
-		};
-		return colors[status] || 'var(--color-text-muted)';
+		return STATUS_COLORS[status] || 'var(--color-text-muted)';
 	}
 </script>
 

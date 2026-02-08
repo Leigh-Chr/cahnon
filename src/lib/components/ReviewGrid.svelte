@@ -103,14 +103,11 @@
 	}
 
 	function selectScene(sceneId: string) {
-		// Find the chapter containing this scene
-		for (const [chapterId, chapterScenes] of appState.scenes.entries()) {
-			if (chapterScenes.some((s) => s.id === sceneId)) {
-				appState.selectScene(sceneId, chapterId);
-				appState.setViewMode('editor');
-				isOpen = false;
-				break;
-			}
+		const chapterId = appState.getChapterIdForScene(sceneId);
+		if (chapterId) {
+			appState.selectScene(sceneId, chapterId);
+			appState.setViewMode('editor');
+			isOpen = false;
 		}
 	}
 
@@ -188,10 +185,16 @@
 
 	function getTotalStats() {
 		const total = allScenes.length;
-		const words = allScenes.reduce((sum, s) => sum + countWords(s.text), 0);
+		// Single-pass reduce for both word count and status counts
+		const statusCounts: Record<string, number> = {};
+		let words = 0;
+		for (const scene of allScenes) {
+			words += countWords(scene.text);
+			statusCounts[scene.status] = (statusCounts[scene.status] || 0) + 1;
+		}
 		const byStatus = sceneStatuses.map((s) => ({
 			...s,
-			count: allScenes.filter((scene) => scene.status === s.value).length,
+			count: statusCounts[s.value] || 0,
 		}));
 		return { total, words, byStatus };
 	}

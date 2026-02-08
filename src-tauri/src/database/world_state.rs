@@ -4,6 +4,8 @@
 //! character presences, open setups, and active arcs.
 //! All queries use manuscript ordering: `chapter.position * 1000000 + scene.position`.
 
+use std::collections::HashMap;
+
 use crate::models::{ActiveArcState, CharacterPresence, OpenSetup, WorldState};
 use rusqlite::params;
 
@@ -244,52 +246,50 @@ impl Database {
     /// Arcs that have at least one scene before this point.
     fn ws_active_arcs(
         &self,
-        scene_id: &str,
+        _scene_id: &str,
         scene_order: i64,
     ) -> Result<Vec<ActiveArcState>, String> {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT a.id, a.name, a.color,
-                        (SELECT COUNT(*)
-                         FROM scene_arcs sa2
-                         JOIN scenes s2 ON sa2.scene_id = s2.id
-                         JOIN chapters c2 ON s2.chapter_id = c2.id
-                         WHERE sa2.arc_id = a.id
-                           AND s2.deleted_at IS NULL AND c2.deleted_at IS NULL
-                           AND (c2.position * 1000000 + s2.position) <= ?2
-                        ) as scenes_before,
-                        (SELECT COUNT(*)
-                         FROM scene_arcs sa3
-                         JOIN scenes s3 ON sa3.scene_id = s3.id
-                         WHERE sa3.arc_id = a.id AND s3.deleted_at IS NULL
-                        ) as scenes_total,
-                        (SELECT s4.title
-                         FROM scene_arcs sa4
-                         JOIN scenes s4 ON sa4.scene_id = s4.id
-                         JOIN chapters c4 ON s4.chapter_id = c4.id
-                         WHERE sa4.arc_id = a.id
-                           AND s4.deleted_at IS NULL AND c4.deleted_at IS NULL
-                           AND (c4.position * 1000000 + s4.position) <= ?2
-                         ORDER BY (c4.position * 1000000 + s4.position) DESC
-                         LIMIT 1
-                        ) as last_scene_title
-                 FROM arcs a
-                 WHERE a.deleted_at IS NULL
-                   AND EXISTS (
-                     SELECT 1 FROM scene_arcs sa
-                     JOIN scenes s ON sa.scene_id = s.id
-                     JOIN chapters c ON s.chapter_id = c.id
-                     WHERE sa.arc_id = a.id
-                       AND s.deleted_at IS NULL AND c.deleted_at IS NULL
-                       AND (c.position * 1000000 + s.position) <= ?2
-                   )
-                 ORDER BY a.position",
+                "WITH arc_scene_data AS (
+                    SELECT sa.arc_id,
+                           s.title AS scene_title,
+                           c.position * 1000000 + s.position AS scene_ord,
+                           s.deleted_at AS scene_deleted
+                    FROM scene_arcs sa
+                    JOIN scenes s ON sa.scene_id = s.id
+                    LEFT JOIN chapters c ON s.chapter_id = c.id AND c.deleted_at IS NULL
+                    WHERE s.deleted_at IS NULL
+                ),
+                arc_stats AS (
+                    SELECT arc_id,
+                           COUNT(*) FILTER (WHERE scene_ord IS NOT NULL AND scene_ord <= ?1) AS scenes_before,
+                           COUNT(*) AS scenes_total,
+                           MAX(CASE WHEN scene_ord IS NOT NULL AND scene_ord <= ?1 THEN scene_ord END) AS max_ord_before
+                    FROM arc_scene_data
+                    GROUP BY arc_id
+                    HAVING scenes_before > 0
+                ),
+                last_titles AS (
+                    SELECT DISTINCT asd.arc_id, asd.scene_title
+                    FROM arc_scene_data asd
+                    JOIN arc_stats ast ON asd.arc_id = ast.arc_id
+                        AND asd.scene_ord = ast.max_ord_before
+                )
+                SELECT a.id, a.name, a.color,
+                       ast.scenes_before, ast.scenes_total,
+                       lt.scene_title
+                FROM arcs a
+                JOIN arc_stats ast ON a.id = ast.arc_id
+                LEFT JOIN last_titles lt ON a.id = lt.arc_id
+                WHERE a.deleted_at IS NULL
+                ORDER BY a.position",
             )
             .map_err(|e| e.to_string())?;
 
         let rows = stmt
-            .query_map(params![scene_id, scene_order], |row| {
+            .query_map(params![scene_order], |row| {
                 Ok(ActiveArcState {
                     arc_id: row.get(0)?,
                     arc_name: row.get(1)?,
@@ -398,11 +398,18 @@ impl Database {
         rows: &[ThreadSceneRow],
         all_positions: &[i64],
     ) -> Result<Vec<crate::models::CharacterThreadScene>, String> {
+        // Pre-build HashMap<position, index> for O(1) gap computation
+        let position_index: HashMap<i64, usize> = all_positions
+            .iter()
+            .enumerate()
+            .map(|(i, &pos)| (pos, i))
+            .collect();
+
         let mut scenes = Vec::with_capacity(rows.len());
         let mut prev_order: Option<i64> = None;
 
         for (i, row) in rows.iter().enumerate() {
-            let gap = Self::ct_gap(prev_order, row.scene_order, all_positions);
+            let gap = Self::ct_gap(prev_order, row.scene_order, &position_index);
             prev_order = Some(row.scene_order);
 
             let other_characters = self.ct_other_characters(&row.scene_id, bible_entry_id)?;
@@ -425,14 +432,15 @@ impl Database {
     }
 
     /// Number of scenes between the previous appearance and the current one.
-    fn ct_gap(prev_order: Option<i64>, current_order: i64, all_positions: &[i64]) -> i32 {
+    fn ct_gap(
+        prev_order: Option<i64>,
+        current_order: i64,
+        position_index: &HashMap<i64, usize>,
+    ) -> i32 {
         match prev_order {
             Some(prev) => {
-                let prev_idx = all_positions.iter().position(|&p| p == prev).unwrap_or(0);
-                let curr_idx = all_positions
-                    .iter()
-                    .position(|&p| p == current_order)
-                    .unwrap_or(0);
+                let prev_idx = position_index.get(&prev).copied().unwrap_or(0);
+                let curr_idx = position_index.get(&current_order).copied().unwrap_or(0);
                 curr_idx.saturating_sub(prev_idx) as i32
             }
             None => 0,

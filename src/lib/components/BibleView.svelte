@@ -203,14 +203,11 @@
 	}
 
 	function navigateToScene(sceneId: string) {
-		for (const [chapterId, scenes] of appState.scenes) {
-			const scene = scenes.find((s) => s.id === sceneId);
-			if (scene) {
-				appState.selectedChapterId = chapterId;
-				appState.selectedSceneId = sceneId;
-				appState.setViewMode('editor');
-				return;
-			}
+		const chapterId = appState.getChapterIdForScene(sceneId);
+		if (chapterId) {
+			appState.selectedChapterId = chapterId;
+			appState.selectedSceneId = sceneId;
+			appState.setViewMode('editor');
 		}
 	}
 
@@ -269,8 +266,10 @@
 		}
 	}
 
+	const relationshipLabelMap = new Map(relationshipTypes.map((t) => [t.value, t.label]));
+
 	function getRelationshipLabel(type: string): string {
-		return relationshipTypes.find((t) => t.value === type)?.label || type;
+		return relationshipLabelMap.get(type) || type;
 	}
 
 	function selectEntry(entry: BibleEntry) {

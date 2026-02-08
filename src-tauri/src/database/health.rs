@@ -5,8 +5,9 @@
 //! Metadata completeness (POV, arcs, associations, etc.) is intentionally excluded
 //! to avoid penalising creative choices.
 
+use std::collections::HashSet;
+
 use crate::models::{HealthCheck, SceneHealth};
-use rusqlite::params;
 
 use super::Database;
 
@@ -25,6 +26,7 @@ impl Database {
     pub fn get_scene_health_batch(&self) -> Result<Vec<SceneHealth>, String> {
         let scenes = self.fetch_scene_rows_for_health()?;
         let scenes_with_open_issues = self.health_scenes_with_open_issues()?;
+        let valid_scene_ids = self.health_all_valid_scene_ids()?;
 
         let results = scenes
             .iter()
@@ -32,7 +34,7 @@ impl Database {
                 let checks = Self::compute_health_checks(
                     scene,
                     scenes_with_open_issues.contains(&scene.id),
-                    self.health_check_setup_payoff_intact(scene),
+                    Self::health_check_setup_payoff_intact_fast(scene, &valid_scene_ids),
                 );
                 let score = Self::compute_health_score(&checks);
                 SceneHealth {
@@ -105,19 +107,16 @@ impl Database {
         });
 
         // 2. no_tbd_markers — only relevant for done scenes
-        let has_tbd = if scene.status == "done" {
+        let (has_tbd, has_todo_items) = if scene.status == "done" {
             let text_lower = scene.text.to_lowercase();
-            text_lower.contains("tbd")
+            let tbd = text_lower.contains("tbd")
                 || text_lower.contains("todo")
                 || text_lower.contains("xxx")
-                || text_lower.contains("??")
+                || text_lower.contains("??");
+            let todos = scene.todos.as_ref().is_some_and(|t| !t.trim().is_empty());
+            (tbd, todos)
         } else {
-            false
-        };
-        let has_todo_items = if scene.status == "done" {
-            scene.todos.as_ref().is_some_and(|t| !t.trim().is_empty())
-        } else {
-            false
+            (false, false)
         };
         checks.push(HealthCheck {
             name: "no_tbd_markers".to_string(),
@@ -137,28 +136,39 @@ impl Database {
         checks
     }
 
-    /// Check that setup/payoff scene references still exist.
-    fn health_check_setup_payoff_intact(&self, scene: &SceneRow) -> bool {
-        self.scene_ref_exists(&scene.setup_for_scene_id)
-            && self.scene_ref_exists(&scene.payoff_of_scene_id)
+    /// Check that setup/payoff scene references still exist (in-memory lookup).
+    fn health_check_setup_payoff_intact_fast(
+        scene: &SceneRow,
+        valid_ids: &HashSet<String>,
+    ) -> bool {
+        Self::scene_ref_valid(&scene.setup_for_scene_id, valid_ids)
+            && Self::scene_ref_valid(&scene.payoff_of_scene_id, valid_ids)
     }
 
-    /// Returns true if the optional scene ID is None, empty, or points to an existing scene.
-    fn scene_ref_exists(&self, scene_id: &Option<String>) -> bool {
+    /// Returns true if the optional scene ID is None, empty, or present in the valid set.
+    fn scene_ref_valid(scene_id: &Option<String>, valid_ids: &HashSet<String>) -> bool {
         match scene_id {
-            Some(id) if !id.is_empty() => self
-                .conn
-                .query_row(
-                    "SELECT COUNT(*) > 0 FROM scenes WHERE id = ?1 AND deleted_at IS NULL",
-                    params![id],
-                    |row| row.get(0),
-                )
-                .unwrap_or(false),
+            Some(id) if !id.is_empty() => valid_ids.contains(id),
             _ => true,
         }
     }
 
-    fn health_scenes_with_open_issues(&self) -> Result<Vec<String>, String> {
+    /// Pre-load all valid (non-deleted) scene IDs in a single query.
+    fn health_all_valid_scene_ids(&self) -> Result<HashSet<String>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM scenes WHERE deleted_at IS NULL")
+            .map_err(|e| e.to_string())?;
+
+        let ids = stmt
+            .query_map([], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<HashSet<String>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(ids)
+    }
+
+    fn health_scenes_with_open_issues(&self) -> Result<HashSet<String>, String> {
         let mut stmt = self
             .conn
             .prepare(
@@ -172,7 +182,7 @@ impl Database {
         let ids = stmt
             .query_map([], |row| row.get(0))
             .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<String>, _>>()
+            .collect::<Result<HashSet<String>, _>>()
             .map_err(|e| e.to_string())?;
         Ok(ids)
     }

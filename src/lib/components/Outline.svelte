@@ -155,7 +155,7 @@
 		if (!isFiltering) return chapterScenes;
 		const q = filterQuery.trim().toLowerCase();
 		// If chapter title matches, show all its scenes
-		const chapter = chapters.find((c) => c.id === chapterId);
+		const chapter = appState.getChapterById(chapterId);
 		if (chapter && chapter.title.toLowerCase().includes(q)) return chapterScenes;
 		// Otherwise filter scenes by title
 		return chapterScenes.filter((scene) => scene.title.toLowerCase().includes(q));
