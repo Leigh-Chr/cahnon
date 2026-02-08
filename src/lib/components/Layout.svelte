@@ -16,7 +16,6 @@
 	import { cubicOut } from 'svelte/easing';
 	import { fade, slide } from 'svelte/transition';
 
-	import type { Scene } from '$lib/api';
 	import { appState, undoStack } from '$lib/stores';
 	import { getOnboardingState, markTipShown } from '$lib/stores/onboarding';
 	import {
@@ -231,9 +230,15 @@
 		else closeModal('cutLibrary');
 	});
 
-	// AF2: Check for recovery drafts when project loads
+	// AF2: Check for recovery drafts when project loads (once per project)
+	let recoveryCheckedForProject = $state<string | null>(null);
 	$effect(() => {
-		if (appState.project && appState.chapters.length > 0) {
+		if (
+			appState.project &&
+			appState.chapters.length > 0 &&
+			recoveryCheckedForProject !== appState.project.id
+		) {
+			recoveryCheckedForProject = appState.project.id;
 			const drafts = getAllRecoveryDrafts();
 			// Only show drafts for scenes that exist in current project
 			const allSceneIds = new Set(
@@ -587,16 +592,7 @@
 	}
 
 	function navigateScene(direction: 'next' | 'prev') {
-		const allScenesArr: Array<{ chapterId: string; scene: Scene }> = [];
-
-		// Build flat list of all scenes in order
-		for (const chapter of appState.chapters) {
-			const chapterScenes = appState.scenes.get(chapter.id) || [];
-			for (const scene of chapterScenes) {
-				allScenesArr.push({ chapterId: chapter.id, scene });
-			}
-		}
-
+		const allScenesArr = appState.allScenesFlat;
 		if (allScenesArr.length === 0) return;
 
 		const currentIndex = allScenesArr.findIndex((s) => s.scene.id === appState.selectedSceneId);
