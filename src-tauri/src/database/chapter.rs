@@ -157,6 +157,7 @@ impl Database {
 
         const JUNCTION_TABLES: &[&str] = &[
             "canonical_associations",
+            "auto_link_dismissed",
             "scene_arcs",
             "event_scenes",
             "issue_scenes",
@@ -187,6 +188,7 @@ impl Database {
     pub(crate) fn cleanup_scene_junctions(&self, scene_id: &str) -> Result<(), String> {
         const JUNCTION_TABLES: &[&str] = &[
             "canonical_associations",
+            "auto_link_dismissed",
             "scene_arcs",
             "event_scenes",
             "issue_scenes",

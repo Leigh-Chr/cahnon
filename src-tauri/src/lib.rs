@@ -312,6 +312,7 @@ pub fn run() {
             commands::association::get_scene_associations,
             commands::association::delete_association,
             commands::association::get_bible_entry_scenes,
+            commands::association::auto_link_bible_entries,
             // Search commands
             commands::search::global_search,
             commands::search::find_replace_in_scenes,

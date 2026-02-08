@@ -25,6 +25,7 @@ const MIGRATIONS: &[MigrationFn] = &[
     Database::migrate_word_count_cache,
     Database::migrate_writing_sessions_table,
     Database::migrate_facts_tables,
+    Database::migrate_auto_link_dismissed_table,
 ];
 
 impl Database {
@@ -535,6 +536,19 @@ impl Database {
         ])
     }
 
+    fn migrate_auto_link_dismissed_table(&self) -> Result<(), String> {
+        self.execute_all(&[
+            "CREATE TABLE IF NOT EXISTS auto_link_dismissed (
+                scene_id TEXT NOT NULL,
+                bible_entry_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (scene_id) REFERENCES scenes(id),
+                FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
+                PRIMARY KEY (scene_id, bible_entry_id)
+            )",
+        ])
+    }
+
     fn migrate_bible_relationships_unique(&self) -> Result<(), String> {
         self.execute_all(&[
             "DELETE FROM bible_relationships WHERE id NOT IN (
@@ -915,6 +929,16 @@ CREATE TABLE IF NOT EXISTS fact_characters (
     FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
     FOREIGN KEY (learned_in_scene_id) REFERENCES scenes(id),
     UNIQUE(fact_id, bible_entry_id)
+);
+
+-- Auto-link dismissals (scene <-> bible entry pairs the user explicitly unlinked)
+CREATE TABLE IF NOT EXISTS auto_link_dismissed (
+    scene_id TEXT NOT NULL,
+    bible_entry_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (scene_id) REFERENCES scenes(id),
+    FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
+    PRIMARY KEY (scene_id, bible_entry_id)
 );
 
 -- Indexes for performance

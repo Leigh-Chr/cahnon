@@ -13,6 +13,8 @@
   - Status chart showing scene status distribution
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
+
 	import type { Annotation, BibleEntry, Issue } from '$lib/api';
 	import type { SceneHealth } from '$lib/api';
 	import {
@@ -208,11 +210,11 @@
 	let editedTimeStart = $state('');
 	let editedTimeEnd = $state('');
 
-	// Derived: arcs not already linked to the scene
-	let availableArcs = $derived(allArcs.filter((arc) => !sceneArcs.some((sa) => sa.id === arc.id)));
-	let availableEvents = $derived(
-		allEvents.filter((ev) => !linkedEvents.some((le) => le.id === ev.id))
-	);
+	// Derived: arcs not already linked to the scene (Set-based for O(1) lookup)
+	let linkedArcIds = $derived(new Set(sceneArcs.map((sa) => sa.id)));
+	let availableArcs = $derived(allArcs.filter((arc) => !linkedArcIds.has(arc.id)));
+	let linkedEventIds = $derived(new Set(linkedEvents.map((le) => le.id)));
+	let availableEvents = $derived(allEvents.filter((ev) => !linkedEventIds.has(ev.id)));
 
 	let loadGeneration = 0;
 	// AA2: Loading states for skeleton loaders
@@ -277,6 +279,14 @@
 			}
 		}
 	}
+
+	// Refresh associations when auto-link creates new ones
+	$effect(() => {
+		const _gen = appState.autoLinkGeneration;
+		if (_gen > 0) {
+			untrack(() => loadAssociations());
+		}
+	});
 
 	async function loadSceneArcs(gen?: number) {
 		if (selectedSceneId) {

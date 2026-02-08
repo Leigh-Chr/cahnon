@@ -90,6 +90,7 @@ impl Database {
     fn cleanup_scene_junctions_for_purge(&self, scene_id: &str) -> Result<(), String> {
         const JUNCTION_TABLES: &[&str] = &[
             "canonical_associations",
+            "auto_link_dismissed",
             "scene_arcs",
             "event_scenes",
             "issue_scenes",

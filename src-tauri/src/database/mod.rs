@@ -92,6 +92,7 @@ const KNOWN_TABLES: &[&str] = &[
     "writing_sessions",
     "facts",
     "fact_characters",
+    "auto_link_dismissed",
     "personal_dictionary",
     "schema_version",
 ];

@@ -293,6 +293,15 @@
 			if (saved) {
 				// Clear recovery draft after successful save
 				clearRecoveryDraftForScene(sceneId);
+				// Auto-link bible entries mentioned in scene text
+				try {
+					const result = await associationApi.autoLink(sceneId);
+					if (result.created_count > 0) {
+						appState.notifyAutoLinked(sceneId);
+					}
+				} catch (e) {
+					console.error('Auto-link failed:', e);
+				}
 			}
 		}
 	}, 1000);

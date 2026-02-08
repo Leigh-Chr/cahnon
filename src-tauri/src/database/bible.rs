@@ -1,9 +1,10 @@
 //! Bible entry and relationship operations
 
 use crate::models::{
-    BibleEntry, BibleRelationship, BibleRelationshipWithEntry, CanonicalAssociation,
-    CreateAssociationRequest, CreateBibleEntryRequest, CreateBibleRelationshipRequest, Scene,
-    UpdateBibleEntryRequest, UpdateBibleRelationshipRequest,
+    AutoLinkResult, BibleEntry, BibleRelationship, BibleRelationshipWithEntry,
+    CanonicalAssociation, CreateAssociationRequest, CreateBibleEntryRequest,
+    CreateBibleRelationshipRequest, Scene, UpdateBibleEntryRequest,
+    UpdateBibleRelationshipRequest,
 };
 use rusqlite::params;
 
@@ -218,6 +219,12 @@ impl Database {
                 .map_err(|e| e.to_string())?;
             self.conn
                 .execute(
+                    "DELETE FROM auto_link_dismissed WHERE bible_entry_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.conn
+                .execute(
                     "DELETE FROM bible_relationships WHERE source_id = ?1 OR target_id = ?1",
                     params![id],
                 )
@@ -298,6 +305,14 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
 
+        // Clear any dismissal so auto-link respects manual re-linking
+        self.conn
+            .execute(
+                "DELETE FROM auto_link_dismissed WHERE scene_id = ?1 AND bible_entry_id = ?2",
+                params![req.scene_id, req.bible_entry_id],
+            )
+            .map_err(|e| e.to_string())?;
+
         self.conn
             .query_row(
                 "SELECT id, scene_id, bible_entry_id, created_at FROM canonical_associations
@@ -339,13 +354,128 @@ impl Database {
     }
 
     pub fn delete_association(&self, scene_id: &str, bible_entry_id: &str) -> Result<(), String> {
-        self.conn
+        let rows = self
+            .conn
             .execute(
                 "DELETE FROM canonical_associations WHERE scene_id = ?1 AND bible_entry_id = ?2",
                 params![scene_id, bible_entry_id],
             )
             .map_err(|e| e.to_string())?;
+
+        // Record dismissal so auto-link does not recreate it (only if association existed)
+        if rows > 0 {
+            let now = chrono::Utc::now().to_rfc3339();
+            self.conn
+                .execute(
+                    "INSERT OR IGNORE INTO auto_link_dismissed (scene_id, bible_entry_id, created_at)
+                     VALUES (?1, ?2, ?3)",
+                    params![scene_id, bible_entry_id, now],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+
         Ok(())
+    }
+
+    pub fn auto_link_bible_entries(&self, scene_id: &str) -> Result<AutoLinkResult, String> {
+        // Load scene text and strip HTML
+        let text: String = self
+            .conn
+            .query_row(
+                "SELECT text FROM scenes WHERE id = ?1 AND deleted_at IS NULL",
+                params![scene_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Scene not found: {e}"))?;
+
+        let plain = super::HTML_TAG_REGEX.replace_all(&text, " ");
+
+        // Load dismissed pairs for this scene
+        let mut dismissed_stmt = self
+            .conn
+            .prepare(
+                "SELECT bible_entry_id FROM auto_link_dismissed WHERE scene_id = ?1",
+            )
+            .map_err(|e| e.to_string())?;
+        let dismissed: std::collections::HashSet<String> = dismissed_stmt
+            .query_map(params![scene_id], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<std::collections::HashSet<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        // Load all bible entries (id, name, aliases)
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, name, aliases FROM bible_entries WHERE deleted_at IS NULL",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let entries: Vec<(String, String, Option<String>)> = stmt
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        let mut created_count = 0i32;
+        let mut new_entry_ids = Vec::new();
+
+        for (entry_id, name, aliases) in &entries {
+            // Skip entries the user explicitly dismissed for this scene
+            if dismissed.contains(entry_id) {
+                continue;
+            }
+            // Collect all terms (name + aliases), filter < 3 chars
+            let mut terms: Vec<String> = Vec::new();
+            let trimmed = name.trim();
+            if trimmed.chars().count() >= 3 {
+                terms.push(regex::escape(trimmed));
+            }
+            if let Some(alias_str) = aliases {
+                for alias in alias_str.split(',') {
+                    let a = alias.trim();
+                    if a.chars().count() >= 3 {
+                        terms.push(regex::escape(a));
+                    }
+                }
+            }
+
+            if terms.is_empty() {
+                continue;
+            }
+
+            // Build case-insensitive word-boundary regex
+            let pattern = format!(r"(?i)\b({})\b", terms.join("|"));
+            let re = match regex::Regex::new(&pattern) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+
+            if re.is_match(&plain) {
+                let id = uuid::Uuid::new_v4().to_string();
+                let now = chrono::Utc::now().to_rfc3339();
+                let rows = self
+                    .conn
+                    .execute(
+                        "INSERT OR IGNORE INTO canonical_associations (id, scene_id, bible_entry_id, created_at)
+                         VALUES (?1, ?2, ?3, ?4)",
+                        params![id, scene_id, entry_id, now],
+                    )
+                    .map_err(|e| e.to_string())?;
+
+                if rows > 0 {
+                    created_count += 1;
+                    new_entry_ids.push(entry_id.clone());
+                }
+            }
+        }
+
+        Ok(AutoLinkResult {
+            created_count,
+            new_entry_ids,
+        })
     }
 
     pub fn get_bible_entry_scenes(&self, bible_entry_id: &str) -> Result<Vec<Scene>, String> {

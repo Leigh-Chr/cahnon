@@ -77,6 +77,11 @@ export const associationApi = {
 		invoke<void>('delete_association', { sceneId, bibleEntryId }),
 
 	getByEntry: (bibleEntryId: string) => invoke<Scene[]>('get_bible_entry_scenes', { bibleEntryId }),
+
+	autoLink: (sceneId: string) =>
+		invoke<{ created_count: number; new_entry_ids: string[] }>('auto_link_bible_entries', {
+			sceneId,
+		}),
 };
 
 /**

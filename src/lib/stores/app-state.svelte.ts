@@ -213,6 +213,17 @@ class AppState {
 	}
 
 	// -------------------------------------------------------------------------
+	// Auto-Link Generation (triggers ContextPanel refresh)
+	// -------------------------------------------------------------------------
+	autoLinkGeneration = $state(0);
+
+	notifyAutoLinked(sceneId: string) {
+		if (sceneId === this.selectedSceneId) {
+			this.autoLinkGeneration++;
+		}
+	}
+
+	// -------------------------------------------------------------------------
 	// Search
 	// -------------------------------------------------------------------------
 	searchQuery = $state('');
@@ -265,6 +276,48 @@ class AppState {
 		return index;
 	});
 
+	/** Reverse index: sceneId → chapterId for O(1) lookup */
+	private _sceneChapterIndex = $derived.by(() => {
+		const index = new SvelteMap<string, string>();
+		for (const [chapterId, sceneList] of this.scenes.entries()) {
+			for (const scene of sceneList) {
+				index.set(scene.id, chapterId);
+			}
+		}
+		return index;
+	});
+
+	/** Index of chapters by id for O(1) lookup */
+	private _chapterIndex = $derived.by(() => {
+		const index = new SvelteMap<string, Chapter>();
+		for (const ch of this.chapters) {
+			index.set(ch.id, ch);
+		}
+		return index;
+	});
+
+	/** Flat list of all scenes with chapter info, reusable by components */
+	get allScenesFlat(): Array<{ scene: Scene; chapterId: string; chapterTitle: string }> {
+		const result: Array<{ scene: Scene; chapterId: string; chapterTitle: string }> = [];
+		for (const chapter of this.chapters) {
+			const scenes = this.scenes.get(chapter.id) || [];
+			for (const scene of scenes) {
+				result.push({ scene, chapterId: chapter.id, chapterTitle: chapter.title });
+			}
+		}
+		return result;
+	}
+
+	/** Get chapterId for a given sceneId in O(1) */
+	getChapterIdForScene(sceneId: string): string | undefined {
+		return this._sceneChapterIndex.get(sceneId);
+	}
+
+	/** Get chapter by id in O(1) */
+	getChapterById(chapterId: string): Chapter | undefined {
+		return this._chapterIndex.get(chapterId);
+	}
+
 	/** Get currently selected scene */
 	get selectedScene(): Scene | null {
 		if (!this.selectedSceneId) return null;
@@ -274,7 +327,7 @@ class AppState {
 	/** Get currently selected chapter */
 	get selectedChapter(): Chapter | null {
 		if (!this.selectedChapterId) return null;
-		return this.chapters.find((c) => c.id === this.selectedChapterId) || null;
+		return this._chapterIndex.get(this.selectedChapterId) ?? null;
 	}
 
 	/** Get bible entries filtered by type and search query */
@@ -1148,13 +1201,16 @@ class AppState {
 
 	async updateScene(id: string, data: Partial<Scene>, saveVersion?: number) {
 		const scene = await sceneApi.update(id, data);
-		for (const [chapterId, sceneList] of this.scenes.entries()) {
-			const idx = sceneList.findIndex((sc) => sc.id === id);
-			if (idx !== -1) {
-				const newList = [...sceneList];
-				newList[idx] = scene;
-				this.scenes.set(chapterId, newList);
-				break;
+		const chapterId = this._sceneChapterIndex.get(id);
+		if (chapterId) {
+			const sceneList = this.scenes.get(chapterId);
+			if (sceneList) {
+				const idx = sceneList.findIndex((sc) => sc.id === id);
+				if (idx !== -1) {
+					const newList = [...sceneList];
+					newList[idx] = scene;
+					this.scenes.set(chapterId, newList);
+				}
 			}
 		}
 		// Only clear hasUnsavedChanges if no new changes happened since this save started
@@ -1168,11 +1224,14 @@ class AppState {
 
 	async deleteScene(id: string) {
 		await sceneApi.delete(id);
-		for (const [chapterId, sceneList] of this.scenes.entries()) {
-			const filtered = sceneList.filter((sc) => sc.id !== id);
-			if (filtered.length !== sceneList.length) {
-				this.scenes.set(chapterId, filtered);
-				break;
+		const chapterId = this._sceneChapterIndex.get(id);
+		if (chapterId) {
+			const sceneList = this.scenes.get(chapterId);
+			if (sceneList) {
+				this.scenes.set(
+					chapterId,
+					sceneList.filter((sc) => sc.id !== id)
+				);
 			}
 		}
 		if (this.selectedSceneId === id) {
@@ -1325,13 +1384,11 @@ class AppState {
 			case 'scene': {
 				let found = false;
 				if (id) {
-					for (const [chapterId, scenes] of this.scenes) {
-						if (scenes.find((s) => s.id === id)) {
-							this.selectedChapterId = chapterId;
-							this.selectedSceneId = id;
-							found = true;
-							break;
-						}
+					const chapterId = this._sceneChapterIndex.get(id);
+					if (chapterId) {
+						this.selectedChapterId = chapterId;
+						this.selectedSceneId = id;
+						found = true;
 					}
 				}
 				// S3: Handle deleted scene navigation with feedback
@@ -1372,49 +1429,37 @@ class AppState {
 		this.navigateTo('bible', id);
 	}
 
+	/** Push a navigation entry to the history stack. */
+	private _pushNavHistory(type: string, id: string, meta?: Record<string, string>) {
+		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
+		this._navHistory.push({ type, id, meta });
+		this._navIndex = this._navHistory.length - 1;
+		this._trimNavHistory();
+	}
+
 	/** AO4: Select a Bible entry with navigation history tracking. */
 	selectBibleEntry(entryId: string) {
 		// Push current entry to history before navigating
 		if (this.selectedBibleEntryId && this.selectedBibleEntryId !== entryId) {
-			this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
-			this._navHistory.push({
-				type: 'bible',
-				id: this.selectedBibleEntryId,
-			});
-			this._navIndex = this._navHistory.length - 1;
-			this._trimNavHistory();
+			this._pushNavHistory('bible', this.selectedBibleEntryId);
 		}
 
 		this.selectedBibleEntryId = entryId;
 
 		// Also push the new selection to history
-		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
-		this._navHistory.push({
-			type: 'bible',
-			id: entryId,
-		});
-		this._navIndex = this._navHistory.length - 1;
-		this._trimNavHistory();
+		this._pushNavHistory('bible', entryId);
 	}
 
 	navigateToArc(id: string) {
 		this.selectedArcId = id;
 		this.requestOpenArcsManager = true;
-		// Push to navigation history
-		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
-		this._navHistory.push({ type: 'arc', id });
-		this._navIndex = this._navHistory.length - 1;
-		this._trimNavHistory();
+		this._pushNavHistory('arc', id);
 	}
 
 	navigateToEvent(id: string) {
 		this.selectedEventId = id;
 		this.requestOpenEventsManager = true;
-		// Push to navigation history
-		this._navHistory = this._navHistory.slice(0, this._navIndex + 1);
-		this._navHistory.push({ type: 'event', id });
-		this._navIndex = this._navHistory.length - 1;
-		this._trimNavHistory();
+		this._pushNavHistory('event', id);
 	}
 
 	toggleFavorite(sceneId: string) {
@@ -1634,14 +1679,10 @@ class AppState {
 	jumpToLastScene() {
 		if (!this.lastEditedSceneId) return;
 
-		// Find the chapter containing this scene
-		for (const [chapterId, scenes] of this.scenes) {
-			const scene = scenes.find((s) => s.id === this.lastEditedSceneId);
-			if (scene) {
-				this.selectScene(scene.id, chapterId);
-				this.setViewMode('editor');
-				return;
-			}
+		const chapterId = this._sceneChapterIndex.get(this.lastEditedSceneId);
+		if (chapterId) {
+			this.selectScene(this.lastEditedSceneId, chapterId);
+			this.setViewMode('editor');
 		}
 	}
 

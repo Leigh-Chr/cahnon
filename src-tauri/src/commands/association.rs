@@ -2,6 +2,16 @@ use crate::{models::*, AppState};
 use tauri::State;
 
 #[tauri::command]
+pub fn auto_link_bible_entries(
+    scene_id: String,
+    state: State<AppState>,
+) -> Result<AutoLinkResult, String> {
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
+    db.auto_link_bible_entries(&scene_id)
+}
+
+#[tauri::command]
 pub fn create_association(
     request: CreateAssociationRequest,
     state: State<AppState>,

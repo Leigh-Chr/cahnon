@@ -238,6 +238,12 @@ pub struct CanonicalAssociation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoLinkResult {
+    pub created_count: i32,
+    pub new_entry_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateAssociationRequest {
     pub scene_id: String,
     pub bible_entry_id: String,

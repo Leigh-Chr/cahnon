@@ -839,6 +839,474 @@ mod tests {
     }
 
     // ========================================================================
+    // Auto-Link Tests
+    // ========================================================================
+
+    #[test]
+    fn test_auto_link_creates_associations() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .expect("create project");
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create chapter");
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create scene");
+
+        // Update scene text to mention Alice
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Alice entra dans la pièce.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("update scene");
+
+        let _alice = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .expect("create entry");
+
+        let result = db.auto_link_bible_entries(&scene.id).expect("auto link");
+        assert_eq!(result.created_count, 1);
+        assert_eq!(result.new_entry_ids.len(), 1);
+
+        // Verify association was actually created
+        let associations = db.get_scene_associations(&scene.id).expect("get assoc");
+        assert_eq!(associations.len(), 1);
+        assert_eq!(associations[0].name, "Alice");
+    }
+
+    #[test]
+    fn test_auto_link_uses_aliases() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .expect("create project");
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create chapter");
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create scene");
+
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>The Detective walked in.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("update scene");
+
+        let _entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "John Smith".to_string(),
+                aliases: Some("The Detective, Johnny".to_string()),
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .expect("create entry");
+
+        let result = db.auto_link_bible_entries(&scene.id).expect("auto link");
+        assert_eq!(result.created_count, 1);
+    }
+
+    #[test]
+    fn test_auto_link_ignores_short_terms() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .expect("create project");
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create chapter");
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create scene");
+
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>He said it was OK to go.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("update scene");
+
+        // Entry with a 2-char name should be ignored
+        let _entry = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "concept".to_string(),
+                name: "OK".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .expect("create entry");
+
+        let result = db.auto_link_bible_entries(&scene.id).expect("auto link");
+        assert_eq!(result.created_count, 0);
+    }
+
+    #[test]
+    fn test_auto_link_is_idempotent() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .expect("create project");
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create chapter");
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create scene");
+
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Alice was here.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("update scene");
+
+        let _alice = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .expect("create entry");
+
+        // First call creates association
+        let result1 = db.auto_link_bible_entries(&scene.id).expect("auto link 1");
+        assert_eq!(result1.created_count, 1);
+
+        // Second call finds nothing new (idempotent)
+        let result2 = db.auto_link_bible_entries(&scene.id).expect("auto link 2");
+        assert_eq!(result2.created_count, 0);
+
+        // Still only one association
+        let associations = db.get_scene_associations(&scene.id).expect("get assoc");
+        assert_eq!(associations.len(), 1);
+    }
+
+    #[test]
+    fn test_auto_link_preserves_manual_associations() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .expect("create project");
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create chapter");
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create scene");
+
+        // Text only mentions Alice, not Bob
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Alice was here.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("update scene");
+
+        let _alice = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Alice".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .expect("create alice");
+
+        let bob = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Bob".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .expect("create bob");
+
+        // Manually link Bob (thematic reason, not mentioned in text)
+        db.create_association(&CreateAssociationRequest {
+            scene_id: scene.id.clone(),
+            bible_entry_id: bob.id.clone(),
+        })
+        .expect("manual link bob");
+
+        // Auto-link should add Alice but preserve Bob
+        let result = db.auto_link_bible_entries(&scene.id).expect("auto link");
+        assert_eq!(result.created_count, 1); // Only Alice is new
+
+        let associations = db.get_scene_associations(&scene.id).expect("get assoc");
+        assert_eq!(associations.len(), 2); // Both Alice and Bob
+    }
+
+    #[test]
+    fn test_auto_link_respects_dismissals() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .expect("create project");
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create chapter");
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create scene");
+
+        // Text mentions "Rose" but it's the flower, not the character
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>She picked a beautiful Rose from the garden.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("update scene");
+
+        let rose = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Rose".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .expect("create rose");
+
+        // Auto-link creates the association
+        let result1 = db.auto_link_bible_entries(&scene.id).expect("auto link 1");
+        assert_eq!(result1.created_count, 1);
+
+        // User deletes it (false positive)
+        db.delete_association(&scene.id, &rose.id)
+            .expect("delete assoc");
+
+        // Auto-link should NOT recreate it (dismissed)
+        let result2 = db.auto_link_bible_entries(&scene.id).expect("auto link 2");
+        assert_eq!(result2.created_count, 0);
+
+        let associations = db.get_scene_associations(&scene.id).expect("get assoc");
+        assert!(associations.is_empty());
+    }
+
+    #[test]
+    fn test_manual_relink_clears_dismissal() {
+        let (db, _temp_dir) = create_test_db();
+
+        db.create_project(&CreateProjectRequest {
+            title: "Test".to_string(),
+            author: None,
+            description: None,
+        })
+        .expect("create project");
+
+        let chapter = db
+            .create_chapter(&CreateChapterRequest {
+                title: "Chapter 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create chapter");
+
+        let scene = db
+            .create_scene(&CreateSceneRequest {
+                chapter_id: chapter.id.clone(),
+                title: "Scene 1".to_string(),
+                summary: None,
+                position: None,
+            })
+            .expect("create scene");
+
+        db.update_scene(
+            &scene.id,
+            &UpdateSceneRequest {
+                text: Some("<p>Rose entered the room.</p>".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("update scene");
+
+        let rose = db
+            .create_bible_entry(&CreateBibleEntryRequest {
+                entry_type: "character".to_string(),
+                name: "Rose".to_string(),
+                aliases: None,
+                short_description: None,
+                full_description: None,
+                status: None,
+                tags: None,
+                color: None,
+            })
+            .expect("create rose");
+
+        // Auto-link, then dismiss
+        db.auto_link_bible_entries(&scene.id).expect("auto link 1");
+        db.delete_association(&scene.id, &rose.id)
+            .expect("dismiss");
+
+        // User manually re-links (changed their mind)
+        db.create_association(&CreateAssociationRequest {
+            scene_id: scene.id.clone(),
+            bible_entry_id: rose.id.clone(),
+        })
+        .expect("manual relink");
+
+        // Delete again
+        db.delete_association(&scene.id, &rose.id)
+            .expect("delete again");
+
+        // Auto-link should still not recreate (dismissed again)
+        let result = db.auto_link_bible_entries(&scene.id).expect("auto link 2");
+        assert_eq!(result.created_count, 0);
+
+        // But if we manually re-link without deleting, auto-link respects it
+        db.create_association(&CreateAssociationRequest {
+            scene_id: scene.id.clone(),
+            bible_entry_id: rose.id.clone(),
+        })
+        .expect("manual relink 2");
+
+        // Dismissal was cleared by create_association, and link exists
+        // so auto-link returns 0 (already linked, not dismissed)
+        let result = db.auto_link_bible_entries(&scene.id).expect("auto link 3");
+        assert_eq!(result.created_count, 0);
+        let associations = db.get_scene_associations(&scene.id).expect("get assoc");
+        assert_eq!(associations.len(), 1);
+    }
+
+    // ========================================================================
     // Word Count Tests
     // ========================================================================
 
