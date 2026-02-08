@@ -29,6 +29,8 @@ declare module '@tiptap/core' {
 export const AnnotationMark = Mark.create<AnnotationMarkOptions>({
 	name: 'annotationMark',
 
+	inclusive: false,
+
 	addOptions() {
 		return {
 			HTMLAttributes: {},

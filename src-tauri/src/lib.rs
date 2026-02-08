@@ -373,6 +373,7 @@ pub fn run() {
             commands::annotation::get_annotations,
             commands::annotation::update_annotation,
             commands::annotation::delete_annotation,
+            commands::annotation::batch_update_annotation_offsets,
             // Issue commands
             commands::issue::create_issue,
             commands::issue::get_issues,

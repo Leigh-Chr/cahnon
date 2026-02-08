@@ -293,6 +293,8 @@
 			if (saved) {
 				// Clear recovery draft after successful save
 				clearRecoveryDraftForScene(sceneId);
+				// Sync annotation positions from marks to DB
+				syncAnnotationOffsets();
 				// Auto-link bible entries mentioned in scene text
 				try {
 					const result = await associationApi.autoLink(sceneId);
@@ -733,7 +735,31 @@
 		return result || 1;
 	}
 
-	async function applyAnnotationMarks() {
+	/** Convert a ProseMirror document position to a plain-text offset. */
+	function docPosToTextOffset(doc: import('@tiptap/pm/model').Node, pos: number): number {
+		let textSeen = 0;
+		doc.descendants((node, nodePos) => {
+			if (nodePos >= pos) return false;
+			if (node.isText && node.text) {
+				const end = nodePos + node.text.length;
+				if (end >= pos) {
+					textSeen += pos - nodePos;
+					return false;
+				}
+				textSeen += node.text.length;
+			}
+			return true;
+		});
+		return textSeen;
+	}
+
+	/**
+	 * Reconcile annotation marks in the editor with the DB state.
+	 * - Marks already in the doc are left untouched (TipTap tracks their positions).
+	 * - DB annotations missing from the doc (and not resolved/orphaned) are added from DB offsets.
+	 * - Doc marks with no matching DB annotation are removed.
+	 */
+	async function reconcileAnnotationMarks() {
 		if (!editor || !currentSceneId) return;
 		let annotations: Annotation[];
 		try {
@@ -745,17 +771,55 @@
 		// Update the local cache for tooltip lookups
 		cachedAnnotations = annotations;
 
-		if (!editor || annotations.length === 0) return;
+		if (!editor) return;
 
-		// First, remove existing annotation marks
-		const { tr } = editor.state;
 		const markType = editor.schema.marks.annotationMark;
 		if (!markType) return;
 
-		tr.removeMark(0, editor.state.doc.content.size, markType);
+		// 1. Walk document to find existing annotation marks
+		const docMarks = new Map<string, { from: number; to: number }>();
+		editor.state.doc.descendants((node, pos) => {
+			if (node.isText) {
+				for (const mark of node.marks) {
+					if (mark.type === markType && mark.attrs.annotationId) {
+						const id = mark.attrs.annotationId as string;
+						if (id === '__pending__') continue;
+						const existing = docMarks.get(id);
+						if (existing) {
+							// Extend range for multi-node marks
+							existing.to = Math.max(existing.to, pos + node.nodeSize);
+						} else {
+							docMarks.set(id, { from: pos, to: pos + node.nodeSize });
+						}
+					}
+				}
+			}
+			return true;
+		});
 
+		// 2. Build set of DB annotation IDs that should have marks
+		const dbIds = new Set<string>();
 		for (const ann of annotations) {
-			if (ann.status === 'resolved') continue;
+			if (ann.status !== 'resolved' && !ann.orphaned) {
+				dbIds.add(ann.id);
+			}
+		}
+
+		const { tr } = editor.state;
+		let changed = false;
+
+		// 3. Remove doc marks that shouldn't exist (no DB annotation or resolved/orphaned)
+		for (const [id, range] of docMarks) {
+			if (!dbIds.has(id)) {
+				tr.removeMark(range.from, range.to, markType);
+				changed = true;
+			}
+		}
+
+		// 4. Add marks for DB annotations not in doc (fallback from DB offsets)
+		for (const ann of annotations) {
+			if (ann.status === 'resolved' || ann.orphaned) continue;
+			if (docMarks.has(ann.id)) continue; // Already in doc, don't touch
 			const from = textOffsetToDocPos(editor.state.doc, ann.start_offset);
 			const to = textOffsetToDocPos(editor.state.doc, ann.end_offset);
 			if (from > 0 && to > from) {
@@ -767,13 +831,107 @@
 						annotationType: ann.annotation_type,
 					})
 				);
+				changed = true;
 			}
 		}
-		if (tr.steps.length > 0) {
-			// Apply without triggering onUpdate (to avoid marking as unsaved)
+
+		if (changed) {
 			isUpdating = true;
 			editor.view.dispatch(tr);
 			isUpdating = false;
+		}
+	}
+
+	/**
+	 * Sync annotation positions from the editor marks back to the DB.
+	 * Called after a successful scene save to persist the current mark positions.
+	 */
+	async function syncAnnotationOffsets() {
+		if (!editor || !currentSceneId || cachedAnnotations.length === 0) return;
+
+		const markType = editor.schema.marks.annotationMark;
+		if (!markType) return;
+
+		// Walk document to find current positions of all annotation marks
+		const currentPositions = new Map<string, { from: number; to: number }>();
+		editor.state.doc.descendants((node, pos) => {
+			if (node.isText) {
+				for (const mark of node.marks) {
+					if (mark.type === markType && mark.attrs.annotationId) {
+						const id = mark.attrs.annotationId as string;
+						if (id === '__pending__') continue;
+						const existing = currentPositions.get(id);
+						if (existing) {
+							existing.to = Math.max(existing.to, pos + node.nodeSize);
+						} else {
+							currentPositions.set(id, { from: pos, to: pos + node.nodeSize });
+						}
+					}
+				}
+			}
+			return true;
+		});
+
+		// Convert doc positions to text offsets and compare with cached DB values
+		const offsetUpdates: Array<{
+			id: string;
+			start_offset: number;
+			end_offset: number;
+			annotated_text: string;
+		}> = [];
+		const newlyOrphaned: string[] = [];
+
+		for (const ann of cachedAnnotations) {
+			if (ann.status === 'resolved') continue;
+
+			const docPos = currentPositions.get(ann.id);
+			if (!docPos) {
+				// Mark not in doc — annotation is orphaned (text was deleted)
+				if (!ann.orphaned) {
+					newlyOrphaned.push(ann.id);
+				}
+				continue;
+			}
+
+			const startOffset = docPosToTextOffset(editor.state.doc, docPos.from);
+			const endOffset = docPosToTextOffset(editor.state.doc, docPos.to);
+			const currentText = editor.state.doc.textBetween(docPos.from, docPos.to);
+
+			if (
+				startOffset !== ann.start_offset ||
+				endOffset !== ann.end_offset ||
+				currentText !== ann.annotated_text
+			) {
+				offsetUpdates.push({
+					id: ann.id,
+					start_offset: startOffset,
+					end_offset: endOffset,
+					annotated_text: currentText,
+				});
+			}
+		}
+
+		// Batch update changed offsets
+		if (offsetUpdates.length > 0) {
+			try {
+				await annotationApi.batchUpdateOffsets(offsetUpdates);
+			} catch (e) {
+				console.error('Failed to sync annotation offsets:', e);
+			}
+		}
+
+		// Mark newly orphaned annotations
+		for (const id of newlyOrphaned) {
+			try {
+				await annotationApi.update(id, { orphaned: true });
+			} catch (e) {
+				console.error('Failed to mark annotation as orphaned:', e);
+			}
+		}
+
+		// Notify panel to reload with fresh data
+		if (offsetUpdates.length > 0 || newlyOrphaned.length > 0) {
+			appState.annotationVersion++;
 		}
 	}
 
@@ -1061,7 +1219,20 @@
 	}
 
 	async function submitAnnotationPopover() {
-		if (!annotationPopover || !popoverContent.trim() || !currentSceneId) return;
+		if (!annotationPopover || !popoverContent.trim() || !currentSceneId || !editor) return;
+
+		// Capture the annotated text from the document using the stored offsets
+		let annotatedText = '';
+		try {
+			const from = textOffsetToDocPos(editor.state.doc, annotationPopover.startOffset);
+			const to = textOffsetToDocPos(editor.state.doc, annotationPopover.endOffset);
+			if (from > 0 && to > from) {
+				annotatedText = editor.state.doc.textBetween(from, to);
+			}
+		} catch {
+			// Fallback: leave empty
+		}
+
 		try {
 			await annotationApi.create({
 				scene_id: currentSceneId,
@@ -1069,6 +1240,7 @@
 				end_offset: annotationPopover.endOffset,
 				annotation_type: popoverType,
 				content: popoverContent.trim(),
+				annotated_text: annotatedText,
 			});
 			appState.annotationVersion++;
 			closeAnnotationPopover();
@@ -1228,13 +1400,13 @@
 		}
 	}
 
-	// Re-apply annotation marks when annotationVersion changes
+	// Reconcile annotation marks when annotationVersion changes
 	$effect(() => {
 		// Track dependency on annotationVersion
 		void appState.annotationVersion;
-		// Only re-apply if we have an editor and scene loaded
+		// Only reconcile if we have an editor and scene loaded
 		if (editor && currentSceneId) {
-			applyAnnotationMarks();
+			reconcileAnnotationMarks();
 		}
 	});
 
@@ -1310,8 +1482,8 @@
 			// Check for crash recovery draft
 			checkRecoveryDraft(sceneId, currentEditor);
 
-			// Apply annotation marks (fire-and-forget)
-			applyAnnotationMarks();
+			// Reconcile annotation marks (fire-and-forget)
+			reconcileAnnotationMarks();
 
 			// T5: Auto-focus editor on scene open
 			tick().then(() => {
@@ -1335,8 +1507,8 @@
 				checkRecoveryDraft(sceneId, editor);
 			}
 
-			// Apply annotation marks after init (fire-and-forget)
-			applyAnnotationMarks();
+			// Reconcile annotation marks after init (fire-and-forget)
+			reconcileAnnotationMarks();
 		}
 	});
 </script>

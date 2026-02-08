@@ -32,6 +32,7 @@
 	const annotationStatuses = ['open', 'in_progress', 'resolved'];
 
 	$effect(() => {
+		void appState.annotationVersion;
 		if (sceneId) {
 			loadAnnotations();
 		}
@@ -150,16 +151,21 @@
 				<div
 					class="annotation-item"
 					class:resolved={annotation.status === 'resolved'}
+					class:orphaned={annotation.orphaned}
 					data-annotation-id={annotation.id}
 					style="--annotation-color: {typeInfo.color}"
-					onclick={() => onSelectAnnotation?.(annotation)}
-					onkeydown={(e) => e.key === 'Enter' && onSelectAnnotation?.(annotation)}
+					onclick={() => !annotation.orphaned && onSelectAnnotation?.(annotation)}
+					onkeydown={(e) =>
+						e.key === 'Enter' && !annotation.orphaned && onSelectAnnotation?.(annotation)}
 					role="button"
 					tabindex="0"
 				>
 					<div class="annotation-header">
 						<span class="annotation-type">{typeInfo.icon}</span>
 						<span class="annotation-date">{formatDate(annotation.created_at)}</span>
+						{#if annotation.orphaned}
+							<span class="orphaned-badge">orphaned</span>
+						{/if}
 						<select
 							value={annotation.status}
 							onclick={(e) => e.stopPropagation()}
@@ -194,6 +200,9 @@
 							<Icon name="close" size={12} />
 						</Button>
 					</div>
+					{#if annotation.orphaned}
+						<p class="orphaned-message">The annotated text was deleted.</p>
+					{/if}
 					{#if editingAnnotationId === annotation.id}
 						<div class="annotation-edit" onclick={(e) => e.stopPropagation()} role="presentation">
 							<textarea bind:value={editedContent} rows="3" class="annotation-edit-textarea"
@@ -212,6 +221,9 @@
 						</div>
 					{:else}
 						<p class="annotation-content">{annotation.content}</p>
+						{#if annotation.annotated_text}
+							<p class="annotated-text">&ldquo;{annotation.annotated_text}&rdquo;</p>
+						{/if}
 					{/if}
 				</div>
 			{/each}
@@ -285,6 +297,43 @@
 
 	.annotation-item.resolved {
 		opacity: 0.6;
+	}
+
+	.annotation-item.orphaned {
+		background-color: color-mix(
+			in srgb,
+			var(--color-warning, #f59e0b) 8%,
+			var(--color-bg-secondary)
+		);
+		border-left-color: var(--color-warning, #f59e0b);
+	}
+
+	.orphaned-badge {
+		font-size: var(--font-size-xs);
+		color: var(--color-warning, #f59e0b);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.orphaned-message {
+		font-size: var(--font-size-xs);
+		color: var(--color-warning, #f59e0b);
+		font-style: italic;
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.annotated-text {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		font-style: italic;
+		line-height: var(--line-height-normal);
+		margin-top: var(--spacing-xs);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
 	}
 
 	.annotation-header {

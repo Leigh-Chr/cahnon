@@ -572,6 +572,10 @@ pub struct Annotation {
     pub annotation_type: String,
     pub content: String,
     pub status: String,
+    #[serde(default)]
+    pub annotated_text: String,
+    #[serde(default)]
+    pub orphaned: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -583,12 +587,24 @@ pub struct CreateAnnotationRequest {
     pub end_offset: i32,
     pub annotation_type: Option<String>,
     pub content: String,
+    pub annotated_text: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateAnnotationRequest {
     pub content: Option<String>,
     pub status: Option<String>,
+    pub start_offset: Option<i32>,
+    pub end_offset: Option<i32>,
+    pub orphaned: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnnotationOffsetUpdate {
+    pub id: String,
+    pub start_offset: i32,
+    pub end_offset: i32,
+    pub annotated_text: String,
 }
 
 // ============================================================================

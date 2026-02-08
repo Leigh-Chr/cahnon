@@ -66,14 +66,23 @@ export const annotationApi = {
 		end_offset: number;
 		annotation_type?: string;
 		content: string;
+		annotated_text?: string;
 	}) => invoke<Annotation>('create_annotation', { request }),
 
 	getByScene: (sceneId: string) => invoke<Annotation[]>('get_annotations', { sceneId }),
 
-	update: (id: string, request: Partial<Pick<Annotation, 'content' | 'status'>>) =>
-		invoke<Annotation>('update_annotation', { id, request }),
+	update: (
+		id: string,
+		request: Partial<
+			Pick<Annotation, 'content' | 'status' | 'start_offset' | 'end_offset' | 'orphaned'>
+		>
+	) => invoke<Annotation>('update_annotation', { id, request }),
 
 	delete: (id: string) => invoke<void>('delete_annotation', { id }),
+
+	batchUpdateOffsets: (
+		updates: Array<{ id: string; start_offset: number; end_offset: number; annotated_text: string }>
+	) => invoke<void>('batch_update_annotation_offsets', { updates }),
 };
 
 /**

@@ -3,8 +3,7 @@
 use crate::models::{
     AutoLinkResult, BibleEntry, BibleRelationship, BibleRelationshipWithEntry,
     CanonicalAssociation, CreateAssociationRequest, CreateBibleEntryRequest,
-    CreateBibleRelationshipRequest, Scene, UpdateBibleEntryRequest,
-    UpdateBibleRelationshipRequest,
+    CreateBibleRelationshipRequest, Scene, UpdateBibleEntryRequest, UpdateBibleRelationshipRequest,
 };
 use rusqlite::params;
 
@@ -393,9 +392,7 @@ impl Database {
         // Load dismissed pairs for this scene
         let mut dismissed_stmt = self
             .conn
-            .prepare(
-                "SELECT bible_entry_id FROM auto_link_dismissed WHERE scene_id = ?1",
-            )
+            .prepare("SELECT bible_entry_id FROM auto_link_dismissed WHERE scene_id = ?1")
             .map_err(|e| e.to_string())?;
         let dismissed: std::collections::HashSet<String> = dismissed_stmt
             .query_map(params![scene_id], |row| row.get(0))
@@ -406,15 +403,11 @@ impl Database {
         // Load all bible entries (id, name, aliases)
         let mut stmt = self
             .conn
-            .prepare(
-                "SELECT id, name, aliases FROM bible_entries WHERE deleted_at IS NULL",
-            )
+            .prepare("SELECT id, name, aliases FROM bible_entries WHERE deleted_at IS NULL")
             .map_err(|e| e.to_string())?;
 
         let entries: Vec<(String, String, Option<String>)> = stmt
-            .query_map([], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;

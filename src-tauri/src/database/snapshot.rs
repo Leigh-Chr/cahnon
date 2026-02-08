@@ -267,7 +267,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, scene_id, start_offset, end_offset, annotation_type, content, status, created_at, updated_at FROM annotations",
+                "SELECT id, scene_id, start_offset, end_offset, annotation_type, content, status, annotated_text, orphaned, created_at, updated_at FROM annotations",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -573,9 +573,16 @@ impl Database {
         ).map_err(|e| e.to_string())?;
         for chapter in chapters {
             stmt.execute(params![
-                chapter.id, chapter.title, chapter.summary, chapter.status,
-                chapter.notes, chapter.position, chapter.created_at, chapter.updated_at
-            ]).map_err(|e| e.to_string())?;
+                chapter.id,
+                chapter.title,
+                chapter.summary,
+                chapter.status,
+                chapter.notes,
+                chapter.position,
+                chapter.created_at,
+                chapter.updated_at
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -591,63 +598,121 @@ impl Database {
         ).map_err(|e| e.to_string())?;
         for scene in scenes {
             stmt.execute(params![
-                scene.id, scene.chapter_id, scene.title, scene.summary, scene.text,
-                scene.status, scene.pov, scene.tags, scene.notes, scene.todos,
-                scene.word_target, scene.time_point, scene.time_start, scene.time_end,
-                scene.on_timeline, scene.position, scene.pov_goal, scene.has_conflict,
-                scene.has_change, scene.tension, scene.setup_for_scene_id,
-                scene.payoff_of_scene_id, scene.revision_notes, scene.revision_checklist,
-                scene.word_count, scene.created_at, scene.updated_at
-            ]).map_err(|e| e.to_string())?;
+                scene.id,
+                scene.chapter_id,
+                scene.title,
+                scene.summary,
+                scene.text,
+                scene.status,
+                scene.pov,
+                scene.tags,
+                scene.notes,
+                scene.todos,
+                scene.word_target,
+                scene.time_point,
+                scene.time_start,
+                scene.time_end,
+                scene.on_timeline,
+                scene.position,
+                scene.pov_goal,
+                scene.has_conflict,
+                scene.has_change,
+                scene.tension,
+                scene.setup_for_scene_id,
+                scene.payoff_of_scene_id,
+                scene.revision_notes,
+                scene.revision_checklist,
+                scene.word_count,
+                scene.created_at,
+                scene.updated_at
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
 
     fn restore_bible_entries(&self, entries: &[BibleEntry]) -> Result<(), String> {
-        let mut stmt = self.conn.prepare(
-            "INSERT INTO bible_entries (id, entry_type, name, aliases, short_description,
+        let mut stmt = self
+            .conn
+            .prepare(
+                "INSERT INTO bible_entries (id, entry_type, name, aliases, short_description,
              full_description, status, tags, image_path, notes, todos, color, custom_fields,
              created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
-        ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
         for entry in entries {
             stmt.execute(params![
-                entry.id, entry.entry_type, entry.name, entry.aliases,
-                entry.short_description, entry.full_description, entry.status, entry.tags,
-                entry.image_path, entry.notes, entry.todos, entry.color, entry.custom_fields,
-                entry.created_at, entry.updated_at
-            ]).map_err(|e| e.to_string())?;
+                entry.id,
+                entry.entry_type,
+                entry.name,
+                entry.aliases,
+                entry.short_description,
+                entry.full_description,
+                entry.status,
+                entry.tags,
+                entry.image_path,
+                entry.notes,
+                entry.todos,
+                entry.color,
+                entry.custom_fields,
+                entry.created_at,
+                entry.updated_at
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
 
     fn restore_arcs(&self, arcs: &[Arc]) -> Result<(), String> {
-        let mut stmt = self.conn.prepare(
-            "INSERT INTO arcs (id, name, description, stakes, status, color, position,
+        let mut stmt = self
+            .conn
+            .prepare(
+                "INSERT INTO arcs (id, name, description, stakes, status, color, position,
              created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
         for arc in arcs {
             stmt.execute(params![
-                arc.id, arc.name, arc.description, arc.stakes, arc.status,
-                arc.color, arc.position, arc.created_at, arc.updated_at
-            ]).map_err(|e| e.to_string())?;
+                arc.id,
+                arc.name,
+                arc.description,
+                arc.stakes,
+                arc.status,
+                arc.color,
+                arc.position,
+                arc.created_at,
+                arc.updated_at
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
 
     fn restore_events(&self, events: &[Event]) -> Result<(), String> {
-        let mut stmt = self.conn.prepare(
-            "INSERT INTO events (id, title, description, time_point, time_start, time_end,
+        let mut stmt = self
+            .conn
+            .prepare(
+                "INSERT INTO events (id, title, description, time_point, time_start, time_end,
              event_type, importance, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
         for event in events {
             stmt.execute(params![
-                event.id, event.title, event.description, event.time_point,
-                event.time_start, event.time_end, event.event_type, event.importance,
-                event.created_at, event.updated_at
-            ]).map_err(|e| e.to_string())?;
+                event.id,
+                event.title,
+                event.description,
+                event.time_point,
+                event.time_start,
+                event.time_end,
+                event.event_type,
+                event.importance,
+                event.created_at,
+                event.updated_at
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -706,9 +771,15 @@ impl Database {
         ).map_err(|e| e.to_string())?;
         for rel in relationships {
             stmt.execute(params![
-                rel.id, rel.source_id, rel.target_id, rel.relationship_type,
-                rel.note, rel.status, rel.created_at
-            ]).map_err(|e| e.to_string())?;
+                rel.id,
+                rel.source_id,
+                rel.target_id,
+                rel.relationship_type,
+                rel.note,
+                rel.status,
+                rel.created_at
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -720,24 +791,41 @@ impl Database {
         ).map_err(|e| e.to_string())?;
         for issue in issues {
             stmt.execute(params![
-                issue.id, issue.issue_type, issue.title, issue.description,
-                issue.severity, issue.status, issue.resolution_note,
-                issue.created_at, issue.updated_at
-            ]).map_err(|e| e.to_string())?;
+                issue.id,
+                issue.issue_type,
+                issue.title,
+                issue.description,
+                issue.severity,
+                issue.status,
+                issue.resolution_note,
+                issue.created_at,
+                issue.updated_at
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
 
     fn restore_annotations_from_snapshot(&self, annotations: &[Annotation]) -> Result<(), String> {
         let mut stmt = self.conn.prepare(
-            "INSERT INTO annotations (id, scene_id, start_offset, end_offset, annotation_type, content, status, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO annotations (id, scene_id, start_offset, end_offset, annotation_type, content, status, annotated_text, orphaned, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         ).map_err(|e| e.to_string())?;
         for ann in annotations {
             stmt.execute(params![
-                ann.id, ann.scene_id, ann.start_offset, ann.end_offset,
-                ann.annotation_type, ann.content, ann.status, ann.created_at, ann.updated_at
-            ]).map_err(|e| e.to_string())?;
+                ann.id,
+                ann.scene_id,
+                ann.start_offset,
+                ann.end_offset,
+                ann.annotation_type,
+                ann.content,
+                ann.status,
+                ann.annotated_text,
+                ann.orphaned as i32,
+                ann.created_at,
+                ann.updated_at
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }

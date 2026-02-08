@@ -225,6 +225,8 @@ export interface Annotation {
 	annotation_type: string;
 	content: string;
 	status: string;
+	annotated_text: string;
+	orphaned: boolean;
 	created_at: string;
 	updated_at: string;
 }

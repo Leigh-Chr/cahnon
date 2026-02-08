@@ -1273,8 +1273,7 @@ mod tests {
 
         // Auto-link, then dismiss
         db.auto_link_bible_entries(&scene.id).expect("auto link 1");
-        db.delete_association(&scene.id, &rose.id)
-            .expect("dismiss");
+        db.delete_association(&scene.id, &rose.id).expect("dismiss");
 
         // User manually re-links (changed their mind)
         db.create_association(&CreateAssociationRequest {
@@ -1990,6 +1989,7 @@ mod tests {
                 end_offset: 20,
                 annotation_type: Some("note".to_string()),
                 content: "Check this passage".to_string(),
+                annotated_text: None,
             })
             .expect("Failed to create annotation");
 
@@ -2014,6 +2014,7 @@ mod tests {
                 end_offset: 5,
                 annotation_type: None,
                 content: "Default type".to_string(),
+                annotated_text: None,
             })
             .expect("Failed");
 
@@ -2032,6 +2033,7 @@ mod tests {
             end_offset: 5,
             annotation_type: None,
             content: "Bad offset".to_string(),
+            annotated_text: None,
         });
 
         assert!(result.is_err());
@@ -2050,6 +2052,7 @@ mod tests {
             end_offset: 5,
             annotation_type: None,
             content: "Bad range".to_string(),
+            annotated_text: None,
         });
 
         assert!(result.is_err());
@@ -2068,6 +2071,7 @@ mod tests {
             end_offset: 10,
             annotation_type: None,
             content: "First".to_string(),
+            annotated_text: None,
         })
         .expect("Failed");
 
@@ -2077,6 +2081,7 @@ mod tests {
             end_offset: 30,
             annotation_type: None,
             content: "Second".to_string(),
+            annotated_text: None,
         })
         .expect("Failed");
 
@@ -2100,6 +2105,7 @@ mod tests {
                 end_offset: 10,
                 annotation_type: None,
                 content: "Original".to_string(),
+                annotated_text: None,
             })
             .expect("Failed");
 
@@ -2109,6 +2115,9 @@ mod tests {
                 &UpdateAnnotationRequest {
                     content: Some("Updated content".to_string()),
                     status: Some("resolved".to_string()),
+                    start_offset: None,
+                    end_offset: None,
+                    orphaned: None,
                 },
             )
             .expect("Failed to update");
@@ -2130,6 +2139,7 @@ mod tests {
                 end_offset: 10,
                 annotation_type: None,
                 content: "To delete".to_string(),
+                annotated_text: None,
             })
             .expect("Failed");
 
@@ -2138,6 +2148,154 @@ mod tests {
 
         let annotations = db.get_annotations(&scene.id).expect("Failed");
         assert!(annotations.is_empty());
+    }
+
+    #[test]
+    fn test_create_annotation_with_annotated_text() {
+        let (db, _temp_dir) = create_test_db();
+        setup_project(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
+
+        let annotation = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 10,
+                annotation_type: None,
+                content: "Note about this".to_string(),
+                annotated_text: Some("Hello worl".to_string()),
+            })
+            .expect("Failed to create annotation");
+
+        assert_eq!(annotation.annotated_text, "Hello worl");
+        assert!(!annotation.orphaned);
+    }
+
+    #[test]
+    fn test_batch_update_annotation_offsets() {
+        let (db, _temp_dir) = create_test_db();
+        setup_project(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
+
+        let ann1 = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 10,
+                annotation_type: None,
+                content: "First".to_string(),
+                annotated_text: None,
+            })
+            .expect("Failed");
+
+        let ann2 = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 20,
+                end_offset: 30,
+                annotation_type: None,
+                content: "Second".to_string(),
+                annotated_text: None,
+            })
+            .expect("Failed");
+
+        db.batch_update_annotation_offsets(&[
+            AnnotationOffsetUpdate {
+                id: ann1.id.clone(),
+                start_offset: 5,
+                end_offset: 15,
+                annotated_text: "updated text 1".to_string(),
+            },
+            AnnotationOffsetUpdate {
+                id: ann2.id.clone(),
+                start_offset: 25,
+                end_offset: 35,
+                annotated_text: "updated text 2".to_string(),
+            },
+        ])
+        .expect("Failed to batch update");
+
+        let updated1 = db.get_annotation(&ann1.id).expect("Failed");
+        assert_eq!(updated1.start_offset, 5);
+        assert_eq!(updated1.end_offset, 15);
+        assert_eq!(updated1.annotated_text, "updated text 1");
+
+        let updated2 = db.get_annotation(&ann2.id).expect("Failed");
+        assert_eq!(updated2.start_offset, 25);
+        assert_eq!(updated2.end_offset, 35);
+        assert_eq!(updated2.annotated_text, "updated text 2");
+    }
+
+    #[test]
+    fn test_update_annotation_orphaned() {
+        let (db, _temp_dir) = create_test_db();
+        setup_project(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
+
+        let annotation = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 10,
+                annotation_type: None,
+                content: "Will be orphaned".to_string(),
+                annotated_text: None,
+            })
+            .expect("Failed");
+
+        assert!(!annotation.orphaned);
+
+        // Mark as orphaned
+        let updated = db
+            .update_annotation(
+                &annotation.id,
+                &UpdateAnnotationRequest {
+                    content: None,
+                    status: None,
+                    start_offset: None,
+                    end_offset: None,
+                    orphaned: Some(true),
+                },
+            )
+            .expect("Failed to update");
+        assert!(updated.orphaned);
+
+        // Un-orphan
+        let restored = db
+            .update_annotation(
+                &annotation.id,
+                &UpdateAnnotationRequest {
+                    content: None,
+                    status: None,
+                    start_offset: None,
+                    end_offset: None,
+                    orphaned: Some(false),
+                },
+            )
+            .expect("Failed to update");
+        assert!(!restored.orphaned);
+    }
+
+    #[test]
+    fn test_annotation_new_fields_default_values() {
+        let (db, _temp_dir) = create_test_db();
+        setup_project(&db);
+        let (_chapter, scene) = setup_chapter_and_scene(&db);
+
+        // Create without annotated_text (None → defaults to "")
+        let annotation = db
+            .create_annotation(&CreateAnnotationRequest {
+                scene_id: scene.id.clone(),
+                start_offset: 0,
+                end_offset: 5,
+                annotation_type: None,
+                content: "No annotated text".to_string(),
+                annotated_text: None,
+            })
+            .expect("Failed");
+
+        assert_eq!(annotation.annotated_text, "");
+        assert!(!annotation.orphaned);
     }
 
     // ========================================================================
@@ -4394,6 +4552,7 @@ mod tests {
             end_offset: 10,
             annotation_type: Some("note".to_string()),
             content: "Fix this passage about starlight".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -7156,6 +7315,7 @@ mod tests {
             end_offset: 5,
             annotation_type: None,
             content: "A note".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -7224,6 +7384,7 @@ mod tests {
             end_offset: 3,
             annotation_type: None,
             content: "Note".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -8106,6 +8267,7 @@ mod tests {
             end_offset: 5,
             annotation_type: Some("note".to_string()),
             content: "Fix this overlong dialogue passage".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -9938,6 +10100,7 @@ mod tests {
             end_offset: 5,
             annotation_type: None,
             content: "Note".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -11379,6 +11542,7 @@ mod tests {
             end_offset: 10,
             annotation_type: None,
             content: "test".to_string(),
+            annotated_text: None,
         });
         assert!(result.is_err());
         assert!(result
@@ -11398,6 +11562,7 @@ mod tests {
             end_offset: -1,
             annotation_type: None,
             content: "test".to_string(),
+            annotated_text: None,
         });
         assert!(result.is_err());
         assert!(result
@@ -11417,6 +11582,7 @@ mod tests {
             end_offset: 5,
             annotation_type: None,
             content: "test".to_string(),
+            annotated_text: None,
         });
         assert!(result.is_err());
         assert!(result
@@ -11438,6 +11604,7 @@ mod tests {
                 end_offset: 1,
                 annotation_type: None,
                 content: "min range".to_string(),
+                annotated_text: None,
             })
             .unwrap();
         assert_eq!(ann.start_offset, 0);
@@ -11458,6 +11625,7 @@ mod tests {
                 end_offset: 10,
                 annotation_type: None,
                 content: "from zero".to_string(),
+                annotated_text: None,
             })
             .unwrap();
         assert_eq!(ann.start_offset, 0);
@@ -11481,6 +11649,7 @@ mod tests {
                 end_offset: 5,
                 annotation_type: None,
                 content: "original".to_string(),
+                annotated_text: None,
             })
             .unwrap();
 
@@ -11490,6 +11659,9 @@ mod tests {
                 &UpdateAnnotationRequest {
                     content: Some("changed".to_string()),
                     status: None,
+                    start_offset: None,
+                    end_offset: None,
+                    orphaned: None,
                 },
             )
             .unwrap();
@@ -11511,6 +11683,7 @@ mod tests {
                 end_offset: 5,
                 annotation_type: None,
                 content: "note".to_string(),
+                annotated_text: None,
             })
             .unwrap();
 
@@ -11520,6 +11693,9 @@ mod tests {
                 &UpdateAnnotationRequest {
                     content: None,
                     status: Some("resolved".to_string()),
+                    start_offset: None,
+                    end_offset: None,
+                    orphaned: None,
                 },
             )
             .unwrap();
@@ -11541,6 +11717,7 @@ mod tests {
                 end_offset: 5,
                 annotation_type: None,
                 content: "old".to_string(),
+                annotated_text: None,
             })
             .unwrap();
 
@@ -11550,6 +11727,9 @@ mod tests {
                 &UpdateAnnotationRequest {
                     content: Some("new".to_string()),
                     status: Some("dismissed".to_string()),
+                    start_offset: None,
+                    end_offset: None,
+                    orphaned: None,
                 },
             )
             .unwrap();
@@ -11572,6 +11752,7 @@ mod tests {
                 end_offset: 5,
                 annotation_type: None,
                 content: "unchanged".to_string(),
+                annotated_text: None,
             })
             .unwrap();
 
@@ -11581,6 +11762,9 @@ mod tests {
                 &UpdateAnnotationRequest {
                     content: None,
                     status: None,
+                    start_offset: None,
+                    end_offset: None,
+                    orphaned: None,
                 },
             )
             .unwrap();
@@ -11993,6 +12177,7 @@ mod tests {
             end_offset: 60,
             annotation_type: None,
             content: "Third".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -12002,6 +12187,7 @@ mod tests {
             end_offset: 20,
             annotation_type: None,
             content: "First".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -12011,6 +12197,7 @@ mod tests {
             end_offset: 40,
             annotation_type: None,
             content: "Second".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -12036,6 +12223,7 @@ mod tests {
                 end_offset: 10,
                 annotation_type: Some("highlight".to_string()),
                 content: "Important passage".to_string(),
+                annotated_text: None,
             })
             .unwrap();
 
@@ -12273,6 +12461,7 @@ mod tests {
                 end_offset: 15,
                 annotation_type: Some("note".to_string()),
                 content: "Get by ID".to_string(),
+                annotated_text: None,
             })
             .unwrap();
 
@@ -14711,6 +14900,7 @@ mod tests {
             end_offset: 4,
             annotation_type: None,
             content: "Unique xyzannotation content".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -16347,6 +16537,7 @@ mod tests {
             scene_id: scene_id.clone(),
             annotation_type: None,
             content: "A note".to_string(),
+            annotated_text: None,
             start_offset: 0,
             end_offset: 5,
         });
@@ -17805,6 +17996,7 @@ mod tests {
             end_offset: 35,
             annotation_type: Some("comment".to_string()),
             content: "Très belle ouverture. Le rythme est parfait.".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -17815,6 +18007,7 @@ mod tests {
             annotation_type: Some("question".to_string()),
             content: "Est-ce que Nyxaroth devrait parler ici ou rester silencieux ? À décider."
                 .to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -17824,6 +18017,7 @@ mod tests {
             end_offset: 50,
             annotation_type: Some("todo".to_string()),
             content: "Le passage sur le marché est trop long. Couper de moitié.".to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -17836,6 +18030,7 @@ mod tests {
                 content:
                     "Vérifier la cohérence avec la description de la magie éthérique dans la Bible."
                         .to_string(),
+                annotated_text: None,
             })
             .unwrap();
         db.update_annotation(
@@ -17843,6 +18038,9 @@ mod tests {
             &UpdateAnnotationRequest {
                 content: None,
                 status: Some("resolved".to_string()),
+                start_offset: None,
+                end_offset: None,
+                orphaned: None,
             },
         )
         .unwrap();
@@ -17854,6 +18052,7 @@ mod tests {
             annotation_type: Some("comment".to_string()),
             content: "Le combat manque de détails. Ajouter des descriptions sensorielles."
                 .to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -17864,6 +18063,7 @@ mod tests {
             annotation_type: Some("question".to_string()),
             content: "Faut-il montrer la réaction de Malachar pendant le discours d'Elara ?"
                 .to_string(),
+            annotated_text: None,
         })
         .unwrap();
 
@@ -17873,12 +18073,16 @@ mod tests {
             end_offset: 80,
             annotation_type: Some("revision".to_string()),
             content: "Réécrire ce passage pour renforcer la claustrophobie. Descriptions sensorielles à développer.".to_string(),
+            annotated_text: None,
         }).unwrap();
         db.update_annotation(
             &ann_revision.id,
             &UpdateAnnotationRequest {
                 content: None,
                 status: Some("in_progress".to_string()),
+                start_offset: None,
+                end_offset: None,
+                orphaned: None,
             },
         )
         .unwrap();

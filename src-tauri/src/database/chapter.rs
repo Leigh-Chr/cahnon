@@ -169,8 +169,10 @@ impl Database {
             .map(|i| format!("?{}", i))
             .collect::<Vec<_>>()
             .join(", ");
-        let params: Vec<&dyn rusqlite::ToSql> =
-            scene_ids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        let params: Vec<&dyn rusqlite::ToSql> = scene_ids
+            .iter()
+            .map(|s| s as &dyn rusqlite::ToSql)
+            .collect();
 
         for table in JUNCTION_TABLES {
             let table = Self::validate_table_name(table)?;

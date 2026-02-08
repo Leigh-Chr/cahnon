@@ -26,6 +26,7 @@ const MIGRATIONS: &[MigrationFn] = &[
     Database::migrate_writing_sessions_table,
     Database::migrate_facts_tables,
     Database::migrate_auto_link_dismissed_table,
+    Database::migrate_annotation_tracking_fields,
 ];
 
 impl Database {
@@ -537,16 +538,20 @@ impl Database {
     }
 
     fn migrate_auto_link_dismissed_table(&self) -> Result<(), String> {
-        self.execute_all(&[
-            "CREATE TABLE IF NOT EXISTS auto_link_dismissed (
+        self.execute_all(&["CREATE TABLE IF NOT EXISTS auto_link_dismissed (
                 scene_id TEXT NOT NULL,
                 bible_entry_id TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (scene_id) REFERENCES scenes(id),
                 FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
                 PRIMARY KEY (scene_id, bible_entry_id)
-            )",
-        ])
+            )"])
+    }
+
+    fn migrate_annotation_tracking_fields(&self) -> Result<(), String> {
+        self.add_column_if_missing("annotations", "annotated_text", "TEXT NOT NULL DEFAULT ''")?;
+        self.add_column_if_missing("annotations", "orphaned", "INTEGER NOT NULL DEFAULT 0")?;
+        Ok(())
     }
 
     fn migrate_bible_relationships_unique(&self) -> Result<(), String> {
@@ -847,6 +852,8 @@ CREATE TABLE IF NOT EXISTS annotations (
     annotation_type TEXT NOT NULL DEFAULT 'comment',
     content TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
+    annotated_text TEXT NOT NULL DEFAULT '',
+    orphaned INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (scene_id) REFERENCES scenes(id)

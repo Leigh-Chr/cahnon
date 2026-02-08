@@ -20,6 +20,7 @@ pub fn create_annotation(
         end_offset: request.end_offset,
         annotation_type: request.annotation_type,
         content: sanitize_multiline_text(&request.content, MAX_NOTES_LENGTH),
+        annotated_text: request.annotated_text,
     };
 
     if sanitized_request.content.is_empty() {
@@ -52,6 +53,9 @@ pub fn update_annotation(
             .content
             .map(|c| sanitize_multiline_text(&c, MAX_NOTES_LENGTH)),
         status: request.status,
+        start_offset: request.start_offset,
+        end_offset: request.end_offset,
+        orphaned: request.orphaned,
     };
 
     let guard = state.get_db()?;
@@ -64,4 +68,14 @@ pub fn delete_annotation(id: String, state: State<AppState>) -> Result<(), Strin
     let guard = state.get_db()?;
     let db = guard.db.as_ref().ok_or("No project open")?;
     db.delete_annotation(&id)
+}
+
+#[tauri::command]
+pub fn batch_update_annotation_offsets(
+    updates: Vec<AnnotationOffsetUpdate>,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let guard = state.get_db()?;
+    let db = guard.db.as_ref().ok_or("No project open")?;
+    db.batch_update_annotation_offsets(&updates)
 }
