@@ -57,38 +57,17 @@ impl Database {
     }
 
     pub(crate) fn map_issue(row: &rusqlite::Row) -> rusqlite::Result<crate::models::Issue> {
-        let (id, issue_type, title, description, severity) = Self::map_issue_core(row)?;
-        let (status, resolution_note, created_at, updated_at) = Self::map_issue_meta(row)?;
         Ok(crate::models::Issue {
-            id,
-            issue_type,
-            title,
-            description,
-            severity,
-            status,
-            resolution_note,
-            created_at,
-            updated_at,
+            id: row.get(0)?,
+            issue_type: row.get(1)?,
+            title: row.get(2)?,
+            description: row.get(3)?,
+            severity: row.get(4)?,
+            status: row.get(5)?,
+            resolution_note: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
         })
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn map_issue_core(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(String, String, String, Option<String>, String)> {
-        Ok((
-            row.get(0)?,
-            row.get(1)?,
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-        ))
-    }
-
-    fn map_issue_meta(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(String, Option<String>, String, String)> {
-        Ok((row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?))
     }
 
     /// Gets a single issue by ID.

@@ -221,28 +221,53 @@ impl Database {
         sources: &[Scene],
         now: &str,
     ) -> Result<(), String> {
-        for scene in sources {
-            self.conn
-                .execute(
-                    "INSERT OR IGNORE INTO canonical_associations (id, scene_id, bible_entry_id, created_at)
-                 SELECT ?1 || '-' || bible_entry_id, ?2, bible_entry_id, ?3
-                 FROM canonical_associations WHERE scene_id = ?4",
-                    params![uuid::Uuid::new_v4().to_string(), target.id, now, scene.id],
-                )
-                .map_err(|e| e.to_string())?;
+        if sources.is_empty() {
+            return Ok(());
         }
+        // Build a single INSERT...SELECT with IN clause for all source scene IDs
+        let placeholders: Vec<String> = (0..sources.len()).map(|i| format!("?{}", i + 4)).collect();
+        let sql = format!(
+            "INSERT OR IGNORE INTO canonical_associations (id, scene_id, bible_entry_id, created_at)
+             SELECT ?1 || '-' || scene_id || '-' || bible_entry_id, ?2, bible_entry_id, ?3
+             FROM canonical_associations WHERE scene_id IN ({})",
+            placeholders.join(", ")
+        );
+        let uuid_prefix = uuid::Uuid::new_v4().to_string();
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::with_capacity(3 + sources.len());
+        params_vec.push(Box::new(uuid_prefix));
+        params_vec.push(Box::new(target.id.clone()));
+        params_vec.push(Box::new(now.to_string()));
+        params_vec.extend(
+            sources
+                .iter()
+                .map(|s| Box::new(s.id.clone()) as Box<dyn rusqlite::ToSql>),
+        );
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
+        self.conn
+            .execute(&sql, params_refs.as_slice())
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
     fn soft_delete_merged_scenes(&self, scenes: &[Scene], now: &str) -> Result<(), String> {
-        for scene in scenes {
-            self.conn
-                .execute(
-                    "UPDATE scenes SET deleted_at = ?1 WHERE id = ?2",
-                    params![now, scene.id],
-                )
-                .map_err(|e| e.to_string())?;
+        if scenes.is_empty() {
+            return Ok(());
         }
+        let placeholders: String = (0..scenes.len())
+            .map(|i| format!("?{}", i + 2))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "UPDATE scenes SET deleted_at = ?1 WHERE id IN ({})",
+            placeholders
+        );
+        let mut params_all: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(1 + scenes.len());
+        params_all.push(&now as &dyn rusqlite::ToSql);
+        params_all.extend(scenes.iter().map(|s| &s.id as &dyn rusqlite::ToSql));
+        self.conn
+            .execute(&sql, params_all.as_slice())
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 

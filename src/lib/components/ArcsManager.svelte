@@ -282,10 +282,8 @@
 	}
 
 	function getCharacterNames(characterIds: string[]): string[] {
-		return characterIds.map((id) => {
-			const entry = appState.bibleEntries.find((e) => e.id === id);
-			return entry?.name || id;
-		});
+		const entryMap = new Map(appState.bibleEntries.map((e) => [e.id, e.name]));
+		return characterIds.map((id) => entryMap.get(id) || id);
 	}
 
 	function addCharacter(id: string) {

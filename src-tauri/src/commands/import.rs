@@ -333,26 +333,23 @@ fn process_inline_markdown(text: &str) -> String {
         }
     }
 
-    // Italic: *text* -> <em>text</em> (but not **)
-    let mut i = 0;
-    let chars: Vec<char> = result.chars().collect();
-    let mut new_result = String::new();
-
-    while i < chars.len() {
-        if chars[i] == '*' && (i + 1 >= chars.len() || chars[i + 1] != '*') {
-            // Find closing *
-            if let Some(end) = chars[i + 1..].iter().position(|&c| c == '*') {
-                let content: String = chars[i + 1..i + 1 + end].iter().collect();
-                new_result.push_str(&format!("<em>{}</em>", content));
-                i = i + 1 + end + 1;
-                continue;
-            }
+    // Italic: *text* -> <em>text</em> (bold ** already converted to <strong>)
+    while let Some(start) = result.find('*') {
+        // Skip unclosed ** remnants (bold already processed)
+        if result[start..].starts_with("**") {
+            break;
         }
-        new_result.push(chars[i]);
-        i += 1;
+        if let Some(end) = result[start + 1..].find('*') {
+            let before = &result[..start];
+            let content = &result[start + 1..start + 1 + end];
+            let after = &result[start + 1 + end + 1..];
+            result = format!("{}<em>{}</em>{}", before, content, after);
+        } else {
+            break;
+        }
     }
 
-    new_result
+    result
 }
 
 /// Convert plain text to HTML paragraphs

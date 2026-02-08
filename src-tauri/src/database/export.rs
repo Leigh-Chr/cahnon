@@ -36,10 +36,13 @@ impl Database {
     ) -> Result<Vec<crate::models::Chapter>, String> {
         let all_chapters = self.get_chapters()?;
         Ok(match chapter_ids {
-            Some(ids) => all_chapters
-                .into_iter()
-                .filter(|c| ids.contains(&c.id))
-                .collect(),
+            Some(ids) => {
+                let id_set: std::collections::HashSet<&String> = ids.iter().collect();
+                all_chapters
+                    .into_iter()
+                    .filter(|c| id_set.contains(&c.id))
+                    .collect()
+            }
             None => all_chapters,
         })
     }
@@ -128,10 +131,9 @@ impl Database {
     }
 
     fn collapse_blank_lines(text: &str) -> String {
-        let lines: Vec<&str> = text.lines().collect();
-        let mut result = String::new();
+        let mut result = String::with_capacity(text.len());
         let mut prev_empty = false;
-        for line in lines {
+        for line in text.lines() {
             let is_empty = line.trim().is_empty();
             if is_empty && prev_empty {
                 continue;
@@ -174,10 +176,13 @@ impl Database {
         let project = self.get_project()?;
         let all_chapters = self.get_chapters()?;
         let chapters: Vec<_> = match chapter_ids {
-            Some(ids) => all_chapters
-                .into_iter()
-                .filter(|c| ids.contains(&c.id))
-                .collect(),
+            Some(ids) => {
+                let id_set: std::collections::HashSet<&String> = ids.iter().collect();
+                all_chapters
+                    .into_iter()
+                    .filter(|c| id_set.contains(&c.id))
+                    .collect()
+            }
             None => all_chapters,
         };
         let separator = scene_separator.unwrap_or("* * *");

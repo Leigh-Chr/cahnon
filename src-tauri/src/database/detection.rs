@@ -4,8 +4,9 @@
 //! including narrative inconsistencies, orphaned data, broken references, and
 //! structural patterns that may warrant the writer's attention.
 
+use std::collections::HashMap;
+
 use crate::models::DetectedIssue;
-use rusqlite::params;
 
 use super::Database;
 
@@ -13,7 +14,6 @@ use super::Database;
 struct SceneRef<'a> {
     id: &'a str,
     title: &'a str,
-    chapter_id: &'a str,
     position: i32,
 }
 
@@ -178,6 +178,9 @@ impl Database {
     // ========================================================================
 
     fn detect_broken_setup_payoff(&self) -> Result<Vec<DetectedIssue>, String> {
+        // Pre-load all scene positions in a single query
+        let position_map = self.load_all_scene_positions()?;
+
         let mut stmt = self
             .conn
             .prepare(
@@ -207,45 +210,87 @@ impl Database {
 
         let mut issues = Vec::new();
 
-        for (scene_id, scene_title, scene_chapter_id, scene_position, setup_for, payoff_of) in &rows
+        for (scene_id, scene_title, _scene_chapter_id, scene_position, setup_for, payoff_of) in
+            &rows
         {
             let scene_ref = SceneRef {
                 id: scene_id,
                 title: scene_title,
-                chapter_id: scene_chapter_id,
                 position: *scene_position,
             };
 
             if let Some(target_id) = setup_for {
-                self.check_scene_ref(&mut issues, &scene_ref, target_id, &SETUP_DIRECTION);
+                Self::check_scene_ref_fast(
+                    &mut issues,
+                    &scene_ref,
+                    target_id,
+                    &SETUP_DIRECTION,
+                    &position_map,
+                );
             }
 
             if let Some(target_id) = payoff_of {
-                self.check_scene_ref(&mut issues, &scene_ref, target_id, &PAYOFF_DIRECTION);
+                Self::check_scene_ref_fast(
+                    &mut issues,
+                    &scene_ref,
+                    target_id,
+                    &PAYOFF_DIRECTION,
+                    &position_map,
+                );
             }
         }
 
         Ok(issues)
     }
 
-    /// Validates a single setup/payoff reference and appends any issues found.
-    fn check_scene_ref(
-        &self,
+    /// Pre-load all scene positions: scene_id → (chapter_id, scene_position, chapter_position).
+    fn load_all_scene_positions(&self) -> Result<HashMap<String, (String, i32, i32)>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT s.id, s.chapter_id, s.position, c.position
+                 FROM scenes s
+                 JOIN chapters c ON s.chapter_id = c.id
+                 WHERE s.deleted_at IS NULL AND c.deleted_at IS NULL",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i32>(2)?,
+                    row.get::<_, i32>(3)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        let mut map = HashMap::with_capacity(rows.len());
+        for (scene_id, chapter_id, scene_pos, chapter_pos) in rows {
+            map.insert(scene_id, (chapter_id, scene_pos, chapter_pos));
+        }
+        Ok(map)
+    }
+
+    /// Validates a single setup/payoff reference using pre-loaded position data.
+    fn check_scene_ref_fast(
         issues: &mut Vec<DetectedIssue>,
         scene: &SceneRef,
         target_id: &str,
         dir: &RefDirection,
+        position_map: &HashMap<String, (String, i32, i32)>,
     ) {
-        let target_info = match self.get_scene_position_info(target_id) {
-            Ok(info) => info,
-            Err(_) => return,
-        };
-
-        match target_info {
+        match position_map.get(target_id) {
             Some((_target_chapter_id, target_position, target_chapter_pos)) => {
-                let scene_chapter_pos = self.get_chapter_position(scene.chapter_id).unwrap_or(0);
+                let scene_chapter_pos = position_map
+                    .get(scene.id)
+                    .map(|(_, _, cp)| *cp)
+                    .unwrap_or(0);
                 let scene_global = global_position(scene_chapter_pos, scene.position);
-                let target_global = global_position(target_chapter_pos, target_position);
+                let target_global = global_position(*target_chapter_pos, *target_position);
 
                 let ordering_violated = if dir.must_come_before {
                     scene_global >= target_global
@@ -275,38 +320,6 @@ impl Database {
                 });
             }
         }
-    }
-
-    /// Returns (chapter_id, scene_position, chapter_position) for a scene, or None if deleted/missing.
-    fn get_scene_position_info(
-        &self,
-        scene_id: &str,
-    ) -> Result<Option<(String, i32, i32)>, String> {
-        let result = self.conn.query_row(
-            "SELECT s.chapter_id, s.position, c.position
-             FROM scenes s
-             JOIN chapters c ON s.chapter_id = c.id
-             WHERE s.id = ?1 AND s.deleted_at IS NULL AND c.deleted_at IS NULL",
-            params![scene_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        );
-
-        match result {
-            Ok(info) => Ok(Some(info)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e.to_string()),
-        }
-    }
-
-    /// Returns the position of a chapter, or 0 if not found.
-    fn get_chapter_position(&self, chapter_id: &str) -> Result<i32, String> {
-        self.conn
-            .query_row(
-                "SELECT position FROM chapters WHERE id = ?1 AND deleted_at IS NULL",
-                params![chapter_id],
-                |row| row.get(0),
-            )
-            .map_err(|e| e.to_string())
     }
 
     // ========================================================================
@@ -459,11 +472,13 @@ impl Database {
             .map_err(|e| e.to_string())?;
 
         for (_rel_id, source_id, target_id, rel_type, source_name, target_name) in rows {
-            let entry_ids = [(&source_name, &source_id), (&target_name, &target_id)]
-                .iter()
-                .filter(|(name, _)| name.as_str() != "[deleted]")
-                .map(|(_, id)| (*id).clone())
-                .collect();
+            let mut entry_ids = Vec::with_capacity(2);
+            if source_name != "[deleted]" {
+                entry_ids.push(source_id.clone());
+            }
+            if target_name != "[deleted]" {
+                entry_ids.push(target_id.clone());
+            }
 
             issues.push(DetectedIssue {
                 issue_type: "referential_integrity".to_string(),

@@ -89,53 +89,63 @@ impl Database {
             return conflicts;
         }
 
-        for i in 0..pov_scenes.len() {
-            for j in (i + 1)..pov_scenes.len() {
-                if let Some(conflict) =
-                    Self::check_scene_pair_conflict(pov, pov_scenes[i], pov_scenes[j])
-                {
-                    conflicts.push(conflict);
+        // Build timed scenes with their ranges, sorted by start for sweep-line early exit
+        let mut timed: Vec<(TimeRange, &Scene)> = pov_scenes
+            .iter()
+            .filter_map(|s| TimeRange::from_scene(s).map(|r| (r, *s)))
+            .collect();
+        timed.sort_by(|a, b| a.0.start.cmp(&b.0.start));
+
+        for i in 0..timed.len() {
+            for j in (i + 1)..timed.len() {
+                // Early exit: if j's start is past i's end, no further overlaps with i
+                if timed[j].0.start > timed[i].0.end {
+                    break;
+                }
+                if timed[i].0.overlaps(&timed[j].0) {
+                    conflicts.push(Self::build_overlap_conflict(
+                        pov,
+                        timed[i].1,
+                        &timed[i].0,
+                        timed[j].1,
+                        &timed[j].0,
+                    ));
                 }
             }
         }
         conflicts
     }
 
-    fn check_scene_pair_conflict(
+    fn build_overlap_conflict(
         pov: &str,
         scene_a: &Scene,
+        range_a: &TimeRange,
         scene_b: &Scene,
-    ) -> Option<TimelineConflict> {
-        let range_a = TimeRange::from_scene(scene_a)?;
-        let range_b = TimeRange::from_scene(scene_b)?;
-
-        if range_a.overlaps(&range_b) {
-            let conflict_type = if range_a.start == range_a.end
-                && range_b.start == range_b.end
-                && range_a.start == range_b.start
-            {
-                "same_time"
-            } else {
-                "overlapping_time"
-            };
-
-            Some(TimelineConflict {
-                conflict_type: conflict_type.to_string(),
-                description: format!(
-                    "{} appears in overlapping scenes: '{}' ({}) and '{}' ({})",
-                    pov,
-                    scene_a.title,
-                    range_a.display(),
-                    scene_b.title,
-                    range_b.display()
-                ),
-                scene_ids: vec![scene_a.id.clone(), scene_b.id.clone()],
-                character_id: None,
-                character_name: Some(pov.to_string()),
-                time_point: Some(range_a.start.clone()),
-            })
+        range_b: &TimeRange,
+    ) -> TimelineConflict {
+        let conflict_type = if range_a.start == range_a.end
+            && range_b.start == range_b.end
+            && range_a.start == range_b.start
+        {
+            "same_time"
         } else {
-            None
+            "overlapping_time"
+        };
+
+        TimelineConflict {
+            conflict_type: conflict_type.to_string(),
+            description: format!(
+                "{} appears in overlapping scenes: '{}' ({}) and '{}' ({})",
+                pov,
+                scene_a.title,
+                range_a.display(),
+                scene_b.title,
+                range_b.display()
+            ),
+            scene_ids: vec![scene_a.id.clone(), scene_b.id.clone()],
+            character_id: None,
+            character_name: Some(pov.to_string()),
+            time_point: Some(range_a.start.clone()),
         }
     }
 

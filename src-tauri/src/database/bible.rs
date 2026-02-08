@@ -110,98 +110,24 @@ impl Database {
     }
 
     pub(crate) fn map_bible_entry(row: &rusqlite::Row) -> rusqlite::Result<BibleEntry> {
-        let core = Self::map_bible_entry_core(row)?;
-        let extra = Self::map_bible_entry_extra(row)?;
-
         Ok(BibleEntry {
-            id: core.0,
-            entry_type: core.1,
-            name: core.2,
-            aliases: core.3,
-            short_description: core.4,
-            full_description: core.5,
-            status: core.6,
-            tags: core.7,
-            image_path: extra.0,
-            notes: extra.1,
-            todos: extra.2,
-            color: extra.3,
-            custom_fields: extra.4,
-            created_at: extra.5,
-            updated_at: extra.6,
-            deleted_at: extra.7,
+            id: row.get(0)?,
+            entry_type: row.get(1)?,
+            name: row.get(2)?,
+            aliases: row.get(3)?,
+            short_description: row.get(4)?,
+            full_description: row.get(5)?,
+            status: row.get(6)?,
+            tags: row.get(7)?,
+            image_path: row.get(8)?,
+            notes: row.get(9)?,
+            todos: row.get(10)?,
+            color: row.get(11)?,
+            custom_fields: row.get(12)?,
+            created_at: row.get(13)?,
+            updated_at: row.get(14)?,
+            deleted_at: row.get(15)?,
         })
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn map_bible_entry_core(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        String,
-        Option<String>,
-    )> {
-        let part1 = Self::map_bible_entry_identity(row)?;
-        let part2 = Self::map_bible_entry_description(row)?;
-        Ok((
-            part1.0, part1.1, part1.2, part1.3, part2.0, part2.1, part2.2, part2.3,
-        ))
-    }
-
-    fn map_bible_entry_identity(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(String, String, String, Option<String>)> {
-        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn map_bible_entry_description(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(Option<String>, Option<String>, String, Option<String>)> {
-        Ok((row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?))
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn map_bible_entry_extra(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        String,
-        String,
-        Option<String>,
-    )> {
-        let part1 = Self::map_bible_entry_media(row)?;
-        let part2 = Self::map_bible_entry_timestamps(row)?;
-        Ok((
-            part1.0, part1.1, part1.2, part1.3, part2.0, part2.1, part2.2, part2.3,
-        ))
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn map_bible_entry_media(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-    )> {
-        Ok((row.get(8)?, row.get(9)?, row.get(10)?, row.get(11)?))
-    }
-
-    fn map_bible_entry_timestamps(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(Option<String>, String, String, Option<String>)> {
-        Ok((row.get(12)?, row.get(13)?, row.get(14)?, row.get(15)?))
     }
 
     pub fn get_bible_entry(&self, id: &str) -> Result<BibleEntry, String> {
@@ -505,57 +431,19 @@ impl Database {
     fn map_bible_relationship_with_entry(
         row: &rusqlite::Row,
     ) -> rusqlite::Result<BibleRelationshipWithEntry> {
-        let core = Self::map_relationship_core(row)?;
-        let related = Self::map_related_entry_fields(row)?;
-
         Ok(BibleRelationshipWithEntry {
-            id: core.0,
-            source_id: core.1,
-            target_id: core.2,
-            relationship_type: core.3,
-            note: core.4,
-            status: core.5,
-            created_at: core.6,
-            related_entry_id: related.0,
-            related_entry_type: related.1,
-            related_entry_name: related.2,
-            related_entry_description: related.3,
+            id: row.get(0)?,
+            source_id: row.get(1)?,
+            target_id: row.get(2)?,
+            relationship_type: row.get(3)?,
+            note: row.get(4)?,
+            status: row.get(5)?,
+            created_at: row.get(6)?,
+            related_entry_id: row.get(7)?,
+            related_entry_type: row.get(8)?,
+            related_entry_name: row.get(9)?,
+            related_entry_description: row.get(10)?,
         })
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn map_relationship_core(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        String,
-        String,
-    )> {
-        let part1 = Self::map_relationship_ids(row)?;
-        let part2 = Self::map_relationship_meta(row)?;
-        Ok((
-            part1.0, part1.1, part1.2, part2.0, part2.1, part2.2, part2.3,
-        ))
-    }
-
-    fn map_relationship_ids(row: &rusqlite::Row) -> rusqlite::Result<(String, String, String)> {
-        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-    }
-
-    fn map_relationship_meta(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(String, Option<String>, String, String)> {
-        Ok((row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))
-    }
-
-    fn map_related_entry_fields(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(String, String, String, Option<String>)> {
-        Ok((row.get(7)?, row.get(8)?, row.get(9)?, row.get(10)?))
     }
 
     pub fn get_bible_relationship(&self, id: &str) -> Result<BibleRelationship, String> {

@@ -51,30 +51,16 @@ impl Database {
     }
 
     pub(crate) fn map_chapter(row: &rusqlite::Row) -> rusqlite::Result<Chapter> {
-        let (id, title, summary, status) = Self::map_chapter_core(row)?;
-        let (notes, position, created_at, updated_at) = Self::map_chapter_meta(row)?;
         Ok(Chapter {
-            id,
-            title,
-            summary,
-            status,
-            notes,
-            position,
-            created_at,
-            updated_at,
+            id: row.get(0)?,
+            title: row.get(1)?,
+            summary: row.get(2)?,
+            status: row.get(3)?,
+            notes: row.get(4)?,
+            position: row.get(5)?,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
         })
-    }
-
-    fn map_chapter_core(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(String, String, Option<String>, String)> {
-        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-    }
-
-    fn map_chapter_meta(
-        row: &rusqlite::Row,
-    ) -> rusqlite::Result<(Option<String>, i32, String, String)> {
-        Ok((row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?))
     }
 
     pub fn get_chapter(&self, id: &str) -> Result<Chapter, String> {
@@ -129,9 +115,7 @@ impl Database {
         let scene_ids = self.get_chapter_scene_ids(id)?;
 
         self.run_in_transaction(|| {
-            for scene_id in &scene_ids {
-                self.cleanup_scene_junctions(scene_id)?;
-            }
+            self.cleanup_scene_junctions_batch(&scene_ids)?;
 
             self.conn
                 .execute(
@@ -163,6 +147,40 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         Ok(ids)
+    }
+
+    /// Removes all junction table entries for a batch of scenes (6 queries instead of 6×N).
+    fn cleanup_scene_junctions_batch(&self, scene_ids: &[String]) -> Result<(), String> {
+        if scene_ids.is_empty() {
+            return Ok(());
+        }
+
+        const JUNCTION_TABLES: &[&str] = &[
+            "canonical_associations",
+            "scene_arcs",
+            "event_scenes",
+            "issue_scenes",
+            "scene_steps",
+            "annotations",
+        ];
+
+        let placeholders: String = (1..=scene_ids.len())
+            .map(|i| format!("?{}", i))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let params: Vec<&dyn rusqlite::ToSql> =
+            scene_ids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+
+        for table in JUNCTION_TABLES {
+            let table = Self::validate_table_name(table)?;
+            self.conn
+                .execute(
+                    &format!("DELETE FROM {} WHERE scene_id IN ({})", table, placeholders),
+                    params.as_slice(),
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 
     /// Removes all junction table entries for a given scene.
