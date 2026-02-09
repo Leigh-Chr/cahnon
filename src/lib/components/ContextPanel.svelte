@@ -8,8 +8,8 @@
   - Arc membership
   - Timeline event links
   - Narrative template step assignment
-  - Annotations panel (in revision mode)
-  - Revision checklist (in revision mode)
+  - Annotations panel
+  - Revision checklist
   - Status chart showing scene status distribution
 -->
 <script lang="ts">
@@ -89,14 +89,8 @@
 		return collapsedSections.has(name);
 	}
 
-	// World State collapsible toggle (defaults closed, auto-opens in revision mode)
+	// World State collapsible toggle (defaults closed)
 	let worldStateExpanded = $state(false);
-
-	$effect(() => {
-		if (appState.workMode === 'revision') {
-			worldStateExpanded = true;
-		}
-	});
 
 	// Editable fields state
 	let isEditingNotes = $state(false);
@@ -1325,8 +1319,8 @@
 					</section>
 				{/if}
 
-				<!-- Analysis tab: Revision Checklist Section (revision mode only) -->
-				{#if appState.contextPanelTab === 'analysis' && appState.workMode === 'revision'}
+				<!-- Analysis tab: Revision Checklist Section -->
+				{#if appState.contextPanelTab === 'analysis'}
 					<section class="panel-section">
 						<RevisionChecklist
 							checklist={(() => {

@@ -85,7 +85,7 @@
 		},
 		{
 			label: 'Modes',
-			actions: ['toggleWorkMode', 'focusMode', 'fullscreen', 'showShortcuts'],
+			actions: ['focusMode', 'fullscreen', 'showShortcuts'],
 		},
 	];
 

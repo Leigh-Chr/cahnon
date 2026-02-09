@@ -3,7 +3,6 @@
 
   Features:
   - View mode tabs (Editor, Corkboard, Timeline, Bible)
-  - Work mode toggle (Writing/Revision)
   - Outline toggle
   - Context panel toggle
   - Quick Open trigger
@@ -122,25 +121,27 @@
 
 		<div class="separator"></div>
 
-		<button
-			class="toolbar-btn icon-btn"
-			class:active={appState.showOutline}
-			onclick={() => appState.toggleOutline()}
-			title="Toggle Outline ({formatShortcut('\\')})"
-			aria-label="Toggle Outline"
-		>
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
+		{#if appState.viewMode !== 'dashboard' && appState.viewMode !== 'issues'}
+			<button
+				class="toolbar-btn icon-btn"
+				class:active={appState.showOutline}
+				onclick={() => appState.toggleOutline()}
+				title="Toggle Outline ({formatShortcut('\\')})"
+				aria-label="Toggle Outline"
 			>
-				<rect x="3" y="3" width="18" height="18" rx="2" />
-				<line x1="9" y1="3" x2="9" y2="21" />
-			</svg>
-		</button>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<rect x="3" y="3" width="18" height="18" rx="2" />
+					<line x1="9" y1="3" x2="9" y2="21" />
+				</svg>
+			</button>
+		{/if}
 
 		<!-- AG1: Quick Open button (visible search trigger) -->
 		<button
@@ -250,22 +251,6 @@
 	</div>
 
 	<div class="toolbar-right">
-		<!-- AX1, AX2: Standardized vocabulary - Writing/Revision instead of Draft/Revise -->
-		<button
-			class="mode-toggle"
-			class:revision={appState.workMode === 'revision'}
-			onclick={() => appState.toggleWorkMode()}
-			title="{appState.workMode === 'writing'
-				? 'Switch to Revision mode for analytical tools'
-				: 'Switch to Writing mode for distraction-free writing'} ({formatShortcut(
-				'D',
-				true,
-				true
-			)})"
-		>
-			{appState.workMode === 'writing' ? 'Writing' : 'Revision'}
-		</button>
-
 		<button
 			class="toolbar-btn icon-btn"
 			onclick={() => onOpenReviewGrid?.()}
@@ -446,25 +431,27 @@
 
 		<div class="separator"></div>
 
-		<button
-			class="toolbar-btn icon-btn"
-			class:active={appState.showContextPanel}
-			onclick={() => appState.toggleContextPanel()}
-			title="Toggle Context Panel ({formatShortcut('\\', true, true)})"
-			aria-label="Toggle Context Panel"
-		>
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
+		{#if appState.viewMode !== 'issues' && appState.viewMode !== 'dashboard'}
+			<button
+				class="toolbar-btn icon-btn"
+				class:active={appState.showContextPanel}
+				onclick={() => appState.toggleContextPanel()}
+				title="Toggle Context Panel ({formatShortcut('\\', true, true)})"
+				aria-label="Toggle Context Panel"
 			>
-				<rect x="3" y="3" width="18" height="18" rx="2" />
-				<line x1="15" y1="3" x2="15" y2="21" />
-			</svg>
-		</button>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<rect x="3" y="3" width="18" height="18" rx="2" />
+					<line x1="15" y1="3" x2="15" y2="21" />
+				</svg>
+			</button>
+		{/if}
 	</div>
 </header>
 
@@ -679,25 +666,6 @@
 		opacity: 1;
 	}
 
-	.mode-toggle {
-		padding: var(--spacing-xs) var(--spacing-md);
-		font-size: var(--font-size-sm);
-		font-weight: 500;
-		border-radius: var(--border-radius-md);
-		background-color: var(--color-bg-tertiary);
-		color: var(--color-text-secondary);
-		transition: all var(--transition-fast);
-	}
-
-	.mode-toggle:hover {
-		background-color: var(--color-bg-hover);
-	}
-
-	.mode-toggle.revision {
-		background-color: var(--color-accent-light);
-		color: var(--color-accent);
-	}
-
 	/* More menu */
 	.more-menu-container {
 		position: relative;
@@ -795,10 +763,6 @@
 		}
 		.view-btn {
 			padding: var(--spacing-xs);
-			font-size: var(--font-size-xs);
-		}
-		.mode-toggle {
-			padding: var(--spacing-xs) var(--spacing-sm);
 			font-size: var(--font-size-xs);
 		}
 		.separator {

@@ -403,7 +403,9 @@
 
 		if (appState.matchesShortcut(event, 'toggleOutline')) {
 			event.preventDefault();
-			appState.toggleOutline();
+			if (appState.viewMode !== 'dashboard' && appState.viewMode !== 'issues') {
+				appState.toggleOutline();
+			}
 			return;
 		}
 
@@ -423,12 +425,6 @@
 				appState.setViewMode(viewModes[i]);
 				return;
 			}
-		}
-
-		if (appState.matchesShortcut(event, 'toggleWorkMode')) {
-			event.preventDefault();
-			appState.toggleWorkMode();
-			return;
 		}
 
 		if (appState.matchesShortcut(event, 'nextScene')) {
@@ -720,7 +716,9 @@
 					appState.setViewMode('dashboard');
 					break;
 				case 'toggle_outline':
-					appState.toggleOutline();
+					if (appState.viewMode !== 'dashboard' && appState.viewMode !== 'issues') {
+						appState.toggleOutline();
+					}
 					break;
 				case 'toggle_context_panel':
 					appState.toggleContextPanel();
@@ -832,7 +830,7 @@
 	{/if}
 
 	<div class="main">
-		{#if appState.showOutline && !appState.isFocusMode}
+		{#if appState.showOutline && !appState.isFocusMode && appState.viewMode !== 'dashboard' && appState.viewMode !== 'issues'}
 			<div
 				class="sidebar-container"
 				transition:slide={{ duration: 200, axis: 'x', easing: cubicOut }}

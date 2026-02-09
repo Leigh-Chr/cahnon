@@ -32,7 +32,6 @@ import type {
 	KeyboardShortcuts,
 	ShortcutBinding,
 	ViewMode,
-	WorkMode,
 } from './types';
 import { defaultEditorSettings, defaultFocusSettings, defaultKeyboardShortcuts } from './types';
 
@@ -61,7 +60,6 @@ class AppState {
 	// UI State
 	// -------------------------------------------------------------------------
 	viewMode = $state<ViewMode>('editor');
-	workMode = $state<WorkMode>('writing');
 	showOutline = $state(true);
 	showContextPanel = $state(true);
 
@@ -453,12 +451,6 @@ class AppState {
 			this.viewMode = savedViewMode;
 		}
 
-		// Work mode
-		const savedWorkMode = localStorage.getItem('workMode') as WorkMode | null;
-		if (savedWorkMode && ['writing', 'revision'].includes(savedWorkMode)) {
-			this.workMode = savedWorkMode;
-		}
-
 		// Pending selection (applied after manuscript loads)
 		this._pendingSceneId = localStorage.getItem('selectedSceneId');
 		this._pendingChapterId = localStorage.getItem('selectedChapterId');
@@ -515,11 +507,6 @@ class AppState {
 			// Sync view mode
 			$effect(() => {
 				localStorage.setItem('viewMode', this.viewMode);
-			});
-
-			// Sync work mode
-			$effect(() => {
-				localStorage.setItem('workMode', this.workMode);
 			});
 
 			// Sync selection
@@ -1490,10 +1477,6 @@ class AppState {
 		} catch {
 			this.favoriteSceneIds = new Set();
 		}
-	}
-
-	toggleWorkMode() {
-		this.workMode = this.workMode === 'writing' ? 'revision' : 'writing';
 	}
 
 	setColorMode(mode: 'light' | 'dark' | 'system') {

@@ -12,7 +12,7 @@
 // =============================================================================
 
 // Types
-export type { EditorSettings, FocusSettings, ViewMode, WorkMode } from './types';
+export type { EditorSettings, FocusSettings, ViewMode } from './types';
 
 // App State (main state class)
 export { appState } from './app-state.svelte';

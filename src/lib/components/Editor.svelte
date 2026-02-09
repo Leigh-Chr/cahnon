@@ -183,7 +183,7 @@
 	// History modal
 	let showHistoryModal = $state(false);
 
-	// AD1: Summary section expanded state (collapsed by default in writing mode)
+	// AD1: Summary section expanded state (defaults to collapsed)
 	let summaryExpanded = $state(false);
 
 	// Cut library
@@ -1515,7 +1515,7 @@
 
 <svelte:window onkeydown={handleKeydown} onblur={handleWindowBlur} />
 
-<div class="editor-container" class:revision-mode={appState.workMode === 'revision'}>
+<div class="editor-container">
 	{#if selectedScene}
 		<div class="editor-header">
 			<!-- UC4: Enhanced Breadcrumb navigation in editor -->
@@ -1629,50 +1629,48 @@
 					</button>
 				</div>
 
-				{#if appState.workMode === 'writing'}
-					<div class="focus-controls">
-						<button
-							class="header-btn"
-							class:active={typewriterMode}
-							onclick={toggleTypewriterMode}
-							title="Typewriter mode (keep cursor centered)"
+				<div class="focus-controls">
+					<button
+						class="header-btn"
+						class:active={typewriterMode}
+						onclick={toggleTypewriterMode}
+						title="Typewriter mode (keep cursor centered)"
+					>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
 						>
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<rect x="2" y="4" width="20" height="16" rx="2" />
-								<line x1="6" y1="8" x2="18" y2="8" />
-								<line x1="6" y1="12" x2="18" y2="12" />
-								<line x1="6" y1="16" x2="12" y2="16" />
-							</svg>
-						</button>
-						<button
-							class="header-btn"
-							class:active={dimSurroundings}
-							onclick={toggleDimSurroundings}
-							title="Focus mode (dim surrounding paragraphs)"
+							<rect x="2" y="4" width="20" height="16" rx="2" />
+							<line x1="6" y1="8" x2="18" y2="8" />
+							<line x1="6" y1="12" x2="18" y2="12" />
+							<line x1="6" y1="16" x2="12" y2="16" />
+						</svg>
+					</button>
+					<button
+						class="header-btn"
+						class:active={dimSurroundings}
+						onclick={toggleDimSurroundings}
+						title="Focus mode (dim surrounding paragraphs)"
+					>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
 						>
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<circle cx="12" cy="12" r="3" />
-								<path
-									d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
-								/>
-							</svg>
-						</button>
-					</div>
-				{/if}
+							<circle cx="12" cy="12" r="3" />
+							<path
+								d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+							/>
+						</svg>
+					</button>
+				</div>
 			</div>
 
 			<div class="scene-meta">
@@ -1718,145 +1716,129 @@
 					</div>
 				{/if}
 
-				{#if appState.workMode === 'revision'}
-					<button
-						class="header-btn"
-						onclick={() => (showHistoryModal = true)}
-						title="View scene history"
+				<button
+					class="header-btn"
+					onclick={() => (showHistoryModal = true)}
+					title="View scene history"
+				>
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
 					>
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<circle cx="12" cy="12" r="10" />
-							<polyline points="12 6 12 12 16 14" />
-						</svg>
-					</button>
+						<circle cx="12" cy="12" r="10" />
+						<polyline points="12 6 12 12 16 14" />
+					</svg>
+				</button>
 
-					<button class="header-btn" onclick={() => (showCutLibrary = true)} title="Cut library">
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<circle cx="6" cy="6" r="3" />
-							<circle cx="6" cy="18" r="3" />
-							<line x1="20" y1="4" x2="8.12" y2="15.88" />
-							<line x1="14.47" y1="14.48" x2="20" y2="20" />
-							<line x1="8.12" y1="8.12" x2="12" y2="12" />
-						</svg>
-					</button>
-
-					<button class="header-btn" onclick={cutSelectedText} title="Cut selection to library">
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-							<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-						</svg>
-					</button>
-
-					<span class="divider"></span>
-
-					<button
-						class="header-btn"
-						onclick={splitSceneAtCursor}
-						title="Split scene at cursor position"
+				<button class="header-btn" onclick={() => (showCutLibrary = true)} title="Cut library">
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
 					>
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<line x1="12" y1="2" x2="12" y2="22" />
-							<path d="M8 6l-4 6 4 6" />
-							<path d="M16 6l4 6-4 6" />
-						</svg>
-					</button>
+						<circle cx="6" cy="6" r="3" />
+						<circle cx="6" cy="18" r="3" />
+						<line x1="20" y1="4" x2="8.12" y2="15.88" />
+						<line x1="14.47" y1="14.48" x2="20" y2="20" />
+						<line x1="8.12" y1="8.12" x2="12" y2="12" />
+					</svg>
+				</button>
 
-					<button class="header-btn" onclick={mergeWithNextScene} title="Merge with next scene">
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<path d="M8 6l4 6-4 6" />
-							<path d="M16 6l-4 6 4 6" />
-						</svg>
-					</button>
-				{/if}
+				<button class="header-btn" onclick={cutSelectedText} title="Cut selection to library">
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+						<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+					</svg>
+				</button>
+
+				<span class="divider"></span>
+
+				<button
+					class="header-btn"
+					onclick={splitSceneAtCursor}
+					title="Split scene at cursor position"
+				>
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<line x1="12" y1="2" x2="12" y2="22" />
+						<path d="M8 6l-4 6 4 6" />
+						<path d="M16 6l4 6-4 6" />
+					</svg>
+				</button>
+
+				<button class="header-btn" onclick={mergeWithNextScene} title="Merge with next scene">
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path d="M8 6l4 6-4 6" />
+						<path d="M16 6l-4 6 4 6" />
+					</svg>
+				</button>
 			</div>
 		</div>
 
-		<!-- AD1: Summary accessible in both modes -->
-		{#if appState.workMode === 'revision'}
-			<div class="summary-section">
-				<label for="summary">Summary</label>
+		<!-- AD1: Summary section (collapsible) -->
+		<div class="summary-section collapsed" class:expanded={summaryExpanded}>
+			<button
+				class="summary-toggle"
+				onclick={() => (summaryExpanded = !summaryExpanded)}
+				title={summaryExpanded ? 'Collapse summary' : 'Expand summary'}
+			>
+				<svg
+					width="12"
+					height="12"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					class:rotated={summaryExpanded}
+				>
+					<polyline points="6 9 12 15 18 9" />
+				</svg>
+				<span>Summary</span>
+				{#if selectedScene.summary && !summaryExpanded}
+					<span class="summary-preview"
+						>{selectedScene.summary.slice(0, 40)}{selectedScene.summary.length > 40
+							? '...'
+							: ''}</span
+					>
+				{/if}
+			</button>
+			{#if summaryExpanded}
 				<textarea
-					id="summary"
+					id="summary-writing"
 					placeholder="Brief summary of this scene..."
 					value={selectedScene.summary || ''}
 					onblur={updateSummary}
 					rows="2"
 				></textarea>
-			</div>
-		{:else}
-			<!-- Writing mode: collapsible summary -->
-			<div class="summary-section collapsed" class:expanded={summaryExpanded}>
-				<button
-					class="summary-toggle"
-					onclick={() => (summaryExpanded = !summaryExpanded)}
-					title={summaryExpanded ? 'Collapse summary' : 'Expand summary'}
-				>
-					<svg
-						width="12"
-						height="12"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						class:rotated={summaryExpanded}
-					>
-						<polyline points="6 9 12 15 18 9" />
-					</svg>
-					<span>Summary</span>
-					{#if selectedScene.summary && !summaryExpanded}
-						<span class="summary-preview"
-							>{selectedScene.summary.slice(0, 40)}{selectedScene.summary.length > 40
-								? '...'
-								: ''}</span
-						>
-					{/if}
-				</button>
-				{#if summaryExpanded}
-					<textarea
-						id="summary-writing"
-						placeholder="Brief summary of this scene..."
-						value={selectedScene.summary || ''}
-						onblur={updateSummary}
-						rows="2"
-					></textarea>
-				{/if}
-			</div>
-		{/if}
+			{/if}
+		</div>
 
 		{#if recoveryDraftAvailable}
 			{@const recoveryTime = new Date(recoveryDraftAvailable.timestamp).toLocaleTimeString([], {
@@ -2474,23 +2456,13 @@
 		border-bottom: 1px solid var(--color-border-light);
 	}
 
-	.summary-section label {
-		display: block;
-		font-size: var(--font-size-xs);
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		color: var(--color-text-muted);
-		margin-bottom: var(--spacing-xs);
-	}
-
 	.summary-section textarea {
 		width: 100%;
 		resize: none;
 		font-size: var(--font-size-sm);
 	}
 
-	/* AD1: Collapsible summary in writing mode */
+	/* AD1: Collapsible summary section */
 	.summary-section.collapsed {
 		padding: var(--spacing-xs) var(--spacing-lg);
 	}
@@ -2806,15 +2778,6 @@
 		align-items: center;
 		justify-content: center;
 		height: 100%;
-	}
-
-	/* Writing mode - even more minimal */
-	.editor-container:not(.revision-mode) .editor-header {
-		border-bottom: none;
-	}
-
-	.editor-container:not(.revision-mode) .scene-meta {
-		display: none;
 	}
 
 	/* Focus controls */

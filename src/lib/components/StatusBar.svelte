@@ -175,13 +175,6 @@
 				<Icon name="save" size={11} />
 			</span>
 		{/if}
-
-		<span class="separator">|</span>
-
-		<!-- AX1: Standardized vocabulary - Writing/Revising instead of Drafting -->
-		<span class="mode-indicator" class:revision={appState.workMode === 'revision'}>
-			{appState.workMode === 'writing' ? 'Writing' : 'Revising'}
-		</span>
 	</div>
 
 	<div class="status-center">
@@ -189,7 +182,7 @@
 			<span class="status-message status-{appState.statusMessage.type}">
 				{appState.statusMessage.text}
 			</span>
-		{:else if appState.selectedScene}
+		{:else if appState.selectedScene && appState.viewMode === 'editor'}
 			{@const sceneWords = countWords(appState.selectedScene.text)}
 			<span class="scene-info">
 				{sceneWords} words in scene (~{Math.max(1, Math.ceil(sceneWords / 250))} min)
@@ -498,17 +491,6 @@
 
 	.failed-dot {
 		background-color: var(--color-error);
-	}
-
-	.mode-indicator {
-		padding: 2px var(--spacing-sm);
-		border-radius: var(--border-radius-sm);
-		background-color: var(--color-bg-secondary);
-	}
-
-	.mode-indicator.revision {
-		background-color: var(--color-accent-light);
-		color: var(--color-accent);
 	}
 
 	.word-stat {

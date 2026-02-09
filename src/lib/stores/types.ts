@@ -15,13 +15,6 @@
 export type ViewMode = 'editor' | 'corkboard' | 'timeline' | 'bible' | 'issues' | 'dashboard';
 
 /**
- * Current work mode affecting UI presentation.
- * - `writing`: Minimal interface for distraction-free writing
- * - `revision`: Shows analytical tools (annotations, review grid, etc.)
- */
-export type WorkMode = 'writing' | 'revision';
-
-/**
  * CA4: Editor color theme options.
  */
 export type EditorTheme = 'default' | 'sepia' | 'dark' | 'low-contrast';
@@ -95,7 +88,6 @@ export interface KeyboardShortcuts {
 	viewBible: ShortcutBinding;
 	viewIssues: ShortcutBinding;
 	viewDashboard: ShortcutBinding;
-	toggleWorkMode: ShortcutBinding;
 	nextScene: ShortcutBinding;
 	prevScene: ShortcutBinding;
 	nextChapter: ShortcutBinding; // AD4
@@ -127,7 +119,6 @@ export const defaultKeyboardShortcuts: KeyboardShortcuts = {
 	viewBible: { key: '4', mod: true, shift: false },
 	viewIssues: { key: '5', mod: true, shift: false },
 	viewDashboard: { key: '6', mod: true, shift: false },
-	toggleWorkMode: { key: 'd', mod: true, shift: true },
 	nextScene: { key: 'ArrowDown', mod: true, shift: false },
 	prevScene: { key: 'ArrowUp', mod: true, shift: false },
 	nextChapter: { key: 'ArrowDown', mod: true, shift: true }, // AD4
@@ -160,7 +151,6 @@ export const shortcutLabels: Record<keyof KeyboardShortcuts, string> = {
 	viewBible: 'Codex View',
 	viewIssues: 'Continuity View',
 	viewDashboard: 'Dashboard View',
-	toggleWorkMode: 'Toggle Work Mode',
 	nextScene: 'Next Scene',
 	prevScene: 'Previous Scene',
 	nextChapter: 'Next Chapter', // AD4

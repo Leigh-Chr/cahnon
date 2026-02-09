@@ -159,10 +159,6 @@
 
 	let filteredIssues = $derived.by(() => {
 		let result = issues;
-		// In writing mode, only show critical (error) issues per spec 14.4
-		if (appState.workMode === 'writing') {
-			result = result.filter((i) => i.severity === 'error');
-		}
 		if (filterType) result = result.filter((i) => i.issue_type === filterType);
 		if (filterStatus) result = result.filter((i) => i.status === filterStatus);
 		if (filterSeverity) result = result.filter((i) => i.severity === filterSeverity);
@@ -441,9 +437,6 @@
 	<div class="issues-sidebar">
 		<div class="sidebar-header">
 			<h2>Issues</h2>
-			{#if appState.workMode === 'writing'}
-				<span class="mode-badge">Critical only</span>
-			{/if}
 			<div class="header-actions">
 				<Button size="sm" onclick={runProjectAnalysis} disabled={isLoading}>Analyze Project</Button>
 				<Button size="sm" onclick={() => detectTimelineConflicts()} disabled={isLoading}>
@@ -833,17 +826,6 @@
 	.sidebar-header h2 {
 		margin: 0 0 var(--spacing-sm) 0;
 		font-size: var(--font-size-lg);
-	}
-
-	.mode-badge {
-		display: inline-block;
-		font-size: var(--font-size-xs);
-		padding: 2px var(--spacing-xs);
-		background-color: var(--color-warning);
-		color: white;
-		border-radius: var(--border-radius-sm);
-		margin-bottom: var(--spacing-sm);
-		font-weight: 500;
 	}
 
 	.header-actions {

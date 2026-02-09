@@ -752,7 +752,6 @@
 			>
 				<Icon name={compactView ? 'menu' : 'sort'} size={14} />
 			</Button>
-			<!-- BB3: Status legend trigger -->
 			<div class="status-legend-trigger">
 				<Button
 					variant="icon"
@@ -899,7 +898,6 @@
 						>
 					{/if}
 
-					<!-- CB4: Scene count per chapter -->
 					<span class="scene-count">{chapterScenes.length}</span>
 					<span class="word-count">{formatWordCount(wordCount)}</span>
 
