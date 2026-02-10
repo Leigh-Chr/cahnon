@@ -11,7 +11,7 @@ use super::super::Database;
 pub(crate) const SCENE_SELECT: &str =
     "SELECT id, chapter_id, title, summary, text, status, pov, tags, notes, todos,
         word_target, time_point, time_start, time_end, on_timeline, position,
-        pov_goal, has_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id, revision_notes, revision_checklist,
+        pov_goal, has_dramatic_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id, revision_notes, revision_checklist,
         word_count, created_at, updated_at";
 
 impl Database {
@@ -32,7 +32,7 @@ impl Database {
         self.conn
             .execute(
                 "INSERT INTO scenes (id, chapter_id, title, summary, text, status, position, on_timeline, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, '', 'to write', ?5, 1, ?6, ?7)",
+             VALUES (?1, ?2, ?3, ?4, '', 'to_write', ?5, 1, ?6, ?7)",
                 params![id, req.chapter_id, req.title, req.summary, position, now, now],
             )
             .map_err(|e| e.to_string())?;
@@ -147,7 +147,7 @@ impl Database {
         params: &mut Vec<Box<dyn rusqlite::ToSql>>,
     ) {
         add_field!(set_clauses, params, req.pov_goal, "pov_goal");
-        add_field!(set_clauses, params, req.has_conflict, "has_conflict", bool);
+        add_field!(set_clauses, params, req.has_dramatic_conflict, "has_dramatic_conflict", bool);
         add_field!(set_clauses, params, req.has_change, "has_change", bool);
         add_field!(set_clauses, params, req.tension, "tension");
         add_field!(

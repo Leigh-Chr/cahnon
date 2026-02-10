@@ -125,7 +125,7 @@ pub fn update_scene(
         pov_goal: request
             .pov_goal
             .map(|p| sanitize_text(&p, MAX_SYNOPSIS_LENGTH)),
-        has_conflict: request.has_conflict,
+        has_dramatic_conflict: request.has_dramatic_conflict,
         has_change: request.has_change,
         tension: request
             .tension

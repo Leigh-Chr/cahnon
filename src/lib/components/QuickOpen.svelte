@@ -285,7 +285,7 @@
 					type: 'bible' as const,
 					title: entry.name,
 					entryType: entry.entry_type,
-					description: entry.full_description || entry.short_description || null,
+					description: entry.full_description || entry.summary || null,
 					aliases: entry.aliases || null,
 				};
 			}

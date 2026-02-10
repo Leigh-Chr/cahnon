@@ -320,7 +320,7 @@ impl Database {
         output.push_str(&format!("### {} [{}]\n\n", entry.name, entry.status));
 
         Self::append_non_empty(output, &entry.aliases, "*Aliases: {}*\n\n");
-        Self::append_optional(output, &entry.short_description, "{}\n\n");
+        Self::append_optional(output, &entry.summary, "{}\n\n");
         Self::append_optional(output, &entry.full_description, "{}\n\n");
         Self::append_non_empty(output, &entry.notes, "**Notes:** {}\n\n");
 
@@ -380,7 +380,7 @@ impl Database {
         let event_types = [
             ("backstory", "Backstory"),
             ("historical", "Historical"),
-            ("scene", "Story Events"),
+            ("plot", "Story Events"),
         ];
 
         for (event_type, label) in event_types {

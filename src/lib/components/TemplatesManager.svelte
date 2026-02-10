@@ -45,7 +45,7 @@
 	// Step form
 	let stepName = $state('');
 	let stepDescription = $state('');
-	let stepTypicalPosition = $state(50);
+	let stepStoryPercentage = $state(50);
 	let stepColor = $state('#6366f1');
 
 	const stepColors = [
@@ -180,13 +180,13 @@
 			editingStepId = step.id;
 			stepName = step.name;
 			stepDescription = step.description || '';
-			stepTypicalPosition = step.typical_position;
+			stepStoryPercentage = step.story_percentage;
 			stepColor = step.color || '#6366f1';
 		} else {
 			editingStepId = null;
 			stepName = '';
 			stepDescription = '';
-			stepTypicalPosition = 50;
+			stepStoryPercentage = 50;
 			stepColor = '#6366f1';
 		}
 		isEditingStep = true;
@@ -197,7 +197,7 @@
 		editingStepId = null;
 		stepName = '';
 		stepDescription = '';
-		stepTypicalPosition = 50;
+		stepStoryPercentage = 50;
 		stepColor = '#6366f1';
 	}
 
@@ -210,7 +210,7 @@
 				const updated = await templateApi.updateStep(editingStepId, {
 					name: stepName.trim(),
 					description: stepDescription.trim() || undefined,
-					typical_position: stepTypicalPosition,
+					story_percentage: stepStoryPercentage,
 					color: stepColor,
 				});
 				steps = steps.map((s) => (s.id === updated.id ? updated : s));
@@ -220,7 +220,7 @@
 					template_id: selectedTemplateId,
 					name: stepName.trim(),
 					description: stepDescription.trim() || undefined,
-					typical_position: stepTypicalPosition,
+					story_percentage: stepStoryPercentage,
 					color: stepColor,
 				});
 				steps = [...steps, newStep];
@@ -409,8 +409,8 @@
 								></textarea>
 							</FormGroup>
 
-							<FormGroup label="Typical Position ({stepTypicalPosition}%)">
-								<input type="range" min="0" max="100" bind:value={stepTypicalPosition} />
+							<FormGroup label="Typical Position ({stepStoryPercentage}%)">
+								<input type="range" min="0" max="100" bind:value={stepStoryPercentage} />
 								<div class="position-labels">
 									<span>Start</span>
 									<span>Middle</span>
@@ -508,9 +508,9 @@
 								</div>
 
 								<div class="steps-list">
-									{#each [...steps].sort((a, b) => a.typical_position - b.typical_position) as step (step.id)}
+									{#each [...steps].sort((a, b) => a.story_percentage - b.story_percentage) as step (step.id)}
 										<div class="step-item" style="--step-color: {step.color || '#6366f1'}">
-											<div class="step-position">{step.typical_position}%</div>
+											<div class="step-position">{step.story_percentage}%</div>
 											<div class="step-color-bar"></div>
 											<div class="step-content">
 												<span class="step-name">{step.name}</span>

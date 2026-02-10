@@ -283,7 +283,7 @@ mod tests {
         assert_eq!(scene.title, "Scene 1");
         assert_eq!(scene.chapter_id, chapter.id);
         assert_eq!(scene.summary, Some("First scene".to_string()));
-        assert_eq!(scene.status, "to write");
+        assert_eq!(scene.status, "to_write");
         assert_eq!(scene.position, 1);
         assert!(scene.on_timeline);
     }
@@ -377,7 +377,7 @@ mod tests {
                     on_timeline: Some(false),
                     position: None,
                     pov_goal: None,
-                    has_conflict: None,
+                    has_dramatic_conflict: None,
                     has_change: None,
                     tension: None,
                     setup_for_scene_id: None,
@@ -500,7 +500,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "John Doe".to_string(),
                 aliases: Some("Johnny, JD".to_string()),
-                short_description: Some("The protagonist".to_string()),
+                summary: Some("The protagonist".to_string()),
                 full_description: Some("A detailed description of John Doe.".to_string()),
                 status: None,
                 tags: Some("hero,main".to_string()),
@@ -530,7 +530,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "John".to_string(),
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -542,7 +542,7 @@ mod tests {
             entry_type: "location".to_string(),
             name: "Castle".to_string(),
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -554,7 +554,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Jane".to_string(),
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -595,7 +595,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Original".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -609,7 +609,7 @@ mod tests {
                 &UpdateBibleEntryRequest {
                     name: Some("Updated".to_string()),
                     aliases: Some("Alias1".to_string()),
-                    short_description: Some("Short desc".to_string()),
+                    summary: Some("Short desc".to_string()),
                     full_description: None,
                     status: Some("confirmed".to_string()),
                     tags: None,
@@ -644,7 +644,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "To Delete".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -695,7 +695,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "John".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -747,7 +747,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "John".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -760,7 +760,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Jane".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -817,7 +817,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "John".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -885,7 +885,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -945,7 +945,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "John Smith".to_string(),
                 aliases: Some("The Detective, Johnny".to_string()),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1000,7 +1000,7 @@ mod tests {
                 entry_type: "concept".to_string(),
                 name: "OK".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1054,7 +1054,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1118,7 +1118,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1131,7 +1131,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1197,7 +1197,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Rose".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1263,7 +1263,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Rose".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1356,7 +1356,7 @@ mod tests {
                 on_timeline: None,
                 position: None,
                 pov_goal: None,
-                has_conflict: None,
+                has_dramatic_conflict: None,
                 has_change: None,
                 tension: None,
                 setup_for_scene_id: None,
@@ -1503,7 +1503,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "John".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1738,8 +1738,8 @@ mod tests {
 
         assert_eq!(event.title, "Battle of Winterfell");
         assert_eq!(event.description, Some("The big fight".to_string()));
-        assert_eq!(event.event_type, "scene");
-        assert_eq!(event.importance, "normal");
+        assert_eq!(event.event_type, "plot");
+        assert_eq!(event.importance, "moderate");
     }
 
     #[test]
@@ -1901,7 +1901,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -1943,7 +1943,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2460,7 +2460,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2495,7 +2495,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2548,7 +2548,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2778,14 +2778,14 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Opening Hook".to_string(),
                 description: Some("Grab the reader's attention".to_string()),
-                typical_position: Some(0.05),
+                story_percentage: Some(0.05),
                 color: Some("#3b82f6".to_string()),
             })
             .expect("Failed");
 
         assert_eq!(step.name, "Opening Hook");
         assert_eq!(step.template_id, template.id);
-        assert_eq!(step.typical_position, 0.05);
+        assert_eq!(step.story_percentage, 0.05);
     }
 
     #[test]
@@ -2805,7 +2805,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Step 1".to_string(),
                 description: None,
-                typical_position: None,
+                story_percentage: None,
                 color: None,
             })
             .expect("Failed");
@@ -2846,7 +2846,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: Some("The hero".to_string()),
+                summary: Some("The hero".to_string()),
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2859,7 +2859,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: Some("The villain".to_string()),
+                summary: Some("The villain".to_string()),
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2893,7 +2893,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: Some("Hero".to_string()),
+                summary: Some("Hero".to_string()),
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2906,7 +2906,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: Some("Villain".to_string()),
+                summary: Some("Villain".to_string()),
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2939,7 +2939,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2952,7 +2952,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -2995,7 +2995,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -3008,7 +3008,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -3504,7 +3504,7 @@ mod tests {
             entry_type: "invalid_type".to_string(),
             name: "Test".to_string(),
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -3535,7 +3535,7 @@ mod tests {
                     entry_type: entry_type.to_string(),
                     name: format!("Test {}", entry_type),
                     aliases: None,
-                    short_description: None,
+                    summary: None,
                     full_description: None,
                     status: None,
                     tags: None,
@@ -3905,7 +3905,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: Some("Ali".to_string()),
-                short_description: Some("The protagonist".to_string()),
+                summary: Some("The protagonist".to_string()),
                 full_description: None,
                 status: None,
                 tags: Some("main,hero".to_string()),
@@ -3918,7 +3918,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: Some("The love interest".to_string()),
+                summary: Some("The love interest".to_string()),
                 full_description: None,
                 status: None,
                 tags: None,
@@ -3931,7 +3931,7 @@ mod tests {
                 entry_type: "location".to_string(),
                 name: "The Café".to_string(),
                 aliases: None,
-                short_description: Some("Where they meet".to_string()),
+                summary: Some("Where they meet".to_string()),
                 full_description: None,
                 status: None,
                 tags: None,
@@ -4289,7 +4289,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "Alice".to_string(),
-            short_description: Some("The protagonist".to_string()),
+            summary: Some("The protagonist".to_string()),
             full_description: None,
             aliases: Some("Al".to_string()),
             status: None,
@@ -4301,7 +4301,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "location".to_string(),
             name: "Wonderland".to_string(),
-            short_description: Some("A magical place".to_string()),
+            summary: Some("A magical place".to_string()),
             full_description: None,
             aliases: None,
             status: None,
@@ -4481,7 +4481,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "Gandalf".to_string(),
-            short_description: Some("A wizard".to_string()),
+            summary: Some("A wizard".to_string()),
             full_description: None,
             aliases: None,
             status: None,
@@ -4502,7 +4502,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "stormy".to_string(),
-            short_description: None,
+            summary: None,
             full_description: None,
             aliases: None,
             status: None,
@@ -4896,7 +4896,7 @@ mod tests {
 
         let counts = db.get_word_counts().unwrap();
 
-        // We have scenes with "draft", "done", and "to write" statuses
+        // We have scenes with "draft", "done", and "to_write" statuses
         assert!(counts.by_status.len() >= 2);
 
         let draft_count = counts
@@ -5477,7 +5477,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "Hero".to_string(),
-            short_description: None,
+            summary: None,
             full_description: None,
             aliases: None,
             status: None,
@@ -5489,7 +5489,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "location".to_string(),
             name: "Castle".to_string(),
-            short_description: None,
+            summary: None,
             full_description: None,
             aliases: None,
             status: None,
@@ -5521,7 +5521,7 @@ mod tests {
                 &scene.id,
                 &UpdateSceneRequest {
                     pov_goal: Some("Show character growth".to_string()),
-                    has_conflict: Some(true),
+                    has_dramatic_conflict: Some(true),
                     has_change: Some(true),
                     tension: Some("8".to_string()),
                     revision_notes: Some("Needs more tension".to_string()),
@@ -5532,7 +5532,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(updated.pov_goal, Some("Show character growth".to_string()));
-        assert_eq!(updated.has_conflict, Some(true));
+        assert_eq!(updated.has_dramatic_conflict, Some(true));
         assert_eq!(updated.has_change, Some(true));
         assert_eq!(updated.tension, Some("8".to_string()));
         assert_eq!(
@@ -5936,7 +5936,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -6010,7 +6010,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Act 1".to_string(),
                 description: Some("Introduction".to_string()),
-                typical_position: Some(0.0),
+                story_percentage: Some(0.0),
                 color: Some("#ff0000".to_string()),
             })
             .unwrap();
@@ -6020,7 +6020,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Act 2".to_string(),
                 description: Some("Rising action".to_string()),
-                typical_position: Some(0.5),
+                story_percentage: Some(0.5),
                 color: Some("#00ff00".to_string()),
             })
             .unwrap();
@@ -6064,7 +6064,7 @@ mod tests {
             &UpdateTemplateStepRequest {
                 name: Some("Act 1 - Setup".to_string()),
                 description: None,
-                typical_position: None,
+                story_percentage: None,
                 color: None,
                 position: None,
             },
@@ -6092,7 +6092,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -6105,7 +6105,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -6118,7 +6118,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "location".to_string(),
                 name: "Castle".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -6321,7 +6321,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -6393,7 +6393,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -6468,7 +6468,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "Gandalf the Grey".to_string(),
-            short_description: Some("A wise wizard".to_string()),
+            summary: Some("A wise wizard".to_string()),
             full_description: Some("He carries a staff and wears grey robes.".to_string()),
             aliases: Some("Mithrandir".to_string()),
             status: None,
@@ -6480,7 +6480,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "location".to_string(),
             name: "The Shire".to_string(),
-            short_description: Some("Home of the hobbits".to_string()),
+            summary: Some("Home of the hobbits".to_string()),
             full_description: None,
             aliases: None,
             status: None,
@@ -7082,7 +7082,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "Searchable Hero".to_string(),
-            short_description: Some("A brave hero".to_string()),
+            summary: Some("A brave hero".to_string()),
             full_description: None,
             aliases: None,
             status: None,
@@ -7155,7 +7155,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7168,7 +7168,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "location".to_string(),
                 name: "Castle".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7268,7 +7268,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7351,7 +7351,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7417,7 +7417,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Charlie".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7481,7 +7481,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7536,7 +7536,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7649,7 +7649,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7661,7 +7661,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "location".to_string(),
                 name: "Forest".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7753,7 +7753,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Original Hero".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -7800,7 +7800,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "location".to_string(),
             name: "New Location".to_string(),
-            short_description: None,
+            summary: None,
             full_description: None,
             aliases: None,
             status: None,
@@ -8001,7 +8001,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
-                short_description: Some("The protagonist".to_string()),
+                summary: Some("The protagonist".to_string()),
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -8013,7 +8013,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Villain".to_string(),
-                short_description: Some("The antagonist".to_string()),
+                summary: Some("The antagonist".to_string()),
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -8216,7 +8216,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "Gandalf the Grey".to_string(),
-            short_description: Some("A powerful wizard".to_string()),
+            summary: Some("A powerful wizard".to_string()),
             full_description: None,
             aliases: None,
             status: None,
@@ -8240,7 +8240,7 @@ mod tests {
         db.create_event(&CreateEventRequest {
             title: "Battle of Helm's Deep".to_string(),
             description: Some("A great siege battle".to_string()),
-            event_type: Some("scene".to_string()),
+            event_type: Some("plot".to_string()),
             time_point: None,
             time_start: None,
             time_end: None,
@@ -8305,7 +8305,7 @@ mod tests {
         db.create_event(&CreateEventRequest {
             title: "UniqueEventXYZ123".to_string(),
             description: None,
-            event_type: Some("scene".to_string()),
+            event_type: Some("plot".to_string()),
             time_point: None,
             time_start: None,
             time_end: None,
@@ -8793,7 +8793,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "character".to_string(),
             name: "Gandalf".to_string(),
-            short_description: Some("A wizard".to_string()),
+            summary: Some("A wizard".to_string()),
             full_description: None,
             aliases: Some("Mithrandir".to_string()),
             status: None,
@@ -8805,7 +8805,7 @@ mod tests {
         db.create_bible_entry(&CreateBibleEntryRequest {
             entry_type: "location".to_string(),
             name: "Rivendell".to_string(),
-            short_description: Some("Elven city".to_string()),
+            summary: Some("Elven city".to_string()),
             full_description: None,
             aliases: None,
             status: None,
@@ -8906,7 +8906,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Original Character".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -8931,7 +8931,7 @@ mod tests {
             &UpdateBibleEntryRequest {
                 name: Some("Modified Character".to_string()),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -9159,7 +9159,7 @@ mod tests {
             .create_event(&CreateEventRequest {
                 title: "Event".to_string(),
                 description: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 time_point: None,
                 time_start: None,
                 time_end: None,
@@ -9171,7 +9171,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Char".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -9205,7 +9205,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Test".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -9328,7 +9328,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -9340,7 +9340,7 @@ mod tests {
             .create_bible_entry(&CreateBibleEntryRequest {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
-                short_description: None,
+                summary: None,
                 full_description: None,
                 aliases: None,
                 status: None,
@@ -9431,7 +9431,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Original Step".to_string(),
                 description: Some("Original desc".to_string()),
-                typical_position: Some(0.5),
+                story_percentage: Some(0.5),
                 color: Some("#ff0000".to_string()),
             })
             .unwrap();
@@ -9442,7 +9442,7 @@ mod tests {
                 &UpdateTemplateStepRequest {
                     name: Some("Renamed Step".to_string()),
                     description: Some("Updated desc".to_string()),
-                    typical_position: None,
+                    story_percentage: None,
                     color: None,
                     position: None,
                 },
@@ -9452,7 +9452,7 @@ mod tests {
         assert_eq!(updated.name, "Renamed Step");
         assert_eq!(updated.description, Some("Updated desc".to_string()));
         // Unchanged fields
-        assert!((updated.typical_position - 0.5).abs() < 0.001);
+        assert!((updated.story_percentage - 0.5).abs() < 0.001);
         assert_eq!(updated.color, Some("#ff0000".to_string()));
     }
 
@@ -9472,7 +9472,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Step A".to_string(),
                 description: None,
-                typical_position: Some(0.1),
+                story_percentage: Some(0.1),
                 color: Some("#000".to_string()),
             })
             .unwrap();
@@ -9483,7 +9483,7 @@ mod tests {
                 &UpdateTemplateStepRequest {
                     name: None,
                     description: None,
-                    typical_position: Some(0.9),
+                    story_percentage: Some(0.9),
                     color: Some("#fff".to_string()),
                     position: Some(5),
                 },
@@ -9491,7 +9491,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(updated.name, "Step A");
-        assert!((updated.typical_position - 0.9).abs() < 0.001);
+        assert!((updated.story_percentage - 0.9).abs() < 0.001);
         assert_eq!(updated.color, Some("#fff".to_string()));
         assert_eq!(updated.position, 5);
     }
@@ -9512,7 +9512,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Step".to_string(),
                 description: Some("Desc".to_string()),
-                typical_position: Some(0.3),
+                story_percentage: Some(0.3),
                 color: None,
             })
             .unwrap();
@@ -9523,7 +9523,7 @@ mod tests {
                 &UpdateTemplateStepRequest {
                     name: None,
                     description: None,
-                    typical_position: None,
+                    story_percentage: None,
                     color: None,
                     position: None,
                 },
@@ -9550,7 +9550,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Step 1".to_string(),
                 description: None,
-                typical_position: None,
+                story_percentage: None,
                 color: None,
             })
             .unwrap();
@@ -9559,7 +9559,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Step 2".to_string(),
                 description: None,
-                typical_position: None,
+                story_percentage: None,
                 color: None,
             })
             .unwrap();
@@ -9608,7 +9608,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Act 1".to_string(),
                 description: None,
-                typical_position: None,
+                story_percentage: None,
                 color: None,
             })
             .unwrap();
@@ -9639,7 +9639,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Step".to_string(),
                 description: None,
-                typical_position: None,
+                story_percentage: None,
                 color: None,
             })
             .unwrap();
@@ -9756,7 +9756,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -9771,7 +9771,7 @@ mod tests {
                 time_point: Some("Day 5".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: None,
             })
             .unwrap();
@@ -9911,7 +9911,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10004,7 +10004,7 @@ mod tests {
             entry_type: "invalid_type".to_string(),
             name: "Test".to_string(),
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -10026,7 +10026,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Villain".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10055,7 +10055,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10080,7 +10080,7 @@ mod tests {
                 time_point: Some("Day 1".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: None,
             })
             .unwrap();
@@ -10123,7 +10123,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "S".to_string(),
                 description: None,
-                typical_position: None,
+                story_percentage: None,
                 color: None,
             })
             .unwrap();
@@ -10357,7 +10357,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10369,7 +10369,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10404,7 +10404,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "X".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10416,7 +10416,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Y".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10475,7 +10475,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Hero".to_string(),
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -10534,7 +10534,7 @@ mod tests {
                     entry_type: entry_type.to_string(),
                     name: format!("Test {}", entry_type),
                     aliases: None,
-                    short_description: None,
+                    summary: None,
                     full_description: None,
                     status: None,
                     tags: None,
@@ -10560,7 +10560,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Char".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10577,7 +10577,7 @@ mod tests {
                 entry_type: "location".to_string(),
                 name: "Loc".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10593,7 +10593,7 @@ mod tests {
                 entry_type: "object".to_string(),
                 name: "Obj".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10622,8 +10622,8 @@ mod tests {
             })
             .unwrap();
 
-        assert_eq!(event.event_type, "scene");
-        assert_eq!(event.importance, "normal");
+        assert_eq!(event.event_type, "plot");
+        assert_eq!(event.importance, "moderate");
     }
 
     // --- create_arc default status ---
@@ -10731,7 +10731,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -10746,7 +10746,7 @@ mod tests {
                 time_point: Some("Day 1".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: None,
             })
             .unwrap();
@@ -10758,7 +10758,7 @@ mod tests {
                 time_point: Some("Day 2".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: None,
             })
             .unwrap();
@@ -10798,7 +10798,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -11048,7 +11048,7 @@ mod tests {
                 time_point: Some("Day 3".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: None,
             })
             .unwrap();
@@ -11096,7 +11096,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -11178,7 +11178,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Villain".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -11284,7 +11284,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "C".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -11322,7 +11322,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "C".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -11411,7 +11411,7 @@ mod tests {
                     on_timeline: Some(true),
                     position: Some(42),
                     pov_goal: Some("Reveal secret".to_string()),
-                    has_conflict: Some(true),
+                    has_dramatic_conflict: Some(true),
                     has_change: Some(false),
                     tension: Some("high".to_string()),
                     setup_for_scene_id: Some(ref_scene.id.clone()),
@@ -11440,7 +11440,7 @@ mod tests {
         assert!(fetched.on_timeline);
         assert_eq!(fetched.position, 42);
         assert_eq!(fetched.pov_goal.as_deref(), Some("Reveal secret"));
-        assert_eq!(fetched.has_conflict, Some(true));
+        assert_eq!(fetched.has_dramatic_conflict, Some(true));
         assert_eq!(fetched.has_change, Some(false));
         assert_eq!(fetched.tension.as_deref(), Some("high"));
         assert_eq!(
@@ -11465,10 +11465,10 @@ mod tests {
         assert!(fetched.updated_at >= fetched.created_at);
         // Also verify the return from update_scene matches
         assert_eq!(updated.title, fetched.title);
-        assert_eq!(updated.has_conflict, fetched.has_conflict);
+        assert_eq!(updated.has_dramatic_conflict, fetched.has_dramatic_conflict);
     }
 
-    // --- Scene boolean mapping: on_timeline=false, has_conflict=None, has_change=None ---
+    // --- Scene boolean mapping: on_timeline=false, has_dramatic_conflict=None, has_change=None ---
 
     #[test]
     fn test_scene_boolean_defaults_and_none_values() {
@@ -11478,7 +11478,7 @@ mod tests {
 
         // Default values after creation
         assert!(scene.on_timeline); // default is 1 per INSERT
-        assert_eq!(scene.has_conflict, None);
+        assert_eq!(scene.has_dramatic_conflict, None);
         assert_eq!(scene.has_change, None);
 
         // Set on_timeline to false
@@ -11856,7 +11856,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -11869,7 +11869,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -11882,7 +11882,7 @@ mod tests {
                 entry_type: "location".to_string(),
                 name: "Castle".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -11938,7 +11938,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Villain".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -12009,7 +12009,7 @@ mod tests {
                 on_timeline: Some(true),
                 position: Some(5),
                 pov_goal: Some("Establish setting".to_string()),
-                has_conflict: Some(true),
+                has_dramatic_conflict: Some(true),
                 has_change: Some(true),
                 tension: Some("medium".to_string()),
                 setup_for_scene_id: None,
@@ -12050,7 +12050,7 @@ mod tests {
         assert_eq!(restored.word_target, Some(3000));
         assert_eq!(restored.time_point.as_deref(), Some("2024-01-01"));
         assert!(restored.on_timeline);
-        assert_eq!(restored.has_conflict, Some(true));
+        assert_eq!(restored.has_dramatic_conflict, Some(true));
         assert_eq!(restored.has_change, Some(true));
         assert_eq!(restored.tension.as_deref(), Some("medium"));
         assert_eq!(restored.pov_goal.as_deref(), Some("Establish setting"));
@@ -12150,7 +12150,7 @@ mod tests {
 
         // Delete scene (soft delete) — history is NOT cleaned by delete_scene
         // delete_scene cleans: canonical_associations, scene_arcs, event_scenes,
-        // issue_scenes, scene_steps, annotations, name_mentions — but NOT scene_history
+        // issue_scenes, scene_steps, annotations — but NOT scene_history
         db.delete_scene(&scene.id).unwrap();
 
         // Scene is gone from get_scene (filters deleted_at IS NULL)
@@ -12267,7 +12267,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Hero".to_string(),
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -12358,7 +12358,7 @@ mod tests {
                 entry_type: "faction".to_string(),
                 name: "The Guild".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -12383,7 +12383,7 @@ mod tests {
                 entry_type: "glossary".to_string(),
                 name: "Mithril".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -12408,7 +12408,7 @@ mod tests {
                 entry_type: "concept".to_string(),
                 name: "Magic".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -12430,7 +12430,7 @@ mod tests {
                 entry_type: "object".to_string(),
                 name: "Sword".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -12494,7 +12494,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Hero".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -12507,7 +12507,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Sidekick".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -12584,7 +12584,7 @@ mod tests {
                 template_id: template.id.clone(),
                 name: "Step One".to_string(),
                 description: Some("The first step".to_string()),
-                typical_position: Some(0.25),
+                story_percentage: Some(0.25),
                 color: Some("#ff0000".to_string()),
             })
             .unwrap();
@@ -12594,7 +12594,7 @@ mod tests {
         assert_eq!(fetched.template_id, template.id);
         assert_eq!(fetched.name, "Step One");
         assert_eq!(fetched.description.as_deref(), Some("The first step"));
-        assert!((fetched.typical_position - 0.25).abs() < f64::EPSILON);
+        assert!((fetched.story_percentage - 0.25).abs() < f64::EPSILON);
         assert_eq!(fetched.color.as_deref(), Some("#ff0000"));
     }
 
@@ -12689,7 +12689,7 @@ mod tests {
             template_id: template.id.clone(),
             name: "Third".to_string(),
             description: None,
-            typical_position: None,
+            story_percentage: None,
             color: None,
         })
         .unwrap();
@@ -12697,7 +12697,7 @@ mod tests {
             template_id: template.id.clone(),
             name: "First".to_string(),
             description: None,
-            typical_position: None,
+            story_percentage: None,
             color: None,
         })
         .unwrap();
@@ -12705,7 +12705,7 @@ mod tests {
             template_id: template.id.clone(),
             name: "Second".to_string(),
             description: None,
-            typical_position: None,
+            story_percentage: None,
             color: None,
         })
         .unwrap();
@@ -12729,7 +12729,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Gandalf".to_string(),
             aliases: None,
-            short_description: Some("A wizard".to_string()),
+            summary: Some("A wizard".to_string()),
             full_description: None,
             status: None,
             tags: None,
@@ -12794,7 +12794,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Unchanged".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -12808,7 +12808,7 @@ mod tests {
                 &crate::models::UpdateBibleEntryRequest {
                     name: None,
                     aliases: None,
-                    short_description: None,
+                    summary: None,
                     full_description: None,
                     status: None,
                     tags: None,
@@ -13010,7 +13010,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "C".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -13047,7 +13047,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "C".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -14399,7 +14399,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Zarqwix the Peculiar".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -15054,7 +15054,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "The Hero".to_string(),
                 aliases: None,
-                short_description: Some("Protagonist".to_string()),
+                summary: Some("Protagonist".to_string()),
                 full_description: None,
                 status: None,
                 tags: None,
@@ -15833,7 +15833,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -15845,7 +15845,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Bob".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -16018,7 +16018,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -16121,7 +16121,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Alice".to_string(),
                 aliases: Some("Ali".to_string()),
-                short_description: Some("The hero".to_string()),
+                summary: Some("The hero".to_string()),
                 full_description: Some("A brave adventurer".to_string()),
                 status: Some("canon".to_string()),
                 tags: Some("hero,main".to_string()),
@@ -16134,7 +16134,7 @@ mod tests {
                 entry_type: "location".to_string(),
                 name: "Castle".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -16278,7 +16278,7 @@ mod tests {
                 entry_type: "character".to_string(),
                 name: "Protagonist".to_string(),
                 aliases: Some("Hero, Main".to_string()),
-                short_description: Some("Short desc".to_string()),
+                summary: Some("Short desc".to_string()),
                 full_description: Some("Full description".to_string()),
                 status: Some("canon".to_string()),
                 tags: Some("main,hero".to_string()),
@@ -16302,7 +16302,7 @@ mod tests {
         let bible_json = &parsed["bible_entries"][0];
         assert_eq!(bible_json["name"], "Protagonist");
         assert_eq!(bible_json["aliases"], "Hero, Main");
-        assert_eq!(bible_json["short_description"], "Short desc");
+        assert_eq!(bible_json["summary"], "Short desc");
         assert_eq!(bible_json["full_description"], "Full description");
         assert_eq!(bible_json["status"], "canon");
         assert_eq!(bible_json["color"], "#00ff00");
@@ -16571,15 +16571,15 @@ mod tests {
     //   - Canonical associations (scene ↔ bible_entry)
     //   - Arcs (all 4 statuses: setup, rising, climax, resolution) with colors
     //   - Scene-arc links
-    //   - Events (all 3 types: scene, milestone, flashback; all 3 importance
-    //     levels: low, normal, high; with time_point, time_start/end)
+    //   - Events (all 3 types: plot, backstory, historical; all 3 importance
+    //     levels: minor, moderate, major; with time_point, time_start/end)
     //   - Event-scene and event-bible links
     //   - Templates (builtin + custom) with steps and scene assignments
     //   - Annotations (all 4 types: comment, question, issue, note; both
     //     statuses: open, resolved)
     //   - Issues (all 6 types, all 3 severities, all 3 statuses) with
     //     scene and bible_entry links
-    //   - Snapshots (manual, auto, milestone)
+    //   - Snapshots (manual, pre_bulk)
     //   - Cuts (with and without scene_id)
     //   - Scene history (multiple versions)
     //   - Soft-deleted entities (chapter, scene, bible_entry, arc, event)
@@ -16665,7 +16665,7 @@ mod tests {
             &UpdateChapterRequest {
                 title: None,
                 summary: None,
-                status: Some("in progress".to_string()),
+                status: Some("in_progress".to_string()),
                 notes: None,
                 position: None,
             },
@@ -16707,7 +16707,7 @@ mod tests {
             time_point: Some("An 0 — Jour de la Fracture".to_string()),
             on_timeline: Some(true),
             tension: Some("high".to_string()),
-            has_conflict: Some(true),
+            has_dramatic_conflict: Some(true),
             has_change: Some(true),
             pov_goal: Some("Montrer le désespoir et le sacrifice de Valdris".to_string()),
             revision_notes: Some("Vérifier que la description du Cristal est cohérente avec le chapitre 4.".to_string()),
@@ -16730,7 +16730,7 @@ mod tests {
             time_point: Some("An 0 — Jour de la Fracture".to_string()),
             on_timeline: Some(true),
             tension: Some("medium".to_string()),
-            has_conflict: Some(false),
+            has_dramatic_conflict: Some(false),
             has_change: Some(true),
             setup_for_scene_id: None, // Will be set later
             ..Default::default()
@@ -16745,7 +16745,7 @@ mod tests {
         }).unwrap();
         db.update_scene(&s1_1.id, &UpdateSceneRequest {
             text: Some("<p>Aelys se faufila entre les étals, son panier serré contre la hanche. L'air sentait les épices d'Orient et le cuir neuf. Les marchands criaient leurs prix, chacun essayant de couvrir la voix du voisin.</p><p>Elle s'arrêta devant l'étal de Madame Voss, la herboriste, et examina les fioles alignées avec soin.</p><p>— Toujours la même tisane pour ta grand-mère ? demanda la vieille femme avec un sourire édenté.</p><p>— Oui, mais cette fois, ajoutez un peu de racine de lune. Elle tousse la nuit.</p><p>Aelys compta ses pièces. Il lui resterait tout juste assez pour acheter du pain. Comme d'habitude.</p>".to_string()),
-            status: Some("in revision".to_string()),
+            status: Some("in_revision".to_string()),
             pov: Some("Aelys".to_string()),
             tags: Some("introduction,quotidien,Verendhal".to_string()),
             notes: Some("Établir le contraste entre la pauvreté d'Aelys et la richesse de Verendhal.".to_string()),
@@ -16754,7 +16754,7 @@ mod tests {
             time_point: Some("An 300 — Jour 1, Matin".to_string()),
             on_timeline: Some(true),
             tension: Some("low".to_string()),
-            has_conflict: Some(false),
+            has_dramatic_conflict: Some(false),
             has_change: Some(false),
             pov_goal: Some("Présenter Aelys comme débrouillarde et observatrice".to_string()),
             revision_notes: Some("La description du marché est trop longue. Couper le passage sur le forgeron.".to_string()),
@@ -16769,14 +16769,14 @@ mod tests {
         }).unwrap();
         db.update_scene(&s1_2.id, &UpdateSceneRequest {
             text: Some("<p>Le cri vint de derrière elle. Un homme masqué bouscula Madame Voss et s'empara de la caisse. Les fioles s'écrasèrent au sol dans un concert de verre brisé.</p><p>Aelys ne réfléchit pas. Sa main se leva d'elle-même.</p><p>L'air devint glacial. Une bourrasque de vent argenté jaillit de ses doigts et projeta le voleur contre le mur de la boulangerie, à dix mètres de là. L'homme s'effondra, inconscient.</p><p>Le silence tomba sur le marché.</p><p>Tous les regards se tournèrent vers Aelys. Elle baissa la main, tremblante. <em>Qu'est-ce que j'ai fait ?</em></p><p>Madame Voss la fixait, la bouche ouverte. Dans ses yeux, Aelys ne lut pas de la gratitude, mais de la peur.</p>".to_string()),
-            status: Some("in revision".to_string()),
+            status: Some("in_revision".to_string()),
             pov: Some("Aelys".to_string()),
             tags: Some("magie,révélation,inciting-incident".to_string()),
             notes: Some("Moment clé — le point de non-retour pour Aelys.".to_string()),
             time_point: Some("An 300 — Jour 1, Midi".to_string()),
             on_timeline: Some(true),
             tension: Some("high".to_string()),
-            has_conflict: Some(true),
+            has_dramatic_conflict: Some(true),
             has_change: Some(true),
             pov_goal: Some("Montrer qu'Aelys a un pouvoir incontrôlé".to_string()),
             ..Default::default()
@@ -16796,7 +16796,7 @@ mod tests {
             time_point: Some("An 300 — Jour 1, Après-midi".to_string()),
             on_timeline: Some(true),
             tension: Some("medium".to_string()),
-            has_conflict: Some(false),
+            has_dramatic_conflict: Some(false),
             has_change: Some(true),
             ..Default::default()
         }).unwrap();
@@ -16817,7 +16817,7 @@ mod tests {
             time_end: Some("An 300 — Jour 4, Aube".to_string()),
             on_timeline: Some(true),
             tension: Some("medium".to_string()),
-            has_conflict: Some(false),
+            has_dramatic_conflict: Some(false),
             has_change: Some(false),
             ..Default::default()
         }).unwrap();
@@ -16836,7 +16836,7 @@ mod tests {
             time_point: Some("An 300 — Jour 4, Aube".to_string()),
             on_timeline: Some(true),
             tension: Some("high".to_string()),
-            has_conflict: Some(false),
+            has_dramatic_conflict: Some(false),
             has_change: Some(true),
             ..Default::default()
         }).unwrap();
@@ -16855,7 +16855,7 @@ mod tests {
             time_point: Some("An 300 — Jour 4, Matin".to_string()),
             on_timeline: Some(true),
             tension: Some("high".to_string()),
-            has_conflict: Some(true),
+            has_dramatic_conflict: Some(true),
             has_change: Some(true),
             pov_goal: Some("Montrer la croissance d'Aelys — elle choisit de se battre au lieu de fuir".to_string()),
             ..Default::default()
@@ -16876,7 +16876,7 @@ mod tests {
             time_point: Some("An 300 — Jour 7".to_string()),
             on_timeline: Some(true),
             tension: Some("low".to_string()),
-            has_conflict: Some(false),
+            has_dramatic_conflict: Some(false),
             has_change: Some(false),
             ..Default::default()
         }).unwrap();
@@ -16895,7 +16895,7 @@ mod tests {
             time_point: Some("An 300 — Jour 7".to_string()),
             on_timeline: Some(true),
             tension: Some("medium".to_string()),
-            has_conflict: Some(true),
+            has_dramatic_conflict: Some(true),
             has_change: Some(false),
             ..Default::default()
         }).unwrap();
@@ -16908,13 +16908,13 @@ mod tests {
         }).unwrap();
         db.update_scene(&s3_3.id, &UpdateSceneRequest {
             text: Some("<p>La salle du Conseil était un amphithéâtre ouvert aux vents. Douze sièges de cristal formaient un demi-cercle autour d'un socle central où les pétitionnaires devaient se tenir.</p><p>Aelys sentit le vertige la saisir — non pas à cause de la hauteur, mais à cause des douze regards qui pesaient sur elle.</p><p>— Le Cristal d'Aether ne doit pas être reconstitué, déclara la Haute Conseillère Elara d'une voix tranchante. C'est la loi fondamentale de Skyreach depuis trois cents ans.</p>".to_string()),
-            status: Some("to write".to_string()),
+            status: Some("to_write".to_string()),
             pov: Some("Aelys".to_string()),
             tags: Some("politique,Conseil,refus,trahison".to_string()),
             time_point: Some("An 300 — Jour 8".to_string()),
             on_timeline: Some(true),
             tension: Some("high".to_string()),
-            has_conflict: Some(true),
+            has_dramatic_conflict: Some(true),
             has_change: Some(true),
             todos: Some("TODO: Écrire le discours complet d'Aelys devant le Conseil\nTODO: Scène secrète de Malachar contactant Nyxaroth".to_string()),
             ..Default::default()
@@ -16929,13 +16929,13 @@ mod tests {
         }).unwrap();
         db.update_scene(&s3_4.id, &UpdateSceneRequest {
             text: Some("<p>Kael ne dormait pas. Allongé sur le lit de sa chambre d'hôte, il fixait le plafond de cristal translucide à travers lequel on voyait les étoiles.</p><p>Le fragment pulsait dans sa poche. Il le sentait, toujours, comme un second battement de cœur.</p><p><em>Tu ne mérites pas ce fardeau</em>, murmura la voix de son père dans sa mémoire.</p>".to_string()),
-            status: Some("to write".to_string()),
+            status: Some("to_write".to_string()),
             pov: Some("Kael".to_string()),
             tags: Some("introspection,Kael,doute,flashback".to_string()),
             time_point: Some("An 300 — Jour 8, Nuit".to_string()),
             on_timeline: Some(true),
             tension: Some("low".to_string()),
-            has_conflict: Some(true),
+            has_dramatic_conflict: Some(true),
             has_change: Some(false),
             ..Default::default()
         }).unwrap();
@@ -16970,13 +16970,13 @@ mod tests {
         db.update_scene(
             &s4_2.id,
             &UpdateSceneRequest {
-                status: Some("to write".to_string()),
+                status: Some("to_write".to_string()),
                 pov: Some("Aelys".to_string()),
                 tags: Some("climax,combat,choix,sacrifice".to_string()),
                 time_point: Some("An 300 — Jour 15".to_string()),
                 on_timeline: Some(true),
                 tension: Some("high".to_string()),
-                has_conflict: Some(true),
+                has_dramatic_conflict: Some(true),
                 has_change: Some(true),
                 ..Default::default()
             },
@@ -16997,7 +16997,7 @@ mod tests {
         db.update_scene(
             &s5_1.id,
             &UpdateSceneRequest {
-                status: Some("to cut".to_string()),
+                status: Some("to_cut".to_string()),
                 pov: Some("Aelys".to_string()),
                 tags: Some("épilogue,résolution,espoir".to_string()),
                 time_point: Some("An 300 — Jour 16".to_string()),
@@ -17062,7 +17062,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Aelys".to_string(),
             aliases: Some("Ael, La Briseuse de Vent, La Fille du Marché".to_string()),
-            short_description: Some("Protagoniste. Jeune femme pauvre de Verendhal dotée d'une affinité magique rare liée au Cristal d'Aether.".to_string()),
+            summary: Some("Protagoniste. Jeune femme pauvre de Verendhal dotée d'une affinité magique rare liée au Cristal d'Aether.".to_string()),
             full_description: Some("Aelys a grandi dans les quartiers pauvres de Verendhal, élevée par sa grand-mère Mireille depuis la mort de ses parents dans un incendie mystérieux. Elle ignore qu'elle descend de la lignée impériale par sa mère. Son affinité magique est de type Vent/Éther — elle peut manipuler les courants d'air et, plus tard, l'énergie éthérique pure.\n\nApparence : Cheveux noirs coupés courts, yeux gris-argent (virent au bleu quand elle utilise la magie), peau mate, cicatrice fine sur le bras gauche (brûlure d'enfance). Petite mais agile.\n\nCaractère : Pragmatique, méfiante envers l'autorité, loyale envers ceux qu'elle aime, humour sec. Tend à agir avant de réfléchir. Son arc consiste à apprendre à faire confiance et à accepter un héritage qu'elle n'a pas demandé.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("protagoniste,héritière,magie-vent".to_string()),
@@ -17071,7 +17071,7 @@ mod tests {
         db.update_bible_entry(&be_aelys.id, &UpdateBibleEntryRequest {
             name: None,
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -17086,7 +17086,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Theron".to_string(),
             aliases: Some("Le Professeur, L'Exilé de Skyreach".to_string()),
-            short_description: Some("Érudit exilé de l'Académie de Skyreach. Mentor d'Aelys. Spécialiste du Cristal d'Aether.".to_string()),
+            summary: Some("Érudit exilé de l'Académie de Skyreach. Mentor d'Aelys. Spécialiste du Cristal d'Aether.".to_string()),
             full_description: Some("Theron était l'un des plus brillants professeurs de l'Académie de Skyreach avant son expulsion pour avoir étudié le Cristal d'Aether — sujet tabou. Il erre depuis dix ans, collectant des indices sur les fragments.\n\nApparence : Grand, mince, quarantaine, cicatrice sur la joue gauche, robe d'érudit usée, toujours un livre à portée de main.\n\nCaractère : Patient, méthodique, secret. Cache un sentiment de culpabilité lié à un événement passé à l'Académie. Son arc : accepter que le savoir seul ne suffit pas et apprendre à faire confiance aux autres.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("mentor,érudit,exilé".to_string()),
@@ -17097,7 +17097,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Kael Ardent".to_string(),
             aliases: Some("Kael, Le Prince Déchu".to_string()),
-            short_description: Some("Troisième héritier. Noble arrogant de Skyreach qui possède le deuxième fragment.".to_string()),
+            summary: Some("Troisième héritier. Noble arrogant de Skyreach qui possède le deuxième fragment.".to_string()),
             full_description: Some("Kael est le dernier descendant connu de la lignée impériale par la branche aînée. Élevé dans le luxe de Skyreach, il a été déchu de son titre après un scandale (il a parié le fragment dans un jeu). Malgré son arrogance, il est un combattant exceptionnel et possède une affinité magique de type Feu.\n\nApparence : Cheveux cuivrés, yeux ambrés, visage anguleux, sourire narquois, porte toujours des vêtements élégants même en voyage.\n\nArc : Apprendre l'humilité et découvrir que la noblesse est dans les actes, pas dans le sang.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("héritier,noble,magie-feu".to_string()),
@@ -17108,7 +17108,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Valdris III".to_string(),
             aliases: Some("Le Dernier Empereur, Le Briseur".to_string()),
-            short_description: Some("Dernier empereur de l'Empire Solaire. A brisé le Cristal pour sauver le monde.".to_string()),
+            summary: Some("Dernier empereur de l'Empire Solaire. A brisé le Cristal pour sauver le monde.".to_string()),
             full_description: Some("Personnage du prologue uniquement. Valdris III a régné pendant 40 ans avant la chute. Il a sacrifié son pouvoir et sa vie pour briser le Cristal et repousser Nyxaroth.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("empereur,sacrifice,prologue".to_string()),
@@ -17119,7 +17119,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Malachar".to_string(),
             aliases: Some("Conseiller Malachar, L'Ombre du Conseil".to_string()),
-            short_description: Some("Conseiller corrompu de Skyreach, secrètement au service de Nyxaroth.".to_string()),
+            summary: Some("Conseiller corrompu de Skyreach, secrètement au service de Nyxaroth.".to_string()),
             full_description: Some("Malachar siège au Conseil des Vents depuis vingt ans. Charismatique et cultivé, il cache une allégeance secrète à Nyxaroth, qui lui a promis l'immortalité. Il sabote les efforts des héritiers de l'intérieur.\n\nApparence : Cheveux gris impeccables, regard perçant, vêtements sombres. Bague en obsidienne (canal de communication avec Nyxaroth).".to_string()),
             status: Some("canon".to_string()),
             tags: Some("antagoniste,traître,politique".to_string()),
@@ -17130,7 +17130,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Haute Conseillère Elara".to_string(),
             aliases: Some("Elara, La Voix des Vents".to_string()),
-            short_description: Some("Dirigeante du Conseil des Vents de Skyreach. Opposée à la reconstitution du Cristal.".to_string()),
+            summary: Some("Dirigeante du Conseil des Vents de Skyreach. Opposée à la reconstitution du Cristal.".to_string()),
             full_description: Some("Elara est la figure politique la plus puissante de Skyreach. Conservatrice, elle croit fermement que le Cristal ne doit jamais être reconstitué. Son opposition est motivée par la peur, pas par la malice — elle a vu ce que la magie incontrôlée peut faire.".to_string()),
             status: Some("draft".to_string()),
             tags: Some("politique,Skyreach,opposition".to_string()),
@@ -17141,7 +17141,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Mireille".to_string(),
             aliases: Some("Grand-mère Mireille, Mamie".to_string()),
-            short_description: Some("Grand-mère d'Aelys. Herboriste. Sait plus qu'elle ne le montre.".to_string()),
+            summary: Some("Grand-mère d'Aelys. Herboriste. Sait plus qu'elle ne le montre.".to_string()),
             full_description: Some("Mireille a élevé Aelys après la mort de ses parents. Simple herboriste en apparence, elle connaît le secret de la lignée d'Aelys et a passé des années à la protéger des regards.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("famille,secret,herboriste".to_string()),
@@ -17153,7 +17153,7 @@ mod tests {
             entry_type: "character".to_string(),
             name: "Lyran le Vagabond".to_string(),
             aliases: Some("Lyran".to_string()),
-            short_description: Some("Ancien compagnon de route prévu puis supprimé du récit.".to_string()),
+            summary: Some("Ancien compagnon de route prévu puis supprimé du récit.".to_string()),
             full_description: Some("Ce personnage devait accompagner le groupe mais a été retiré pour simplifier l'intrigue. Notes conservées au cas où.".to_string()),
             status: Some("tbd".to_string()),
             tags: Some("supprimé".to_string()),
@@ -17165,7 +17165,7 @@ mod tests {
             entry_type: "location".to_string(),
             name: "Verendhal".to_string(),
             aliases: Some("La Cité des Cendres, Verendhal-sur-Fleuve".to_string()),
-            short_description: Some("Grande cité marchande construite sur les ruines de l'ancien Empire. Point de départ de l'histoire.".to_string()),
+            summary: Some("Grande cité marchande construite sur les ruines de l'ancien Empire. Point de départ de l'histoire.".to_string()),
             full_description: Some("Verendhal est la plus grande ville du continent occidental. Construite au confluent de deux fleuves, elle tire sa richesse du commerce. Les ruines de l'Empire Solaire servent de fondation aux bâtiments modernes — littéralement et métaphoriquement.\n\nQuartiers : Le Marché Central (commerce), les Hauts (noblesse), les Bas-Fonds (pauvreté), le Port Fluvial, les Forges.\n\nAtmosphère : Bruyante, colorée, cosmopolite. Contraste fort entre richesse et pauvreté.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("ville,commerce,ruines".to_string()),
@@ -17176,7 +17176,7 @@ mod tests {
             entry_type: "location".to_string(),
             name: "Skyreach".to_string(),
             aliases: Some("La Cité Flottante, La Cité des Vents".to_string()),
-            short_description: Some("Cité flottante au-dessus de la Vallée des Brumes. Siège du Conseil des Vents et de l'Académie.".to_string()),
+            summary: Some("Cité flottante au-dessus de la Vallée des Brumes. Siège du Conseil des Vents et de l'Académie.".to_string()),
             full_description: Some("Skyreach flotte à 300 mètres d'altitude grâce à un ancien mécanisme éthérique. C'est le centre du savoir et du pouvoir politique. Seuls les nobles et les érudits y résident en permanence.\n\nAccès : Par pont aérien (véhicules à vent), par ascenseur éthérique, ou à dos de griffon.\n\nLieux importants : L'Académie, la Salle du Conseil, la Bibliothèque des Vents, le Quartier Noble.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("ville,flottante,politique,magie".to_string()),
@@ -17187,7 +17187,7 @@ mod tests {
             entry_type: "location".to_string(),
             name: "Les Mines d'Obsidienne".to_string(),
             aliases: Some("Les Mines, Les Profondeurs".to_string()),
-            short_description: Some("Ancien réseau minier sous Verendhal. Abrite le premier fragment du Cristal.".to_string()),
+            summary: Some("Ancien réseau minier sous Verendhal. Abrite le premier fragment du Cristal.".to_string()),
             full_description: Some("Les mines s'étendent sur plusieurs niveaux sous la ville. Abandonnées depuis deux siècles quand les veines de cristal se sont taries. En réalité, le fragment du Cristal a absorbé toute l'énergie cristalline de la zone.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("souterrain,danger,fragment".to_string()),
@@ -17198,7 +17198,7 @@ mod tests {
             entry_type: "location".to_string(),
             name: "Le Temple du Voile".to_string(),
             aliases: Some("Le Temple, Le Seuil".to_string()),
-            short_description: Some("Lieu sacré où le Voile entre le monde et le royaume de Nyxaroth est le plus fin.".to_string()),
+            summary: Some("Lieu sacré où le Voile entre le monde et le royaume de Nyxaroth est le plus fin.".to_string()),
             full_description: Some("Situé au sommet du Mont Éther, le Temple est le seul endroit où le Cristal peut être reconstitué — ou détruit définitivement. L'architecture est antérieure à l'Empire Solaire et semble vivante.".to_string()),
             status: Some("tbd".to_string()),
             tags: Some("temple,voile,climax".to_string()),
@@ -17210,7 +17210,7 @@ mod tests {
             entry_type: "object".to_string(),
             name: "Le Cristal d'Aether".to_string(),
             aliases: Some("Le Cristal, L'Artefact, La Pierre des Empereurs".to_string()),
-            short_description: Some("Artefact ancien d'une puissance incommensurable, brisé en trois fragments.".to_string()),
+            summary: Some("Artefact ancien d'une puissance incommensurable, brisé en trois fragments.".to_string()),
             full_description: Some("Le Cristal d'Aether est la clé du Voile entre les dimensions. Intact, il confère un pouvoir quasi-divin à son porteur. Brisé, chaque fragment conserve une fraction de sa puissance et résonne avec ses porteurs.\n\nPropriétés :\n- Fragment 1 (Aelys) : Affinité Vent/Éther\n- Fragment 2 (Kael) : Affinité Feu\n- Fragment 3 (localisation inconnue) : Affinité Terre\n\nHistoire : Créé par les Anciens, utilisé par les Empereurs Solaires, brisé par Valdris III.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("artefact,magique,central".to_string()),
@@ -17219,7 +17219,7 @@ mod tests {
         db.update_bible_entry(&be_cristal.id, &UpdateBibleEntryRequest {
             name: None,
             aliases: None,
-            short_description: None,
+            summary: None,
             full_description: None,
             status: None,
             tags: None,
@@ -17234,7 +17234,7 @@ mod tests {
             entry_type: "object".to_string(),
             name: "Bague d'Obsidienne de Malachar".to_string(),
             aliases: Some("La Bague Noire, L'Anneau de l'Ombre".to_string()),
-            short_description: Some("Bague permettant à Malachar de communiquer avec Nyxaroth.".to_string()),
+            summary: Some("Bague permettant à Malachar de communiquer avec Nyxaroth.".to_string()),
             full_description: Some("Taillée dans l'obsidienne du Temple du Voile, cette bague sert de canal de communication entre Malachar et Nyxaroth. Elle corrompt lentement son porteur.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("artefact,corruption,antagoniste".to_string()),
@@ -17246,7 +17246,7 @@ mod tests {
             entry_type: "faction".to_string(),
             name: "Le Conseil des Vents".to_string(),
             aliases: Some("Le Conseil, Les Douze".to_string()),
-            short_description: Some("Organe politique dirigeant Skyreach. Douze conseillers élus à vie.".to_string()),
+            summary: Some("Organe politique dirigeant Skyreach. Douze conseillers élus à vie.".to_string()),
             full_description: Some("Le Conseil des Vents gouverne Skyreach depuis la chute de l'Empire. Ses douze membres sont élus par les familles nobles et l'Académie. Conservateur par nature, il interdit toute recherche sur le Cristal d'Aether.\n\nMembres notables : Haute Conseillère Elara (présidente), Conseiller Malachar (traître), Conseiller Brennan (allié potentiel).".to_string()),
             status: Some("canon".to_string()),
             tags: Some("politique,Skyreach,antagoniste-structurel".to_string()),
@@ -17257,7 +17257,7 @@ mod tests {
             entry_type: "faction".to_string(),
             name: "Les Gardiens du Voile".to_string(),
             aliases: Some("Les Gardiens, L'Ordre Ancien".to_string()),
-            short_description: Some("Ordre secret dédié à empêcher Nyxaroth de traverser le Voile.".to_string()),
+            summary: Some("Ordre secret dédié à empêcher Nyxaroth de traverser le Voile.".to_string()),
             full_description: Some("Fondé par Valdris III, cet ordre secret opère dans l'ombre depuis trois siècles. Ses membres protègent les fragments et surveillent les signes d'affaiblissement du Voile. Theron en est un membre, ce qu'il cache à Aelys.".to_string()),
             status: Some("draft".to_string()),
             tags: Some("secret,protection,ordre".to_string()),
@@ -17269,7 +17269,7 @@ mod tests {
             entry_type: "concept".to_string(),
             name: "La Magie Éthérique".to_string(),
             aliases: Some("L'Éther, La Magie, Le Don".to_string()),
-            short_description: Some("Système magique basé sur la manipulation de l'Éther, énergie fondamentale de l'univers.".to_string()),
+            summary: Some("Système magique basé sur la manipulation de l'Éther, énergie fondamentale de l'univers.".to_string()),
             full_description: Some("La magie d'Aethermonde repose sur l'Éther, une énergie imprégnant toute matière. Les pratiquants (Éthéristes) canalisent cette énergie à travers leur affinité élémentaire.\n\nAffinités :\n- Vent : Manipulation de l'air, vitesse, perception\n- Feu : Chaleur, lumière, destruction\n- Terre : Force, endurance, croissance\n- Eau : Guérison, transformation, illusion\n- Éther Pur : Rare, lié au Cristal, permet de manipuler la réalité elle-même\n\nLimites : Fatigue physique, risque de surcharge (\"brûlure éthérique\"), affinité unique par personne.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("magic-system,worldbuilding,central".to_string()),
@@ -17280,7 +17280,7 @@ mod tests {
             entry_type: "concept".to_string(),
             name: "Le Voile".to_string(),
             aliases: Some("La Barrière, Le Seuil Dimensionnel".to_string()),
-            short_description: Some("Barrière mystique séparant le monde matériel du royaume de Nyxaroth.".to_string()),
+            summary: Some("Barrière mystique séparant le monde matériel du royaume de Nyxaroth.".to_string()),
             full_description: Some("Le Voile est une barrière dimensionnelle naturelle renforcée par le Cristal d'Aether. Depuis que le Cristal est brisé, le Voile s'amincit progressivement. Quand il sera trop fin, Nyxaroth pourra traverser.\n\nSignes d'amincissement : cauchemars collectifs, apparitions spectrales, dysfonctionnements magiques.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("worldbuilding,menace,dimensionnel".to_string()),
@@ -17292,7 +17292,7 @@ mod tests {
             entry_type: "glossary".to_string(),
             name: "Nyxaroth".to_string(),
             aliases: Some("L'Ombre, L'Entité, Le Dévoreur".to_string()),
-            short_description: Some("Entité cosmique malveillante cherchant à traverser le Voile pour dévorer le monde.".to_string()),
+            summary: Some("Entité cosmique malveillante cherchant à traverser le Voile pour dévorer le monde.".to_string()),
             full_description: Some("Nyxaroth n'est pas un personnage au sens classique — c'est une force cosmique de destruction. Il n'a pas de forme physique définie, apparaissant comme une ombre vivante, un vide dans la réalité. Sa \"voix\" résonne comme mille cloches fêlées.\n\nMotivation : Dévorer l'énergie éthérique du monde pour grandir.\nFaiblesses : Le Cristal d'Aether intact peut le repousser ou le piéger.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("antagoniste,cosmique,menace-principale".to_string()),
@@ -17303,7 +17303,7 @@ mod tests {
             entry_type: "glossary".to_string(),
             name: "Éthériste".to_string(),
             aliases: Some("Mage, Pratiquant".to_string()),
-            short_description: Some("Personne capable de manipuler l'Éther. Environ 1 personne sur 1000.".to_string()),
+            summary: Some("Personne capable de manipuler l'Éther. Environ 1 personne sur 1000.".to_string()),
             full_description: Some("Les Éthéristes sont rares et souvent craints par la population. L'Académie de Skyreach est le seul lieu de formation officiel. Les Éthéristes non formés sont considérés comme dangereux.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("glossaire,magie,société".to_string()),
@@ -17314,7 +17314,7 @@ mod tests {
             entry_type: "glossary".to_string(),
             name: "Empire Solaire".to_string(),
             aliases: Some("L'Ancien Empire, L'Empire".to_string()),
-            short_description: Some("Empire disparu qui dominait le monde il y a 300 ans, avant la Fracture.".to_string()),
+            summary: Some("Empire disparu qui dominait le monde il y a 300 ans, avant la Fracture.".to_string()),
             full_description: Some("L'Empire Solaire a duré mille ans, gouverné par la lignée des Empereurs qui maîtrisaient le Cristal d'Aether. Sa chute lors de la Fracture a plongé le monde dans le chaos.".to_string()),
             status: Some("canon".to_string()),
             tags: Some("histoire,worldbuilding".to_string()),
@@ -17773,7 +17773,7 @@ mod tests {
             time_start: None,
             time_end: None,
             event_type: Some("backstory".to_string()),
-            importance: Some("normal".to_string()),
+            importance: Some("moderate".to_string()),
         }).unwrap();
 
         let ev_marche = db
@@ -17785,7 +17785,7 @@ mod tests {
                 time_point: Some("An 300, Jour 1".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: Some("major".to_string()),
             })
             .unwrap();
@@ -17800,7 +17800,7 @@ mod tests {
                 time_start: Some("An 300, Jour 3".to_string()),
                 time_end: Some("An 300, Jour 4".to_string()),
                 time_point: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: Some("major".to_string()),
             })
             .unwrap();
@@ -17814,8 +17814,8 @@ mod tests {
                 time_point: Some("An 300, Jour 8".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
-                importance: Some("normal".to_string()),
+                event_type: Some("plot".to_string()),
+                importance: Some("moderate".to_string()),
             })
             .unwrap();
 
@@ -17842,7 +17842,7 @@ mod tests {
                 time_point: Some("An 300, Jour 15".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: Some("major".to_string()),
             })
             .unwrap();
@@ -17942,7 +17942,7 @@ mod tests {
                 template_id: custom_template.id.clone(),
                 name: "L'Appel".to_string(),
                 description: Some("Le héros reçoit l'appel à l'aventure.".to_string()),
-                typical_position: Some(0.1),
+                story_percentage: Some(0.1),
                 color: Some("#4CAF50".to_string()),
             })
             .unwrap();
@@ -17952,7 +17952,7 @@ mod tests {
                 template_id: custom_template.id.clone(),
                 name: "L'Épreuve".to_string(),
                 description: Some("Le héros fait face à sa première grande épreuve.".to_string()),
-                typical_position: Some(0.35),
+                story_percentage: Some(0.35),
                 color: Some("#FF9800".to_string()),
             })
             .unwrap();
@@ -17962,7 +17962,7 @@ mod tests {
                 template_id: custom_template.id.clone(),
                 name: "La Révélation".to_string(),
                 description: Some("La vérité cachée est révélée.".to_string()),
-                typical_position: Some(0.6),
+                story_percentage: Some(0.6),
                 color: Some("#9C27B0".to_string()),
             })
             .unwrap();
@@ -17972,7 +17972,7 @@ mod tests {
                 template_id: custom_template.id.clone(),
                 name: "Le Sacrifice".to_string(),
                 description: Some("Le héros doit faire un sacrifice ultime.".to_string()),
-                typical_position: Some(0.85),
+                story_percentage: Some(0.85),
                 color: Some("#F44336".to_string()),
             })
             .unwrap();
@@ -17982,7 +17982,7 @@ mod tests {
                 template_id: custom_template.id.clone(),
                 name: "Le Retour".to_string(),
                 description: Some("Le monde est transformé, le héros aussi.".to_string()),
-                typical_position: Some(1.0),
+                story_percentage: Some(1.0),
                 color: Some("#2196F3".to_string()),
             })
             .unwrap();
@@ -18198,7 +18198,7 @@ mod tests {
         db.create_snapshot(
             "Milestone : Prologue finalisé",
             Some("Le prologue est considéré comme terminé après trois passes de révision."),
-            "milestone",
+            "manual",
         )
         .unwrap();
 
@@ -18303,7 +18303,7 @@ mod tests {
                 time_point: Some("An 300, Jour 9".to_string()),
                 time_start: None,
                 time_end: None,
-                event_type: Some("scene".to_string()),
+                event_type: Some("plot".to_string()),
                 importance: Some("minor".to_string()),
             })
             .unwrap();
@@ -18330,7 +18330,7 @@ mod tests {
         assert!(statuses.contains(&"done"));
         assert!(statuses.contains(&"revised"));
         assert!(statuses.contains(&"draft"));
-        assert!(statuses.contains(&"in progress"));
+        assert!(statuses.contains(&"in_progress"));
         assert!(statuses.contains(&"planned"));
 
         // Count all scenes (excluding soft-deleted)
@@ -18347,11 +18347,11 @@ mod tests {
         // Verify all scene statuses exist
         let scene_statuses: Vec<&str> = all_scenes.iter().map(|s| s.status.as_str()).collect();
         assert!(scene_statuses.contains(&"done"));
-        assert!(scene_statuses.contains(&"in revision"));
+        assert!(scene_statuses.contains(&"in_revision"));
         assert!(scene_statuses.contains(&"draft"));
-        assert!(scene_statuses.contains(&"to write"));
+        assert!(scene_statuses.contains(&"to_write"));
         assert!(scene_statuses.contains(&"planned"));
-        assert!(scene_statuses.contains(&"to cut"));
+        assert!(scene_statuses.contains(&"to_cut"));
 
         // Verify bible entries — all 6 types
         let all_bible = db.get_bible_entries(None).unwrap();
@@ -18383,12 +18383,12 @@ mod tests {
         let events = db.get_events().unwrap();
         assert!(events.len() >= 7);
         let event_types: Vec<&str> = events.iter().map(|e| e.event_type.as_str()).collect();
-        assert!(event_types.contains(&"scene"));
+        assert!(event_types.contains(&"plot"));
         assert!(event_types.contains(&"historical"));
         assert!(event_types.contains(&"backstory"));
         let event_importances: Vec<&str> = events.iter().map(|e| e.importance.as_str()).collect();
         assert!(event_importances.contains(&"minor"));
-        assert!(event_importances.contains(&"normal"));
+        assert!(event_importances.contains(&"moderate"));
         assert!(event_importances.contains(&"major"));
 
         // Verify templates
@@ -18640,7 +18640,7 @@ mod tests {
                 name: "Hero".to_string(),
                 entry_type: "character".to_string(),
                 aliases: None,
-                short_description: None,
+                summary: None,
                 full_description: None,
                 status: None,
                 tags: None,
@@ -18837,7 +18837,7 @@ mod tests {
                 on_timeline: None,
                 position: None,
                 pov_goal: None,
-                has_conflict: None,
+                has_dramatic_conflict: None,
                 has_change: None,
                 tension: None,
                 setup_for_scene_id: None,
@@ -18914,7 +18914,7 @@ mod tests {
                     on_timeline: None,
                     position: None,
                     pov_goal: None,
-                    has_conflict: None,
+                    has_dramatic_conflict: None,
                     has_change: None,
                     tension: None,
                     setup_for_scene_id: None,
@@ -18994,7 +18994,7 @@ mod tests {
                 on_timeline: None,
                 position: None,
                 pov_goal: None,
-                has_conflict: None,
+                has_dramatic_conflict: None,
                 has_change: None,
                 tension: None,
                 setup_for_scene_id: None,
@@ -19302,7 +19302,7 @@ mod tests {
             name: "Aragorn".to_string(),
             entry_type: "character".to_string(),
             aliases: Some("Strider".to_string()),
-            short_description: Some("A ranger from the north".to_string()),
+            summary: Some("A ranger from the north".to_string()),
             full_description: None,
             status: None,
             tags: Some("hero,ranger".to_string()),
@@ -19314,7 +19314,7 @@ mod tests {
             name: "Rivendell".to_string(),
             entry_type: "location".to_string(),
             aliases: None,
-            short_description: Some("Elven valley".to_string()),
+            summary: Some("Elven valley".to_string()),
             full_description: None,
             status: None,
             tags: None,
@@ -19326,7 +19326,7 @@ mod tests {
 
         // Verify header row
         assert!(
-            csv.starts_with("id,name,type,aliases,short_description,status,tags\n"),
+            csv.starts_with("id,name,type,aliases,summary,status,tags\n"),
             "CSV should start with header"
         );
 

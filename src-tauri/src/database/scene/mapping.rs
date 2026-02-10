@@ -24,7 +24,7 @@ impl Database {
             on_timeline: row.get::<_, i32>(14)? != 0,
             position: row.get(15)?,
             pov_goal: row.get(16)?,
-            has_conflict: row.get::<_, Option<i32>>(17)?.map(|v| v != 0),
+            has_dramatic_conflict: row.get::<_, Option<i32>>(17)?.map(|v| v != 0),
             has_change: row.get::<_, Option<i32>>(18)?.map(|v| v != 0),
             tension: row.get(19)?,
             setup_for_scene_id: row.get(20)?,

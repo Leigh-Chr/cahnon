@@ -151,7 +151,6 @@
 
 	const snapshotTypes = [
 		{ value: 'manual', label: 'Manual Backup' },
-		{ value: 'milestone', label: 'Milestone' },
 		{ value: 'pre_bulk', label: 'Pre-bulk Operation' },
 	];
 

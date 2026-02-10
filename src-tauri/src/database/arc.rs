@@ -290,7 +290,7 @@ impl Database {
             .prepare(
                 "SELECT s.id, s.chapter_id, s.title, s.summary, s.text, s.status, s.pov, s.tags,
                     s.notes, s.todos, s.word_target, s.time_point, s.time_start, s.time_end,
-                    s.on_timeline, s.position, s.pov_goal, s.has_conflict, s.has_change, s.tension,
+                    s.on_timeline, s.position, s.pov_goal, s.has_dramatic_conflict, s.has_change, s.tension,
                     s.setup_for_scene_id, s.payoff_of_scene_id, s.revision_notes, s.revision_checklist,
                     s.word_count, s.created_at, s.updated_at
              FROM scenes s

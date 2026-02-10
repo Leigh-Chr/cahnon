@@ -120,11 +120,11 @@
 
 	const STATUS_COLORS: Record<string, string> = {
 		planned: 'var(--status-planned)',
-		'to write': 'var(--status-to-write)',
+		to_write: 'var(--status-to-write)',
 		draft: 'var(--status-draft)',
-		'in revision': 'var(--status-in-revision)',
+		in_revision: 'var(--status-in-revision)',
 		done: 'var(--status-done)',
-		'to cut': 'var(--status-to-cut)',
+		to_cut: 'var(--status-to-cut)',
 	};
 
 	function getStatusColor(status: string): string {

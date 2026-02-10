@@ -457,9 +457,9 @@
 		filled += 10;
 		total += 10;
 
-		// short_description
+		// summary
 		total += 10;
-		if (entry.short_description) filled += 10;
+		if (entry.summary) filled += 10;
 
 		// full_description
 		total += 10;
@@ -502,7 +502,7 @@
 			total: Math.min(100, Math.round((filled / total) * 100)),
 			breakdown: {
 				name: true, // always filled
-				description: !!(entry.short_description || entry.full_description),
+				description: !!(entry.summary || entry.full_description),
 				aliases: !!entry.aliases,
 				tags: !!entry.tags,
 				notes: !!entry.notes,
@@ -756,8 +756,8 @@ Custom Fields: ${breakdown.customFields}`;
 							id="entry-short-desc"
 							type="text"
 							placeholder="Brief description for tooltips"
-							value={selectedEntry.short_description || ''}
-							onblur={(e) => updateEntry('short_description', e.currentTarget.value)}
+							value={selectedEntry.summary || ''}
+							onblur={(e) => updateEntry('summary', e.currentTarget.value)}
 						/>
 					</FormGroup>
 

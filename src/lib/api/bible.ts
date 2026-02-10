@@ -21,7 +21,7 @@ import type { BibleEntry, BibleRelationship, BibleRelationshipWithEntry, Scene }
  *   entry_type: 'character',
  *   name: 'John Smith',
  *   aliases: 'Johnny, The Protagonist',
- *   short_description: 'A detective with a troubled past'
+ *   summary: 'A detective with a troubled past'
  * });
  *
  * // Get all locations
@@ -36,7 +36,7 @@ export const bibleApi = {
 		entry_type: string;
 		name: string;
 		aliases?: string;
-		short_description?: string;
+		summary?: string;
 		full_description?: string;
 		status?: string;
 		tags?: string;

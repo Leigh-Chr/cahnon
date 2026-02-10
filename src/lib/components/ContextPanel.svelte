@@ -963,7 +963,7 @@
 									<select bind:value={selectedStepToAssign} onchange={assignSceneToStep}>
 										<option value="">Select a step...</option>
 										{#each allTemplateSteps as step (step.id)}
-											<option value={step.id}>{step.name} ({step.typical_position}%)</option>
+											<option value={step.id}>{step.name} ({step.story_percentage}%)</option>
 										{/each}
 									</select>
 								</div>

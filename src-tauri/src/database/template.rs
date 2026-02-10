@@ -42,7 +42,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, template_id, name, description, typical_position, color, position
+                "SELECT id, template_id, name, description, story_percentage, color, position
              FROM template_steps WHERE template_id = ?1 ORDER BY position",
             )
             .map_err(|e| e.to_string())?;
@@ -62,7 +62,7 @@ impl Database {
             template_id: row.get(1)?,
             name: row.get(2)?,
             description: row.get(3)?,
-            typical_position: row.get(4)?,
+            story_percentage: row.get(4)?,
             color: row.get(5)?,
             position: row.get(6)?,
         })
@@ -100,7 +100,7 @@ impl Database {
 
     pub fn get_scene_step(&self, scene_id: &str) -> Result<Option<TemplateStep>, String> {
         let result = self.conn.query_row(
-            "SELECT ts.id, ts.template_id, ts.name, ts.description, ts.typical_position, ts.color, ts.position
+            "SELECT ts.id, ts.template_id, ts.name, ts.description, ts.story_percentage, ts.color, ts.position
              FROM template_steps ts
              JOIN scene_steps ss ON ts.id = ss.step_id
              WHERE ss.scene_id = ?1",
@@ -156,7 +156,7 @@ impl Database {
             let step_id = uuid::Uuid::new_v4().to_string();
             self.conn
                 .execute(
-                    "INSERT INTO template_steps (id, template_id, name, description, typical_position, color, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    "INSERT INTO template_steps (id, template_id, name, description, story_percentage, color, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                     params![step_id, template_id, step_name, desc, pos, color, i as i32],
                 )
                 .map_err(|e| e.to_string())?;
@@ -412,13 +412,13 @@ impl Database {
 
         self.conn
             .execute(
-                "INSERT INTO template_steps (id, template_id, name, description, typical_position, color, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO template_steps (id, template_id, name, description, story_percentage, color, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     id,
                     req.template_id,
                     req.name,
                     req.description,
-                    req.typical_position.unwrap_or(0.5),
+                    req.story_percentage.unwrap_or(0.5),
                     req.color,
                     position
                 ],
@@ -431,7 +431,7 @@ impl Database {
     pub fn get_template_step(&self, id: &str) -> Result<TemplateStep, String> {
         self.conn
             .query_row(
-                "SELECT id, template_id, name, description, typical_position, color, position FROM template_steps WHERE id = ?1",
+                "SELECT id, template_id, name, description, story_percentage, color, position FROM template_steps WHERE id = ?1",
                 params![id],
                 Self::map_template_step,
             )
@@ -451,8 +451,8 @@ impl Database {
         add_field!(
             set_clauses,
             params_vec,
-            req.typical_position,
-            "typical_position",
+            req.story_percentage,
+            "story_percentage",
             float
         );
         add_field!(set_clauses, params_vec, req.color, "color");

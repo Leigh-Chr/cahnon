@@ -9,6 +9,40 @@ use serde::{Deserialize, Serialize};
 
 use super::Database;
 
+/// Normalize legacy scene status values (spaces → underscores).
+fn normalize_scene_status(s: &str) -> &str {
+    match s {
+        "to write" => "to_write",
+        "in revision" => "in_revision",
+        "to cut" => "to_cut",
+        _ => s,
+    }
+}
+
+/// Normalize legacy chapter status values (spaces → underscores).
+fn normalize_chapter_status(s: &str) -> &str {
+    match s {
+        "in progress" => "in_progress",
+        _ => s,
+    }
+}
+
+/// Normalize legacy event_type values.
+fn normalize_event_type(s: &str) -> &str {
+    match s {
+        "scene" => "plot",
+        _ => s,
+    }
+}
+
+/// Normalize legacy importance values.
+fn normalize_event_importance(s: &str) -> &str {
+    match s {
+        "normal" => "moderate",
+        _ => s,
+    }
+}
+
 /// All six junction table collections returned from snapshot collection.
 type AllJunctions = (
     Vec<JunctionRow>,
@@ -477,12 +511,13 @@ impl Database {
 
     /// Applies a snapshot scene's fields to an existing scene row.
     fn apply_scene_snapshot(&self, scene_id: &str, scene: &Scene) -> Result<(), String> {
+        let status = normalize_scene_status(&scene.status);
         self.conn
             .execute(
                 "UPDATE scenes SET title = ?1, summary = ?2, text = ?3, status = ?4,
                  pov = ?5, tags = ?6, notes = ?7, todos = ?8, word_target = ?9,
                  time_point = ?10, time_start = ?11, time_end = ?12, on_timeline = ?13,
-                 pov_goal = ?14, has_conflict = ?15, has_change = ?16, tension = ?17,
+                 pov_goal = ?14, has_dramatic_conflict = ?15, has_change = ?16, tension = ?17,
                  setup_for_scene_id = ?18, payoff_of_scene_id = ?19,
                  revision_notes = ?20, revision_checklist = ?21, updated_at = ?22
                  WHERE id = ?23 AND deleted_at IS NULL",
@@ -490,7 +525,7 @@ impl Database {
                     scene.title,
                     scene.summary,
                     scene.text,
-                    scene.status,
+                    status,
                     scene.pov,
                     scene.tags,
                     scene.notes,
@@ -501,7 +536,7 @@ impl Database {
                     scene.time_end,
                     scene.on_timeline as i32,
                     scene.pov_goal,
-                    scene.has_conflict.map(|b| b as i32),
+                    scene.has_dramatic_conflict.map(|b| b as i32),
                     scene.has_change.map(|b| b as i32),
                     scene.tension,
                     scene.setup_for_scene_id,
@@ -572,11 +607,12 @@ impl Database {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         ).map_err(|e| e.to_string())?;
         for chapter in chapters {
+            let status = normalize_chapter_status(&chapter.status);
             stmt.execute(params![
                 chapter.id,
                 chapter.title,
                 chapter.summary,
-                chapter.status,
+                status,
                 chapter.notes,
                 chapter.position,
                 chapter.created_at,
@@ -591,19 +627,20 @@ impl Database {
         let mut stmt = self.conn.prepare(
             "INSERT INTO scenes (id, chapter_id, title, summary, text, status, pov, tags, notes, todos,
              word_target, time_point, time_start, time_end, on_timeline, position,
-             pov_goal, has_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id,
+             pov_goal, has_dramatic_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id,
              revision_notes, revision_checklist, word_count, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
                      ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
         ).map_err(|e| e.to_string())?;
         for scene in scenes {
+            let status = normalize_scene_status(&scene.status);
             stmt.execute(params![
                 scene.id,
                 scene.chapter_id,
                 scene.title,
                 scene.summary,
                 scene.text,
-                scene.status,
+                status,
                 scene.pov,
                 scene.tags,
                 scene.notes,
@@ -615,7 +652,7 @@ impl Database {
                 scene.on_timeline,
                 scene.position,
                 scene.pov_goal,
-                scene.has_conflict,
+                scene.has_dramatic_conflict,
                 scene.has_change,
                 scene.tension,
                 scene.setup_for_scene_id,
@@ -635,7 +672,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "INSERT INTO bible_entries (id, entry_type, name, aliases, short_description,
+                "INSERT INTO bible_entries (id, entry_type, name, aliases, summary,
              full_description, status, tags, image_path, notes, todos, color, custom_fields,
              created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
@@ -647,7 +684,7 @@ impl Database {
                 entry.entry_type,
                 entry.name,
                 entry.aliases,
-                entry.short_description,
+                entry.summary,
                 entry.full_description,
                 entry.status,
                 entry.tags,
@@ -700,6 +737,8 @@ impl Database {
             )
             .map_err(|e| e.to_string())?;
         for event in events {
+            let event_type = normalize_event_type(&event.event_type);
+            let importance = normalize_event_importance(&event.importance);
             stmt.execute(params![
                 event.id,
                 event.title,
@@ -707,8 +746,8 @@ impl Database {
                 event.time_point,
                 event.time_start,
                 event.time_end,
-                event.event_type,
-                event.importance,
+                event_type,
+                importance,
                 event.created_at,
                 event.updated_at
             ])

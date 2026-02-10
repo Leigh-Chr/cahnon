@@ -111,9 +111,9 @@ pub fn create_template_step(
         return Err("Template step name cannot be empty".to_string());
     }
 
-    if let Some(pos) = request.typical_position {
+    if let Some(pos) = request.story_percentage {
         if pos.is_nan() || pos.is_infinite() || !(0.0..=1.0).contains(&pos) {
-            return Err("typical_position must be between 0.0 and 1.0".to_string());
+            return Err("story_percentage must be between 0.0 and 1.0".to_string());
         }
     }
 
@@ -123,7 +123,7 @@ pub fn create_template_step(
         description: request
             .description
             .map(|d| sanitize_multiline_text(&d, MAX_SYNOPSIS_LENGTH)),
-        typical_position: request.typical_position,
+        story_percentage: request.story_percentage,
         color: request.color,
     };
 
@@ -138,9 +138,9 @@ pub fn update_template_step(
     request: UpdateTemplateStepRequest,
     state: State<AppState>,
 ) -> Result<TemplateStep, String> {
-    if let Some(pos) = request.typical_position {
+    if let Some(pos) = request.story_percentage {
         if pos.is_nan() || pos.is_infinite() || !(0.0..=1.0).contains(&pos) {
-            return Err("typical_position must be between 0.0 and 1.0".to_string());
+            return Err("story_percentage must be between 0.0 and 1.0".to_string());
         }
     }
 
@@ -149,7 +149,7 @@ pub fn update_template_step(
         description: request
             .description
             .map(|d| sanitize_multiline_text(&d, MAX_SYNOPSIS_LENGTH)),
-        typical_position: request.typical_position,
+        story_percentage: request.story_percentage,
         color: request.color,
         position: request.position,
     };

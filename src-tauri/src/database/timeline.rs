@@ -198,7 +198,7 @@ mod tests {
             on_timeline: true,
             position: 0,
             pov_goal: None,
-            has_conflict: None,
+            has_dramatic_conflict: None,
             has_change: None,
             tension: None,
             setup_for_scene_id: None,

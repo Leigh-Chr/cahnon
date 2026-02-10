@@ -77,7 +77,7 @@
 						cmp = a.title.localeCompare(b.title);
 						break;
 					case 'conflict':
-						cmp = (a.has_conflict ? 1 : 0) - (b.has_conflict ? 1 : 0);
+						cmp = (a.has_dramatic_conflict ? 1 : 0) - (b.has_dramatic_conflict ? 1 : 0);
 						break;
 					case 'change':
 						cmp = (a.has_change ? 1 : 0) - (b.has_change ? 1 : 0);
@@ -122,7 +122,7 @@
 
 	async function updateSceneConflict(scene: Scene, hasConflict: boolean | null) {
 		try {
-			await appState.updateScene(scene.id, { has_conflict: hasConflict });
+			await appState.updateScene(scene.id, { has_dramatic_conflict: hasConflict });
 		} catch (e) {
 			console.error('Failed to update scene conflict:', e);
 			showError('Failed to update scene');
@@ -383,8 +383,8 @@
 								<td class="checkbox-cell">
 									<input
 										type="checkbox"
-										checked={scene.has_conflict === true}
-										indeterminate={scene.has_conflict === null}
+										checked={scene.has_dramatic_conflict === true}
+										indeterminate={scene.has_dramatic_conflict === null}
 										onclick={(e) => e.stopPropagation()}
 										onchange={(e) => updateSceneConflict(scene, e.currentTarget.checked)}
 										class="checkbox-input"

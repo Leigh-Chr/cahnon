@@ -55,7 +55,7 @@ export interface Scene {
 	summary: string | null;
 	/** Scene content as TipTap/ProseMirror HTML */
 	text: string;
-	/** Status: draft, revision, done */
+	/** Status: planned, to_write, draft, in_revision, done, to_cut */
 	status: string;
 	/** Point-of-view character (by name or bible entry reference) */
 	pov: string | null;
@@ -76,7 +76,7 @@ export interface Scene {
 	position: number;
 	// Revision fields
 	pov_goal: string | null;
-	has_conflict: boolean | null;
+	has_dramatic_conflict: boolean | null;
 	has_change: boolean | null;
 	/** Tension level: low, medium, high */
 	tension: string | null;
@@ -121,7 +121,7 @@ export interface BibleEntry {
 	name: string;
 	/** Comma-separated alternate names */
 	aliases: string | null;
-	short_description: string | null;
+	summary: string | null;
 	full_description: string | null;
 	status: string;
 	tags: string | null;
@@ -212,7 +212,7 @@ export interface TemplateStep {
 	template_id: string;
 	name: string;
 	description: string | null;
-	typical_position: number;
+	story_percentage: number;
 	color: string | null;
 	position: number;
 }

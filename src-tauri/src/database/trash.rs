@@ -12,7 +12,7 @@ impl Database {
             .prepare(
                 "SELECT id, chapter_id, title, summary, text, status, pov, tags, notes, todos,
                     word_target, time_point, time_start, time_end, on_timeline, position,
-                    pov_goal, has_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id, revision_notes, revision_checklist,
+                    pov_goal, has_dramatic_conflict, has_change, tension, setup_for_scene_id, payoff_of_scene_id, revision_notes, revision_checklist,
                     word_count, created_at, updated_at
              FROM scenes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
             )

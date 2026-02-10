@@ -57,7 +57,7 @@ Projects are single `.cahnon` SQLite files containing:
 - Chapters → Scenes (with text, status, POV, tags, timeline info, cached word count)
 - Bible entries (character, location, object, faction, concept, glossary)
 - Arcs, Events, Templates, Snapshots, Annotations
-- Facts, Writing Sessions, Name Registry, Cuts, Issues, Saved Filters
+- Cuts, Issues, Saved Filters
 - N:M relationships: Scene↔BibleEntry, Scene↔Arc, Scene↔Event, BibleEntry↔BibleEntry, Arc↔Character, Event↔BibleEntry, Issue↔Scene, Issue↔BibleEntry
 
 ## Key Patterns

@@ -38,7 +38,7 @@ export const templateApi = {
 		template_id: string;
 		name: string;
 		description?: string;
-		typical_position?: number;
+		story_percentage?: number;
 		color?: string;
 	}) => invoke<TemplateStep>('create_template_step', { request }),
 
@@ -47,7 +47,7 @@ export const templateApi = {
 		request: {
 			name?: string;
 			description?: string;
-			typical_position?: number;
+			story_percentage?: number;
 			color?: string;
 			position?: number;
 		}

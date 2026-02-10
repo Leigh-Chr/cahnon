@@ -21,29 +21,29 @@ export function formatWordCount(count: number): string {
 // Status colors
 export const statusColors: Record<string, string> = {
 	planned: 'var(--status-planned)',
-	'in progress': 'var(--status-to-write)',
-	'to write': 'var(--status-to-write)',
+	in_progress: 'var(--status-to-write)',
+	to_write: 'var(--status-to-write)',
 	draft: 'var(--status-draft)',
-	'in revision': 'var(--status-in-revision)',
+	in_revision: 'var(--status-in-revision)',
 	revised: 'var(--status-in-revision)',
 	done: 'var(--status-done)',
-	'to cut': 'var(--status-to-cut)',
+	to_cut: 'var(--status-to-cut)',
 };
 
 // Scene statuses
 export const sceneStatuses = [
 	{ value: 'planned', label: 'Planned' },
-	{ value: 'to write', label: 'To Write' },
+	{ value: 'to_write', label: 'To Write' },
 	{ value: 'draft', label: 'Draft' },
-	{ value: 'in revision', label: 'In Revision' },
+	{ value: 'in_revision', label: 'In Revision' },
 	{ value: 'done', label: 'Done' },
-	{ value: 'to cut', label: 'To Cut' },
+	{ value: 'to_cut', label: 'To Cut' },
 ];
 
 // Chapter statuses
 export const chapterStatuses = [
 	{ value: 'planned', label: 'Planned' },
-	{ value: 'in progress', label: 'In Progress' },
+	{ value: 'in_progress', label: 'In Progress' },
 	{ value: 'draft', label: 'Draft' },
 	{ value: 'revised', label: 'Revised' },
 	{ value: 'done', label: 'Done' },

@@ -106,7 +106,7 @@ Project file can be stored in any cloud-synced folder (Dropbox, iCloud, Google D
 | --------- | ---------------------------------------------- |
 | Title     | Chapter title                                  |
 | Summary   | Optional, 1-3 sentences                        |
-| Status    | planned / in progress / draft / revised / done |
+| Status    | planned / in_progress / draft / revised / done |
 | Notes     | Private notes                                  |
 
 ### 4.2 Scene
@@ -116,7 +116,7 @@ Project file can be stored in any cloud-synced folder (Dropbox, iCloud, Google D
 | Title       | Scene title                                              |
 | Summary     | 1-3 sentences                                            |
 | Text        | Main content (rich text)                                 |
-| Status      | planned / to write / draft / in revision / done / to cut |
+| Status      | planned / to_write / draft / in_revision / done / to_cut |
 | POV         | Single character (optional)                              |
 | Tags        | Free-form tags                                           |
 | Notes       | Private notes                                            |
@@ -296,8 +296,8 @@ List view per entry, filterable by type. No graph visualization.
 | Title       | Event name                            |
 | Description | Details                               |
 | Time        | Point or interval (free text or date) |
-| Type        | scene / backstory / historical        |
-| Importance  | minor / normal / major                |
+| Type        | plot / backstory / historical         |
+| Importance  | minor / moderate / major              |
 | Links       | Scenes and Bible entries              |
 
 ### 9.2 Dual View
@@ -338,7 +338,7 @@ Template:
   - steps[]:
       - name
       - description
-      - typical_position (%)
+      - story_percentage (%)
       - color
 ```
 

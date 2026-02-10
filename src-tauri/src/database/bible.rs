@@ -39,14 +39,14 @@ impl Database {
 
         self.conn
             .execute(
-                "INSERT INTO bible_entries (id, entry_type, name, aliases, short_description, full_description, status, tags, color, custom_fields, created_at, updated_at)
+                "INSERT INTO bible_entries (id, entry_type, name, aliases, summary, full_description, status, tags, color, custom_fields, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     id,
                     req.entry_type,
                     req.name,
                     req.aliases,
-                    req.short_description,
+                    req.summary,
                     req.full_description,
                     status,
                     req.tags,
@@ -88,10 +88,10 @@ impl Database {
 
     pub fn get_bible_entries(&self, entry_type: Option<&str>) -> Result<Vec<BibleEntry>, String> {
         let query = if entry_type.is_some() {
-            "SELECT id, entry_type, name, aliases, short_description, full_description, status, tags, image_path, notes, todos, color, custom_fields, created_at, updated_at, deleted_at
+            "SELECT id, entry_type, name, aliases, summary, full_description, status, tags, image_path, notes, todos, color, custom_fields, created_at, updated_at, deleted_at
              FROM bible_entries WHERE entry_type = ?1 AND deleted_at IS NULL ORDER BY name"
         } else {
-            "SELECT id, entry_type, name, aliases, short_description, full_description, status, tags, image_path, notes, todos, color, custom_fields, created_at, updated_at, deleted_at
+            "SELECT id, entry_type, name, aliases, summary, full_description, status, tags, image_path, notes, todos, color, custom_fields, created_at, updated_at, deleted_at
              FROM bible_entries WHERE deleted_at IS NULL ORDER BY entry_type, name"
         };
 
@@ -115,7 +115,7 @@ impl Database {
             entry_type: row.get(1)?,
             name: row.get(2)?,
             aliases: row.get(3)?,
-            short_description: row.get(4)?,
+            summary: row.get(4)?,
             full_description: row.get(5)?,
             status: row.get(6)?,
             tags: row.get(7)?,
@@ -133,7 +133,7 @@ impl Database {
     pub fn get_bible_entry(&self, id: &str) -> Result<BibleEntry, String> {
         self.conn
             .query_row(
-                "SELECT id, entry_type, name, aliases, short_description, full_description, status, tags, image_path, notes, todos, color, custom_fields, created_at, updated_at, deleted_at
+                "SELECT id, entry_type, name, aliases, summary, full_description, status, tags, image_path, notes, todos, color, custom_fields, created_at, updated_at, deleted_at
              FROM bible_entries WHERE id = ?1 AND deleted_at IS NULL",
                 params![id],
                 Self::map_bible_entry,
@@ -187,8 +187,8 @@ impl Database {
         add_field!(
             set_clauses,
             params_vec,
-            req.short_description,
-            "short_description"
+            req.summary,
+            "summary"
         );
         add_field!(
             set_clauses,
@@ -267,7 +267,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT b.id, b.entry_type, b.name, b.aliases, b.short_description, b.full_description,
+                "SELECT b.id, b.entry_type, b.name, b.aliases, b.summary, b.full_description,
                     b.status, b.tags, b.image_path, b.notes, b.todos, b.color, b.custom_fields,
                     b.created_at, b.updated_at, b.deleted_at
              FROM bible_entries b
@@ -333,7 +333,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT b.id, b.entry_type, b.name, b.aliases, b.short_description, b.full_description,
+                "SELECT b.id, b.entry_type, b.name, b.aliases, b.summary, b.full_description,
                     b.status, b.tags, b.image_path, b.notes, b.todos, b.color, b.custom_fields,
                     b.created_at, b.updated_at, b.deleted_at
              FROM bible_entries b
@@ -477,7 +477,7 @@ impl Database {
             .prepare(
                 "SELECT s.id, s.chapter_id, s.title, s.summary, s.text, s.status, s.pov, s.tags,
                     s.notes, s.todos, s.word_target, s.time_point, s.time_start, s.time_end,
-                    s.on_timeline, s.position, s.pov_goal, s.has_conflict, s.has_change, s.tension,
+                    s.on_timeline, s.position, s.pov_goal, s.has_dramatic_conflict, s.has_change, s.tension,
                     s.setup_for_scene_id, s.payoff_of_scene_id, s.revision_notes, s.revision_checklist,
                     s.word_count, s.created_at, s.updated_at
              FROM scenes s
@@ -534,7 +534,7 @@ impl Database {
             .conn
             .prepare(
                 "SELECT r.id, r.source_id, r.target_id, r.relationship_type, r.note, r.status, r.created_at,
-                    b.id, b.entry_type, b.name, b.short_description
+                    b.id, b.entry_type, b.name, b.summary
              FROM bible_relationships r
              JOIN bible_entries b ON (r.target_id = b.id OR r.source_id = b.id) AND b.id != ?1
              WHERE (r.source_id = ?1 OR r.target_id = ?1) AND b.deleted_at IS NULL

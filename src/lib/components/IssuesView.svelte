@@ -99,7 +99,7 @@
 		{ value: 'timeline_conflict', label: 'Timeline Conflict', icon: 'clock', auto: true },
 		{ value: 'tbd_in_done', label: 'TBD in Done Scene', icon: 'alert-circle', auto: true },
 		{ value: 'orphan_mention', label: 'Orphan Mention', icon: 'user-x', auto: true },
-		{ value: 'bible_contradiction', label: 'Bible Contradiction', icon: 'book-x', auto: false },
+		{ value: 'bible_contradiction', label: 'Codex Contradiction', icon: 'book-x', auto: false },
 		{ value: 'continuity_error', label: 'Continuity Error', icon: 'link-2-off', auto: false },
 		{ value: 'plot_hole', label: 'Plot Hole', icon: 'alert-triangle', auto: false },
 		{ value: 'research_needed', label: 'Research Needed', icon: 'search', auto: false },

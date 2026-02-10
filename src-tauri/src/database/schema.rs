@@ -27,6 +27,9 @@ const MIGRATIONS: &[MigrationFn] = &[
     Database::migrate_facts_tables,
     Database::migrate_auto_link_dismissed_table,
     Database::migrate_annotation_tracking_fields,
+    Database::migrate_rename_columns,
+    Database::migrate_normalize_stored_values,
+    Database::migrate_drop_ghost_tables,
 ];
 
 impl Database {
@@ -564,6 +567,87 @@ impl Database {
                 ON bible_relationships(source_id, target_id, relationship_type)",
         ])
     }
+
+    fn migrate_rename_columns(&self) -> Result<(), String> {
+        // Step 1: bible_entries.short_description → summary
+        if self.has_column("bible_entries", "short_description")? {
+            // Drop old FTS triggers and table, rename column, recreate FTS
+            self.execute_all(&[
+                "DROP TRIGGER IF EXISTS bible_ai",
+                "DROP TRIGGER IF EXISTS bible_ad",
+                "DROP TRIGGER IF EXISTS bible_au",
+                "DROP TABLE IF EXISTS bible_fts",
+                "ALTER TABLE bible_entries RENAME COLUMN short_description TO summary",
+                "CREATE VIRTUAL TABLE bible_fts USING fts5(
+                    name, aliases, summary, full_description, notes,
+                    content='bible_entries',
+                    content_rowid='rowid'
+                )",
+                "CREATE TRIGGER bible_ai AFTER INSERT ON bible_entries BEGIN
+                    INSERT INTO bible_fts(rowid, name, aliases, summary, full_description, notes)
+                    VALUES (NEW.rowid, NEW.name, NEW.aliases, NEW.summary, NEW.full_description, NEW.notes);
+                END",
+                "CREATE TRIGGER bible_ad AFTER DELETE ON bible_entries BEGIN
+                    INSERT INTO bible_fts(bible_fts, rowid, name, aliases, summary, full_description, notes)
+                    VALUES ('delete', OLD.rowid, OLD.name, OLD.aliases, OLD.summary, OLD.full_description, OLD.notes);
+                END",
+                "CREATE TRIGGER bible_au AFTER UPDATE ON bible_entries BEGIN
+                    INSERT INTO bible_fts(bible_fts, rowid, name, aliases, summary, full_description, notes)
+                    VALUES ('delete', OLD.rowid, OLD.name, OLD.aliases, OLD.summary, OLD.full_description, OLD.notes);
+                    INSERT INTO bible_fts(rowid, name, aliases, summary, full_description, notes)
+                    VALUES (NEW.rowid, NEW.name, NEW.aliases, NEW.summary, NEW.full_description, NEW.notes);
+                END",
+                "INSERT INTO bible_fts(bible_fts) VALUES('rebuild')",
+            ])?;
+        }
+
+        // Step 2: scenes.has_conflict → has_dramatic_conflict
+        if self.has_column("scenes", "has_conflict")?
+            && !self.has_column("scenes", "has_dramatic_conflict")?
+        {
+            self.conn
+                .execute(
+                    "ALTER TABLE scenes RENAME COLUMN has_conflict TO has_dramatic_conflict",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Step 3: template_steps.typical_position → story_percentage
+        if self.has_column("template_steps", "typical_position")?
+            && !self.has_column("template_steps", "story_percentage")?
+        {
+            self.conn
+                .execute(
+                    "ALTER TABLE template_steps RENAME COLUMN typical_position TO story_percentage",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    fn migrate_normalize_stored_values(&self) -> Result<(), String> {
+        self.execute_all(&[
+            "UPDATE scenes SET status = 'to_write' WHERE status = 'to write'",
+            "UPDATE scenes SET status = 'in_revision' WHERE status = 'in revision'",
+            "UPDATE scenes SET status = 'to_cut' WHERE status = 'to cut'",
+            "UPDATE chapters SET status = 'in_progress' WHERE status = 'in progress'",
+            "UPDATE events SET event_type = 'plot' WHERE event_type = 'scene'",
+            "UPDATE events SET importance = 'moderate' WHERE importance = 'normal'",
+        ])
+    }
+
+    fn migrate_drop_ghost_tables(&self) -> Result<(), String> {
+        self.execute_all(&[
+            "DROP TABLE IF EXISTS fact_characters",
+            "DROP TABLE IF EXISTS facts",
+            "DROP TABLE IF EXISTS name_mentions",
+            "DROP TABLE IF EXISTS name_registry",
+            "DROP TABLE IF EXISTS writing_sessions",
+        ])
+    }
 }
 
 /// Complete database schema SQL for new projects.
@@ -600,7 +684,7 @@ CREATE TABLE IF NOT EXISTS scenes (
     title TEXT NOT NULL,
     summary TEXT,
     text TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'to write',
+    status TEXT NOT NULL DEFAULT 'to_write',
     pov TEXT,
     tags TEXT,
     notes TEXT,
@@ -613,7 +697,7 @@ CREATE TABLE IF NOT EXISTS scenes (
     position INTEGER NOT NULL,
     -- Revision fields
     pov_goal TEXT,
-    has_conflict INTEGER,
+    has_dramatic_conflict INTEGER,
     has_change INTEGER,
     tension TEXT,
     setup_for_scene_id TEXT,
@@ -637,7 +721,7 @@ CREATE TABLE IF NOT EXISTS bible_entries (
     entry_type TEXT NOT NULL,
     name TEXT NOT NULL,
     aliases TEXT,
-    short_description TEXT,
+    summary TEXT,
     full_description TEXT,
     status TEXT NOT NULL DEFAULT 'draft',
     tags TEXT,
@@ -738,8 +822,8 @@ CREATE TABLE IF NOT EXISTS events (
     time_point TEXT,
     time_start TEXT,
     time_end TEXT,
-    event_type TEXT NOT NULL DEFAULT 'scene',
-    importance TEXT NOT NULL DEFAULT 'normal',
+    event_type TEXT NOT NULL DEFAULT 'plot',
+    importance TEXT NOT NULL DEFAULT 'moderate',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -783,7 +867,7 @@ CREATE TABLE IF NOT EXISTS template_steps (
     template_id TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
-    typical_position REAL NOT NULL DEFAULT 0,
+    story_percentage REAL NOT NULL DEFAULT 0,
     color TEXT,
     position INTEGER NOT NULL,
     FOREIGN KEY (template_id) REFERENCES templates(id)
@@ -865,32 +949,6 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL
 );
 
--- Name Registry (proper nouns tracking)
-CREATE TABLE IF NOT EXISTS name_registry (
-    id TEXT PRIMARY KEY,
-    canonical_name TEXT NOT NULL,
-    name_type TEXT NOT NULL DEFAULT 'character',
-    bible_entry_id TEXT,
-    aliases TEXT,
-    is_confirmed INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id)
-);
-
--- Name mentions (detected occurrences in scenes)
-CREATE TABLE IF NOT EXISTS name_mentions (
-    id TEXT PRIMARY KEY,
-    name_registry_id TEXT NOT NULL,
-    scene_id TEXT NOT NULL,
-    mention_text TEXT NOT NULL,
-    start_offset INTEGER NOT NULL,
-    end_offset INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (name_registry_id) REFERENCES name_registry(id),
-    FOREIGN KEY (scene_id) REFERENCES scenes(id)
-);
 
 -- Saved filters
 CREATE TABLE IF NOT EXISTS saved_filters (
@@ -902,41 +960,6 @@ CREATE TABLE IF NOT EXISTS saved_filters (
     updated_at TEXT NOT NULL
 );
 
--- Writing sessions
-CREATE TABLE IF NOT EXISTS writing_sessions (
-    id TEXT PRIMARY KEY,
-    date TEXT NOT NULL,
-    words_start INTEGER NOT NULL DEFAULT 0,
-    words_end INTEGER NOT NULL DEFAULT 0,
-    duration_minutes INTEGER NOT NULL DEFAULT 0,
-    scenes_edited TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
-);
-
--- Narrative facts / revelations
-CREATE TABLE IF NOT EXISTS facts (
-    id TEXT PRIMARY KEY,
-    content TEXT NOT NULL,
-    category TEXT NOT NULL DEFAULT 'plot',
-    revealed_in_scene_id TEXT,
-    status TEXT NOT NULL DEFAULT 'secret',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY (revealed_in_scene_id) REFERENCES scenes(id)
-);
-
--- Fact-Character knowledge links
-CREATE TABLE IF NOT EXISTS fact_characters (
-    id TEXT PRIMARY KEY,
-    fact_id TEXT NOT NULL,
-    bible_entry_id TEXT NOT NULL,
-    learned_in_scene_id TEXT,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (fact_id) REFERENCES facts(id),
-    FOREIGN KEY (bible_entry_id) REFERENCES bible_entries(id),
-    FOREIGN KEY (learned_in_scene_id) REFERENCES scenes(id),
-    UNIQUE(fact_id, bible_entry_id)
-);
 
 -- Auto-link dismissals (scene <-> bible entry pairs the user explicitly unlinked)
 CREATE TABLE IF NOT EXISTS auto_link_dismissed (
@@ -973,16 +996,7 @@ CREATE INDEX IF NOT EXISTS idx_bible_relationships_source ON bible_relationships
 CREATE INDEX IF NOT EXISTS idx_bible_relationships_target ON bible_relationships(target_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bible_relationships_unique ON bible_relationships(source_id, target_id, relationship_type);
 CREATE INDEX IF NOT EXISTS idx_scene_history_scene ON scene_history(scene_id);
-CREATE INDEX IF NOT EXISTS idx_name_registry_type ON name_registry(name_type);
-CREATE INDEX IF NOT EXISTS idx_name_registry_bible ON name_registry(bible_entry_id);
-CREATE INDEX IF NOT EXISTS idx_name_mentions_registry ON name_mentions(name_registry_id);
-CREATE INDEX IF NOT EXISTS idx_name_mentions_scene ON name_mentions(scene_id);
 CREATE INDEX IF NOT EXISTS idx_saved_filters_type ON saved_filters(filter_type);
-CREATE INDEX IF NOT EXISTS idx_writing_sessions_date ON writing_sessions(date);
-CREATE INDEX IF NOT EXISTS idx_facts_status ON facts(status);
-CREATE INDEX IF NOT EXISTS idx_facts_revealed ON facts(revealed_in_scene_id);
-CREATE INDEX IF NOT EXISTS idx_fact_characters_fact ON fact_characters(fact_id);
-CREATE INDEX IF NOT EXISTS idx_fact_characters_bible ON fact_characters(bible_entry_id);
 CREATE INDEX IF NOT EXISTS idx_scenes_pov ON scenes(pov) WHERE pov IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_scenes_time ON scenes(time_point, time_start) WHERE deleted_at IS NULL;
 
@@ -994,7 +1008,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS scenes_fts USING fts5(
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS bible_fts USING fts5(
-    name, aliases, short_description, full_description, notes,
+    name, aliases, summary, full_description, notes,
     content='bible_entries',
     content_rowid='rowid'
 );
@@ -1018,19 +1032,19 @@ CREATE TRIGGER IF NOT EXISTS scenes_au AFTER UPDATE ON scenes BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS bible_ai AFTER INSERT ON bible_entries BEGIN
-    INSERT INTO bible_fts(rowid, name, aliases, short_description, full_description, notes)
-    VALUES (NEW.rowid, NEW.name, NEW.aliases, NEW.short_description, NEW.full_description, NEW.notes);
+    INSERT INTO bible_fts(rowid, name, aliases, summary, full_description, notes)
+    VALUES (NEW.rowid, NEW.name, NEW.aliases, NEW.summary, NEW.full_description, NEW.notes);
 END;
 
 CREATE TRIGGER IF NOT EXISTS bible_ad AFTER DELETE ON bible_entries BEGIN
-    INSERT INTO bible_fts(bible_fts, rowid, name, aliases, short_description, full_description, notes)
-    VALUES ('delete', OLD.rowid, OLD.name, OLD.aliases, OLD.short_description, OLD.full_description, OLD.notes);
+    INSERT INTO bible_fts(bible_fts, rowid, name, aliases, summary, full_description, notes)
+    VALUES ('delete', OLD.rowid, OLD.name, OLD.aliases, OLD.summary, OLD.full_description, OLD.notes);
 END;
 
 CREATE TRIGGER IF NOT EXISTS bible_au AFTER UPDATE ON bible_entries BEGIN
-    INSERT INTO bible_fts(bible_fts, rowid, name, aliases, short_description, full_description, notes)
-    VALUES ('delete', OLD.rowid, OLD.name, OLD.aliases, OLD.short_description, OLD.full_description, OLD.notes);
-    INSERT INTO bible_fts(rowid, name, aliases, short_description, full_description, notes)
-    VALUES (NEW.rowid, NEW.name, NEW.aliases, NEW.short_description, NEW.full_description, NEW.notes);
+    INSERT INTO bible_fts(bible_fts, rowid, name, aliases, summary, full_description, notes)
+    VALUES ('delete', OLD.rowid, OLD.name, OLD.aliases, OLD.summary, OLD.full_description, OLD.notes);
+    INSERT INTO bible_fts(rowid, name, aliases, summary, full_description, notes)
+    VALUES (NEW.rowid, NEW.name, NEW.aliases, NEW.summary, NEW.full_description, NEW.notes);
 END;
 ";

@@ -22,8 +22,8 @@ impl Database {
                     req.time_point,
                     req.time_start,
                     req.time_end,
-                    req.event_type.as_deref().unwrap_or("scene"),
-                    req.importance.as_deref().unwrap_or("normal"),
+                    req.event_type.as_deref().unwrap_or("plot"),
+                    req.importance.as_deref().unwrap_or("moderate"),
                     now,
                     now
                 ],
@@ -210,7 +210,7 @@ impl Database {
             .prepare(
                 "SELECT s.id, s.chapter_id, s.title, s.summary, s.text, s.status, s.pov, s.tags,
                     s.notes, s.todos, s.word_target, s.time_point, s.time_start, s.time_end,
-                    s.on_timeline, s.position, s.pov_goal, s.has_conflict, s.has_change, s.tension,
+                    s.on_timeline, s.position, s.pov_goal, s.has_dramatic_conflict, s.has_change, s.tension,
                     s.setup_for_scene_id, s.payoff_of_scene_id, s.revision_notes, s.revision_checklist,
                     s.word_count, s.created_at, s.updated_at
              FROM scenes s
@@ -264,7 +264,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT b.id, b.entry_type, b.name, b.aliases, b.short_description, b.full_description,
+                "SELECT b.id, b.entry_type, b.name, b.aliases, b.summary, b.full_description,
                     b.status, b.tags, b.image_path, b.notes, b.todos, b.color, b.custom_fields,
                     b.created_at, b.updated_at, b.deleted_at
              FROM bible_entries b

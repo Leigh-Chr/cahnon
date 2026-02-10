@@ -110,7 +110,8 @@ pub struct Scene {
     pub position: i32,
     // Revision fields
     pub pov_goal: Option<String>,
-    pub has_conflict: Option<bool>,
+    #[serde(alias = "has_conflict")]
+    pub has_dramatic_conflict: Option<bool>,
     pub has_change: Option<bool>,
     pub tension: Option<String>,
     pub setup_for_scene_id: Option<String>,
@@ -148,7 +149,8 @@ pub struct UpdateSceneRequest {
     pub position: Option<i32>,
     // Revision fields
     pub pov_goal: Option<String>,
-    pub has_conflict: Option<bool>,
+    #[serde(alias = "has_conflict")]
+    pub has_dramatic_conflict: Option<bool>,
     pub has_change: Option<bool>,
     pub tension: Option<String>,
     pub setup_for_scene_id: Option<String>,
@@ -179,7 +181,8 @@ pub struct BibleEntry {
     pub entry_type: String, // character, location, object, faction, concept, glossary
     pub name: String,
     pub aliases: Option<String>,
-    pub short_description: Option<String>,
+    #[serde(alias = "short_description")]
+    pub summary: Option<String>,
     pub full_description: Option<String>,
     pub status: String,
     pub tags: Option<String>,
@@ -198,7 +201,8 @@ pub struct CreateBibleEntryRequest {
     pub entry_type: String,
     pub name: String,
     pub aliases: Option<String>,
-    pub short_description: Option<String>,
+    #[serde(alias = "short_description")]
+    pub summary: Option<String>,
     pub full_description: Option<String>,
     pub status: Option<String>,
     pub tags: Option<String>,
@@ -209,7 +213,8 @@ pub struct CreateBibleEntryRequest {
 pub struct UpdateBibleEntryRequest {
     pub name: Option<String>,
     pub aliases: Option<String>,
-    pub short_description: Option<String>,
+    #[serde(alias = "short_description")]
+    pub summary: Option<String>,
     pub full_description: Option<String>,
     pub status: Option<String>,
     pub tags: Option<String>,
@@ -521,7 +526,8 @@ pub struct TemplateStep {
     pub template_id: String,
     pub name: String,
     pub description: Option<String>,
-    pub typical_position: f64,
+    #[serde(alias = "typical_position")]
+    pub story_percentage: f64,
     pub color: Option<String>,
     pub position: i32,
 }
@@ -541,7 +547,8 @@ pub struct CreateTemplateStepRequest {
     pub template_id: String,
     pub name: String,
     pub description: Option<String>,
-    pub typical_position: Option<f64>,
+    #[serde(alias = "typical_position")]
+    pub story_percentage: Option<f64>,
     pub color: Option<String>,
 }
 
@@ -549,7 +556,8 @@ pub struct CreateTemplateStepRequest {
 pub struct UpdateTemplateStepRequest {
     pub name: Option<String>,
     pub description: Option<String>,
-    pub typical_position: Option<f64>,
+    #[serde(alias = "typical_position")]
+    pub story_percentage: Option<f64>,
     pub color: Option<String>,
     pub position: Option<i32>,
 }

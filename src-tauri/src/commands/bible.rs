@@ -32,8 +32,8 @@ pub fn create_bible_entry(
         aliases: request
             .aliases
             .map(|a| sanitize_text(&a, MAX_SYNOPSIS_LENGTH)),
-        short_description: request
-            .short_description
+        summary: request
+            .summary
             .map(|d| sanitize_multiline_text(&d, MAX_SYNOPSIS_LENGTH)),
         full_description: request
             .full_description
@@ -100,8 +100,8 @@ pub fn update_bible_entry(
         aliases: request
             .aliases
             .map(|a| sanitize_text(&a, MAX_SYNOPSIS_LENGTH)),
-        short_description: request
-            .short_description
+        summary: request
+            .summary
             .map(|d| sanitize_multiline_text(&d, MAX_SYNOPSIS_LENGTH)),
         full_description: request
             .full_description

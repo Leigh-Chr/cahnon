@@ -57,14 +57,14 @@ fn csv_row(fields: &[CsvField]) -> String {
 impl Database {
     /// Export all bible entries as CSV.
     ///
-    /// Columns: id, name, type, aliases, short_description, status, tags
+    /// Columns: id, name, type, aliases, summary, status, tags
     pub fn export_bible_csv(&self) -> Result<String, String> {
-        let mut output = String::from("id,name,type,aliases,short_description,status,tags\n");
+        let mut output = String::from("id,name,type,aliases,summary,status,tags\n");
 
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, name, entry_type, aliases, short_description, status, tags
+                "SELECT id, name, entry_type, aliases, summary, status, tags
                  FROM bible_entries
                  WHERE deleted_at IS NULL
                  ORDER BY entry_type, name",
@@ -180,10 +180,10 @@ impl Database {
 
     /// Export review grid data as CSV.
     ///
-    /// Columns: title, chapter, status, word_count, pov, tension, has_conflict, has_change, setup_for, payoff_of
+    /// Columns: title, chapter, status, word_count, pov, tension, has_dramatic_conflict, has_change, setup_for, payoff_of
     pub fn export_review_grid_csv(&self) -> Result<String, String> {
         let mut output = String::from(
-            "title,chapter,status,word_count,pov,tension,has_conflict,has_change,setup_for,payoff_of\n",
+            "title,chapter,status,word_count,pov,tension,has_dramatic_conflict,has_change,setup_for,payoff_of\n",
         );
 
         // Pre-load all scene titles in one query to avoid N+1
@@ -193,7 +193,7 @@ impl Database {
             .conn
             .prepare(
                 "SELECT s.title, c.title, s.status, s.word_count, s.pov, s.tension,
-                    s.has_conflict, s.has_change, s.setup_for_scene_id, s.payoff_of_scene_id
+                    s.has_dramatic_conflict, s.has_change, s.setup_for_scene_id, s.payoff_of_scene_id
                  FROM scenes s
                  JOIN chapters c ON s.chapter_id = c.id
                  WHERE s.deleted_at IS NULL AND c.deleted_at IS NULL
@@ -210,7 +210,7 @@ impl Database {
                     word_count: row.get(3)?,
                     pov: row.get(4)?,
                     tension: row.get(5)?,
-                    has_conflict: row.get(6)?,
+                    has_dramatic_conflict: row.get(6)?,
                     has_change: row.get(7)?,
                     setup_for: row.get(8)?,
                     payoff_of: row.get(9)?,
@@ -265,7 +265,7 @@ impl Database {
             CsvField::Int(r.word_count),
             CsvField::Opt(r.pov.clone()),
             CsvField::Opt(r.tension.clone()),
-            CsvField::Bool(r.has_conflict),
+            CsvField::Bool(r.has_dramatic_conflict),
             CsvField::Bool(r.has_change),
             CsvField::Opt(setup_for_title),
             CsvField::Opt(payoff_of_title),
@@ -345,7 +345,7 @@ struct ReviewGridRow {
     word_count: i32,
     pov: Option<String>,
     tension: Option<String>,
-    has_conflict: Option<bool>,
+    has_dramatic_conflict: Option<bool>,
     has_change: Option<bool>,
     setup_for: Option<String>,
     payoff_of: Option<String>,
