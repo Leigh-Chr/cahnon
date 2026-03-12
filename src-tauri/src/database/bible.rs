@@ -184,12 +184,7 @@ impl Database {
     ) {
         add_field!(set_clauses, params_vec, req.name, "name");
         add_field!(set_clauses, params_vec, req.aliases, "aliases");
-        add_field!(
-            set_clauses,
-            params_vec,
-            req.summary,
-            "summary"
-        );
+        add_field!(set_clauses, params_vec, req.summary, "summary");
         add_field!(
             set_clauses,
             params_vec,

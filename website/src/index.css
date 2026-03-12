@@ -1,15 +1,14 @@
-@import "tailwindcss";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/source-serif-4";
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/source-serif-4';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
 	--font-sans:
-		"Inter Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-		"Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-	--font-serif:
-		"Source Serif 4 Variable", Charter, "Bitstream Charter", Georgia, serif;
+		'Inter Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+		'Segoe UI Symbol', 'Noto Color Emoji';
+	--font-serif: 'Source Serif 4 Variable', Charter, 'Bitstream Charter', Georgia, serif;
 }
 
 /* ============================================
@@ -32,7 +31,7 @@
 	--popover-foreground: oklch(0.18 0.02 260);
 
 	/* Primary — Ink blue */
-	--primary: oklch(0.50 0.18 255);
+	--primary: oklch(0.5 0.18 255);
 	--primary-foreground: oklch(0.98 0.005 260);
 
 	--secondary: oklch(0.945 0.012 260);
@@ -49,7 +48,7 @@
 
 	--border: oklch(0.88 0.015 260);
 	--input: oklch(0.88 0.015 260);
-	--ring: oklch(0.50 0.18 255);
+	--ring: oklch(0.5 0.18 255);
 }
 
 .dark {
@@ -62,7 +61,7 @@
 	--popover: oklch(0.15 0.008 260);
 	--popover-foreground: oklch(0.9 0.008 260);
 
-	--primary: oklch(0.70 0.14 255);
+	--primary: oklch(0.7 0.14 255);
 	--primary-foreground: oklch(0.12 0.008 260);
 
 	--secondary: oklch(0.18 0.008 260);
@@ -79,7 +78,7 @@
 
 	--border: oklch(0.26 0.008 260);
 	--input: oklch(0.2 0.008 260);
-	--ring: oklch(0.70 0.14 255);
+	--ring: oklch(0.7 0.14 255);
 }
 
 @theme inline {
@@ -129,7 +128,7 @@ body {
    ============================================ */
 
 .paper-texture::before {
-	content: "";
+	content: '';
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
@@ -156,13 +155,15 @@ body {
 		font-family: var(--font-sans);
 	}
 
-	h1, h2 {
+	h1,
+	h2 {
 		font-family: var(--font-serif);
 		font-weight: 400;
 		letter-spacing: -0.01em;
 	}
 
-	h3, h4 {
+	h3,
+	h4 {
 		font-family: var(--font-sans);
 		font-weight: 500;
 	}
@@ -227,7 +228,7 @@ body {
 }
 
 .margin-line::before {
-	content: "";
+	content: '';
 	position: absolute;
 	top: 0;
 	bottom: 0;

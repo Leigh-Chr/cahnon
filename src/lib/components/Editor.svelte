@@ -21,6 +21,7 @@
 	import Typography from '@tiptap/extension-typography';
 	import StarterKit from '@tiptap/starter-kit';
 	import { onDestroy, tick, untrack } from 'svelte';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 	import type { Annotation, BibleEntry } from '$lib/api';
 	import { annotationApi, associationApi, cutApi, issueApi, sceneApi, searchApi } from '$lib/api';
@@ -777,7 +778,7 @@
 		if (!markType) return;
 
 		// 1. Walk document to find existing annotation marks
-		const docMarks = new Map<string, { from: number; to: number }>();
+		const docMarks = new SvelteMap<string, { from: number; to: number }>();
 		editor.state.doc.descendants((node, pos) => {
 			if (node.isText) {
 				for (const mark of node.marks) {
@@ -798,7 +799,7 @@
 		});
 
 		// 2. Build set of DB annotation IDs that should have marks
-		const dbIds = new Set<string>();
+		const dbIds = new SvelteSet<string>();
 		for (const ann of annotations) {
 			if (ann.status !== 'resolved' && !ann.orphaned) {
 				dbIds.add(ann.id);
@@ -853,7 +854,7 @@
 		if (!markType) return;
 
 		// Walk document to find current positions of all annotation marks
-		const currentPositions = new Map<string, { from: number; to: number }>();
+		const currentPositions = new SvelteMap<string, { from: number; to: number }>();
 		editor.state.doc.descendants((node, pos) => {
 			if (node.isText) {
 				for (const mark of node.marks) {

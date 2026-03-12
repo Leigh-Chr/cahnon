@@ -147,7 +147,13 @@ impl Database {
         params: &mut Vec<Box<dyn rusqlite::ToSql>>,
     ) {
         add_field!(set_clauses, params, req.pov_goal, "pov_goal");
-        add_field!(set_clauses, params, req.has_dramatic_conflict, "has_dramatic_conflict", bool);
+        add_field!(
+            set_clauses,
+            params,
+            req.has_dramatic_conflict,
+            "has_dramatic_conflict",
+            bool
+        );
         add_field!(set_clauses, params, req.has_change, "has_change", bool);
         add_field!(set_clauses, params, req.tension, "tension");
         add_field!(

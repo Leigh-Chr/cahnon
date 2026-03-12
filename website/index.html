@@ -1,324 +1,490 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-    <!-- Theme & Colors -->
-    <meta name="theme-color" content="#1c1d1f" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f5f4f6" media="(prefers-color-scheme: light)" />
-    <meta name="color-scheme" content="light dark" />
+		<!-- Theme & Colors -->
+		<meta name="theme-color" content="#1c1d1f" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#f5f4f6" media="(prefers-color-scheme: light)" />
+		<meta name="color-scheme" content="light dark" />
 
-    <!-- SEO Meta Tags -->
-    <title>Cahnon - Write Freely. Stay Consistent.</title>
-    <meta name="description" content="Cahnon - A desktop application for fiction writers. Organize scenes, build your story bible, track timelines, and export clean manuscripts. Local-only, open source." />
-    <meta name="keywords" content="fiction writing, novel writing, story bible, manuscript, timeline, plot arcs, writing tool, desktop app, open-source, local-first" />
-    <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://leigh-chr.github.io/cahnon/" />
+		<!-- SEO Meta Tags -->
+		<title>Cahnon - Write Freely. Stay Consistent.</title>
+		<meta
+			name="description"
+			content="Cahnon - A desktop application for fiction writers. Organize scenes, build your story bible, track timelines, and export clean manuscripts. Local-only, open source."
+		/>
+		<meta
+			name="keywords"
+			content="fiction writing, novel writing, story bible, manuscript, timeline, plot arcs, writing tool, desktop app, open-source, local-first"
+		/>
+		<meta name="robots" content="index, follow" />
+		<link rel="canonical" href="https://leigh-chr.github.io/cahnon/" />
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://leigh-chr.github.io/cahnon/" />
-    <meta property="og:title" content="Cahnon - Write Freely. Stay Consistent." />
-    <meta property="og:description" content="A desktop application for fiction writers. Organize scenes, build your story bible, track timelines, and export clean manuscripts." />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:site_name" content="Cahnon" />
+		<!-- Open Graph -->
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://leigh-chr.github.io/cahnon/" />
+		<meta property="og:title" content="Cahnon - Write Freely. Stay Consistent." />
+		<meta
+			property="og:description"
+			content="A desktop application for fiction writers. Organize scenes, build your story bible, track timelines, and export clean manuscripts."
+		/>
+		<meta property="og:locale" content="en_US" />
+		<meta property="og:site_name" content="Cahnon" />
 
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://leigh-chr.github.io/cahnon/" />
-    <meta name="twitter:title" content="Cahnon - Write Freely. Stay Consistent." />
-    <meta name="twitter:description" content="A desktop application for fiction writers. Organize scenes, build your story bible, track timelines, and export clean manuscripts." />
+		<!-- Twitter Card -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:url" content="https://leigh-chr.github.io/cahnon/" />
+		<meta name="twitter:title" content="Cahnon - Write Freely. Stay Consistent." />
+		<meta
+			name="twitter:description"
+			content="A desktop application for fiction writers. Organize scenes, build your story bible, track timelines, and export clean manuscripts."
+		/>
 
-    <!-- Favicon -->
-    <link rel="icon" href="/cahnon/favicon.ico" sizes="48x48" />
-    <link rel="icon" type="image/png" sizes="128x128" href="/cahnon/icon-128.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/cahnon/icon-512.png" />
+		<!-- Favicon -->
+		<link rel="icon" href="/cahnon/favicon.ico" sizes="48x48" />
+		<link rel="icon" type="image/png" sizes="128x128" href="/cahnon/icon-128.png" />
+		<link rel="apple-touch-icon" sizes="180x180" href="/cahnon/icon-512.png" />
 
-    <!-- Styles -->
-    <link rel="stylesheet" href="/src/index.css" />
+		<!-- Styles -->
+		<link rel="stylesheet" href="/src/index.css" />
 
-    <!-- Structured Data (JSON-LD) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@graph": [
-        {
-          "@type": "WebSite",
-          "@id": "https://leigh-chr.github.io/cahnon/#website",
-          "name": "Cahnon",
-          "description": "A desktop application for fiction writers. Write freely. Stay consistent.",
-          "url": "https://leigh-chr.github.io/cahnon/"
-        },
-        {
-          "@type": "SoftwareApplication",
-          "@id": "https://leigh-chr.github.io/cahnon/#app",
-          "name": "Cahnon",
-          "description": "Desktop application for fiction writers. Organize scenes, build your story bible, track timelines, manage plot arcs, and export clean manuscripts.",
-          "url": "https://leigh-chr.github.io/cahnon/",
-          "applicationCategory": "UtilitiesApplication",
-          "operatingSystem": ["Windows", "macOS", "Linux"],
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "EUR"
-          }
-        }
-      ]
-    }
-    </script>
-  </head>
+		<!-- Structured Data (JSON-LD) -->
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@graph": [
+					{
+						"@type": "WebSite",
+						"@id": "https://leigh-chr.github.io/cahnon/#website",
+						"name": "Cahnon",
+						"description": "A desktop application for fiction writers. Write freely. Stay consistent.",
+						"url": "https://leigh-chr.github.io/cahnon/"
+					},
+					{
+						"@type": "SoftwareApplication",
+						"@id": "https://leigh-chr.github.io/cahnon/#app",
+						"name": "Cahnon",
+						"description": "Desktop application for fiction writers. Organize scenes, build your story bible, track timelines, manage plot arcs, and export clean manuscripts.",
+						"url": "https://leigh-chr.github.io/cahnon/",
+						"applicationCategory": "UtilitiesApplication",
+						"operatingSystem": ["Windows", "macOS", "Linux"],
+						"offers": {
+							"@type": "Offer",
+							"price": "0",
+							"priceCurrency": "EUR"
+						}
+					}
+				]
+			}
+		</script>
+	</head>
 
-  <body>
-    <!-- Skip to main content -->
-    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-sm focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-      Skip to main content
-    </a>
+	<body>
+		<!-- Skip to main content -->
+		<a
+			href="#main-content"
+			class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-sm focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+		>
+			Skip to main content
+		</a>
 
-    <div class="flex min-h-svh flex-col">
+		<div class="flex min-h-svh flex-col">
+			<!-- Header -->
+			<header
+				class="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80"
+			>
+				<div class="mx-auto flex max-w-[960px] items-center justify-between px-6 py-3">
+					<a
+						href="/cahnon/"
+						class="rounded-sm font-serif text-lg tracking-tight transition-colors duration-120 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						aria-label="Cahnon — Home"
+					>
+						Cahnon
+					</a>
 
-      <!-- Header -->
-      <header class="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
-        <div class="mx-auto flex max-w-[960px] items-center justify-between px-6 py-3">
-          <a href="/cahnon/" class="rounded-sm font-serif text-lg tracking-tight transition-colors duration-120 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Cahnon — Home">
-            Cahnon
-          </a>
+					<div class="flex items-center gap-5">
+						<nav class="hidden items-center gap-5 sm:flex" aria-label="Main navigation">
+							<a
+								href="https://github.com/Leigh-Chr/cahnon/releases"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								Download<span class="sr-only"> (opens in new tab)</span>
+							</a>
+							<a
+								href="https://github.com/Leigh-Chr/cahnon"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								GitHub
+							</a>
+						</nav>
 
-          <div class="flex items-center gap-5">
-            <nav class="hidden items-center gap-5 sm:flex" aria-label="Main navigation">
-              <a href="https://github.com/Leigh-Chr/cahnon/releases" target="_blank" rel="noopener noreferrer" class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                Download<span class="sr-only"> (opens in new tab)</span>
-              </a>
-              <a href="https://github.com/Leigh-Chr/cahnon" target="_blank" rel="noopener noreferrer" class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                GitHub
-              </a>
-            </nav>
+						<button
+							type="button"
+							id="theme-toggle"
+							class="relative inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-120 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							aria-label="Toggle theme"
+						>
+							<svg
+								class="size-[18px] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
+								xmlns="http://www.w3.org/2000/svg"
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<circle cx="12" cy="12" r="4" />
+								<path d="M12 2v2" />
+								<path d="M12 20v2" />
+								<path d="m4.93 4.93 1.41 1.41" />
+								<path d="m17.66 17.66 1.41 1.41" />
+								<path d="M2 12h2" />
+								<path d="M20 12h2" />
+								<path d="m6.34 17.66-1.41 1.41" />
+								<path d="m19.07 4.93-1.41 1.41" />
+							</svg>
+							<svg
+								class="absolute size-[18px] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0"
+								xmlns="http://www.w3.org/2000/svg"
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+							</svg>
+							<span class="sr-only">Toggle theme</span>
+						</button>
 
-            <button type="button" id="theme-toggle" class="relative inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-120 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Toggle theme">
-              <svg class="size-[18px] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-              <svg class="absolute size-[18px] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-              <span class="sr-only">Toggle theme</span>
-            </button>
+						<!-- Mobile nav -->
+						<div class="flex items-center gap-1 sm:hidden">
+							<a
+								href="https://github.com/Leigh-Chr/cahnon/releases"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+								aria-label="Download (opens in new tab)"
+							>
+								<svg
+									class="size-[18px]"
+									xmlns="http://www.w3.org/2000/svg"
+									width="24"
+									height="24"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+									<polyline points="7 10 12 15 17 10" />
+									<line x1="12" x2="12" y1="15" y2="3" />
+								</svg>
+							</a>
+							<a
+								href="https://github.com/Leigh-Chr/cahnon"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+								aria-label="GitHub (opens in new tab)"
+							>
+								<svg
+									class="size-[18px]"
+									xmlns="http://www.w3.org/2000/svg"
+									width="24"
+									height="24"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<path
+										d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"
+									/>
+									<path d="M9 18c-4.51 2-5-2-7-2" />
+								</svg>
+							</a>
+						</div>
+					</div>
+				</div>
+			</header>
 
-            <!-- Mobile nav -->
-            <div class="flex items-center gap-1 sm:hidden">
-              <a href="https://github.com/Leigh-Chr/cahnon/releases" target="_blank" rel="noopener noreferrer" class="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Download (opens in new tab)">
-                <svg class="size-[18px]" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-              </a>
-              <a href="https://github.com/Leigh-Chr/cahnon" target="_blank" rel="noopener noreferrer" class="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="GitHub (opens in new tab)">
-                <svg class="size-[18px]" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </header>
+			<!-- Main content -->
+			<main id="main-content" class="flex-1" tabindex="-1">
+				<!-- Hero -->
+				<section class="paper-texture relative" aria-labelledby="hero-heading">
+					<div
+						class="relative mx-auto max-w-[700px] px-6 pt-20 pb-16 sm:pt-28 sm:pb-20 md:pt-36 md:pb-24"
+					>
+						<h1
+							id="hero-heading"
+							class="font-serif text-[clamp(2.25rem,5vw,3.75rem)] font-normal leading-[1.12] tracking-tight"
+						>
+							Write freely.<br />
+							Stay consistent.
+						</h1>
 
-      <!-- Main content -->
-      <main id="main-content" class="flex-1" tabindex="-1">
+						<p class="mt-8 font-serif text-[1.125rem] leading-[1.7] text-muted-foreground">
+							A writing environment for fiction. Organize your scenes, build your story bible, track
+							your timelines. Everything lives in a single file on your machine.
+						</p>
 
-        <!-- Hero -->
-        <section class="paper-texture relative" aria-labelledby="hero-heading">
-          <div class="relative mx-auto max-w-[700px] px-6 pt-20 pb-16 sm:pt-28 sm:pb-20 md:pt-36 md:pb-24">
-            <h1 id="hero-heading" class="font-serif text-[clamp(2.25rem,5vw,3.75rem)] font-normal leading-[1.12] tracking-tight">
-              Write freely.<br />
-              Stay consistent.
-            </h1>
+						<div class="mt-10 flex items-center gap-4">
+							<a
+								href="https://github.com/Leigh-Chr/cahnon/releases"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="btn btn-primary"
+							>
+								Download<span class="sr-only"> (opens in new tab)</span>
+							</a>
+							<a
+								href="https://github.com/Leigh-Chr/cahnon"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								View source on GitHub<span class="sr-only"> (opens in new tab)</span>
+							</a>
+						</div>
+					</div>
+				</section>
 
-            <p class="mt-8 font-serif text-[1.125rem] leading-[1.7] text-muted-foreground">
-              A writing environment for fiction. Organize your scenes, build your story bible, track your timelines. Everything lives in a single file on your machine.
-            </p>
+				<!-- Philosophy -->
+				<section class="border-t border-border" aria-labelledby="philosophy-heading">
+					<div class="mx-auto max-w-[700px] px-6 py-16 sm:py-20">
+						<h2
+							id="philosophy-heading"
+							class="font-serif text-[clamp(1.5rem,3.5vw,2.25rem)] font-normal leading-[1.2] tracking-tight"
+						>
+							The tool that disappears
+						</h2>
+						<p class="mt-6 font-serif text-[1.0625rem] leading-[1.75] text-muted-foreground">
+							Cahnon is built around one idea: your writing environment should feel like a blank
+							page, not a cockpit. The interface steps back. Your words take the stage. Structure is
+							always there when you need it, invisible when you don't.
+						</p>
+					</div>
+				</section>
 
-            <div class="mt-10 flex items-center gap-4">
-              <a href="https://github.com/Leigh-Chr/cahnon/releases" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-                Download<span class="sr-only"> (opens in new tab)</span>
-              </a>
-              <a href="https://github.com/Leigh-Chr/cahnon" target="_blank" rel="noopener noreferrer" class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                View source on GitHub<span class="sr-only"> (opens in new tab)</span>
-              </a>
-            </div>
-          </div>
-        </section>
+				<!-- Features — asymmetric layout -->
+				<section
+					class="margin-line relative border-t border-border"
+					aria-labelledby="features-heading"
+				>
+					<h2 id="features-heading" class="sr-only">Features</h2>
 
-        <!-- Philosophy -->
-        <section class="border-t border-border" aria-labelledby="philosophy-heading">
-          <div class="mx-auto max-w-[700px] px-6 py-16 sm:py-20">
-            <h2 id="philosophy-heading" class="font-serif text-[clamp(1.5rem,3.5vw,2.25rem)] font-normal leading-[1.2] tracking-tight">
-              The tool that disappears
-            </h2>
-            <p class="mt-6 font-serif text-[1.0625rem] leading-[1.75] text-muted-foreground">
-              Cahnon is built around one idea: your writing environment should feel like a blank page, not a cockpit. The interface steps back. Your words take the stage. Structure is always there when you need it, invisible when you don't.
-            </p>
-          </div>
-        </section>
+					<div class="mx-auto max-w-[760px] px-6 py-16 sm:py-20">
+						<div class="space-y-20 sm:space-y-24">
+							<!-- Feature: Scenes & Chapters -->
+							<div class="max-w-[520px]">
+								<h3 class="text-[1.125rem] font-medium leading-snug">Scenes & Chapters</h3>
+								<p class="mt-3 leading-[1.65] text-muted-foreground">
+									Write in scenes. Organize into chapters. Drag, reorder, track status and word
+									count. The structure follows your story, not the other way around.
+								</p>
+							</div>
 
-        <!-- Features — asymmetric layout -->
-        <section class="margin-line relative border-t border-border" aria-labelledby="features-heading">
-          <h2 id="features-heading" class="sr-only">Features</h2>
+							<!-- Feature: Story Bible (offset right) -->
+							<div class="max-w-[520px] sm:ml-auto">
+								<h3 class="text-[1.125rem] font-medium leading-snug">Story Bible</h3>
+								<p class="mt-3 leading-[1.65] text-muted-foreground">
+									Characters, locations, objects, factions, concepts, glossary — centralized and
+									linked to your scenes. Check consistency without leaving your draft.
+								</p>
+							</div>
 
-          <div class="mx-auto max-w-[760px] px-6 py-16 sm:py-20">
-            <div class="space-y-20 sm:space-y-24">
+							<!-- Feature: Timeline & Arcs -->
+							<div class="max-w-[520px]">
+								<h3 class="text-[1.125rem] font-medium leading-snug">Timeline & Arcs</h3>
+								<p class="mt-3 leading-[1.65] text-muted-foreground">
+									Place events across your narrative. Link plot arcs to characters and scenes.
+									Conflict detection catches inconsistencies so you don't have to.
+								</p>
+							</div>
 
-              <!-- Feature: Scenes & Chapters -->
-              <div class="max-w-[520px]">
-                <h3 class="text-[1.125rem] font-medium leading-snug">Scenes & Chapters</h3>
-                <p class="mt-3 leading-[1.65] text-muted-foreground">
-                  Write in scenes. Organize into chapters. Drag, reorder, track status and word count. The structure follows your story, not the other way around.
-                </p>
-              </div>
+							<!-- Feature: Corkboard & Annotations (offset right) -->
+							<div class="max-w-[520px] sm:ml-auto">
+								<h3 class="text-[1.125rem] font-medium leading-snug">Corkboard & Annotations</h3>
+								<p class="mt-3 leading-[1.65] text-muted-foreground">
+									See the shape of your story on a corkboard. Add inline annotations — comments,
+									questions, research notes — directly in your text.
+								</p>
+							</div>
+						</div>
+					</div>
+				</section>
 
-              <!-- Feature: Story Bible (offset right) -->
-              <div class="max-w-[520px] sm:ml-auto">
-                <h3 class="text-[1.125rem] font-medium leading-snug">Story Bible</h3>
-                <p class="mt-3 leading-[1.65] text-muted-foreground">
-                  Characters, locations, objects, factions, concepts, glossary — centralized and linked to your scenes. Check consistency without leaving your draft.
-                </p>
-              </div>
+				<!-- Details -->
+				<section class="border-t border-border" aria-labelledby="details-heading">
+					<div class="mx-auto max-w-[700px] px-6 py-16 sm:py-20">
+						<h2
+							id="details-heading"
+							class="mb-10 font-serif text-[clamp(1.5rem,3.5vw,2.25rem)] font-normal leading-[1.2] tracking-tight"
+						>
+							Your manuscript, your machine
+						</h2>
 
-              <!-- Feature: Timeline & Arcs -->
-              <div class="max-w-[520px]">
-                <h3 class="text-[1.125rem] font-medium leading-snug">Timeline & Arcs</h3>
-                <p class="mt-3 leading-[1.65] text-muted-foreground">
-                  Place events across your narrative. Link plot arcs to characters and scenes. Conflict detection catches inconsistencies so you don't have to.
-                </p>
-              </div>
+						<div class="grid gap-x-12 gap-y-10 sm:grid-cols-2">
+							<div>
+								<h3 class="text-[0.9375rem] font-medium">Local & private</h3>
+								<p class="mt-2 text-[0.9375rem] leading-[1.6] text-muted-foreground">
+									Everything in a single .cahnon file on your disk. No cloud, no accounts, no
+									tracking.
+								</p>
+							</div>
 
-              <!-- Feature: Corkboard & Annotations (offset right) -->
-              <div class="max-w-[520px] sm:ml-auto">
-                <h3 class="text-[1.125rem] font-medium leading-snug">Corkboard & Annotations</h3>
-                <p class="mt-3 leading-[1.65] text-muted-foreground">
-                  See the shape of your story on a corkboard. Add inline annotations — comments, questions, research notes — directly in your text.
-                </p>
-              </div>
+							<div>
+								<h3 class="text-[0.9375rem] font-medium">Export anywhere</h3>
+								<p class="mt-2 text-[0.9375rem] leading-[1.6] text-muted-foreground">
+									Markdown, PDF, DOCX, JSON, CSV. Your words in the format you need.
+								</p>
+							</div>
 
-            </div>
-          </div>
-        </section>
+							<div>
+								<h3 class="text-[0.9375rem] font-medium">Cross-platform</h3>
+								<p class="mt-2 text-[0.9375rem] leading-[1.6] text-muted-foreground">
+									Windows (MSI, NSIS), macOS (DMG for Intel & Apple Silicon), Linux (AppImage, DEB,
+									RPM).
+								</p>
+							</div>
 
-        <!-- Details -->
-        <section class="border-t border-border" aria-labelledby="details-heading">
-          <div class="mx-auto max-w-[700px] px-6 py-16 sm:py-20">
-            <h2 id="details-heading" class="mb-10 font-serif text-[clamp(1.5rem,3.5vw,2.25rem)] font-normal leading-[1.2] tracking-tight">
-              Your manuscript, your machine
-            </h2>
+							<div>
+								<h3 class="text-[0.9375rem] font-medium">Open source</h3>
+								<p class="mt-2 text-[0.9375rem] leading-[1.6] text-muted-foreground">
+									GPL-3.0 licensed. Free to use, inspect, and contribute.
+								</p>
+							</div>
+						</div>
+					</div>
+				</section>
 
-            <div class="grid gap-x-12 gap-y-10 sm:grid-cols-2">
-              <div>
-                <h3 class="text-[0.9375rem] font-medium">Local & private</h3>
-                <p class="mt-2 text-[0.9375rem] leading-[1.6] text-muted-foreground">
-                  Everything in a single .cahnon file on your disk. No cloud, no accounts, no tracking.
-                </p>
-              </div>
+				<!-- Closing CTA -->
+				<section class="border-t border-border" aria-labelledby="cta-heading">
+					<div class="mx-auto max-w-[700px] px-6 py-16 text-center sm:py-20">
+						<h2
+							id="cta-heading"
+							class="font-serif text-[1.25rem] font-normal leading-[1.4] text-foreground"
+						>
+							Ready to start writing?
+						</h2>
+						<div class="mt-6">
+							<a href="https://github.com/Leigh-Chr/cahnon/releases" class="btn btn-primary">
+								Download Cahnon
+							</a>
+						</div>
+						<p class="mt-4 text-sm text-muted-foreground">
+							Free. Open source. Windows, macOS, and Linux.
+						</p>
+					</div>
+				</section>
+			</main>
 
-              <div>
-                <h3 class="text-[0.9375rem] font-medium">Export anywhere</h3>
-                <p class="mt-2 text-[0.9375rem] leading-[1.6] text-muted-foreground">
-                  Markdown, PDF, DOCX, JSON, CSV. Your words in the format you need.
-                </p>
-              </div>
+			<!-- Footer -->
+			<footer class="border-t border-border">
+				<div class="mx-auto max-w-[700px] px-6 py-8">
+					<div class="flex flex-col items-center justify-between gap-4 sm:flex-row">
+						<span class="font-serif text-sm text-muted-foreground">Cahnon</span>
+						<nav class="flex flex-wrap items-center gap-5" aria-label="Footer navigation">
+							<a
+								href="https://github.com/Leigh-Chr/cahnon"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								GitHub<span class="sr-only"> (opens in new tab)</span>
+							</a>
+							<a
+								href="https://github.com/Leigh-Chr/cahnon/releases"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								Releases<span class="sr-only"> (opens in new tab)</span>
+							</a>
+							<a
+								href="https://ko-fi.com/leigh_chr"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								Ko-fi<span class="sr-only"> (opens in new tab)</span>
+							</a>
+							<a
+								href="https://github.com/Leigh-Chr/cahnon/blob/main/LICENSE"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								License<span class="sr-only"> (opens in new tab)</span>
+							</a>
+						</nav>
+					</div>
+					<p class="mt-6 text-center text-xs text-muted-foreground">
+						&copy; <span id="current-year"></span> Cahnon
+					</p>
+				</div>
+			</footer>
+		</div>
 
-              <div>
-                <h3 class="text-[0.9375rem] font-medium">Cross-platform</h3>
-                <p class="mt-2 text-[0.9375rem] leading-[1.6] text-muted-foreground">
-                  Windows (MSI, NSIS), macOS (DMG for Intel & Apple Silicon), Linux (AppImage, DEB, RPM).
-                </p>
-              </div>
+		<!-- Minimal JS for dark mode toggle and current year -->
+		<script>
+			// Set current year
+			document.getElementById('current-year').textContent = new Date().getFullYear();
 
-              <div>
-                <h3 class="text-[0.9375rem] font-medium">Open source</h3>
-                <p class="mt-2 text-[0.9375rem] leading-[1.6] text-muted-foreground">
-                  GPL-3.0 licensed. Free to use, inspect, and contribute.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
+			// Theme toggle
+			const themeToggle = document.getElementById('theme-toggle');
+			const root = document.documentElement;
+			const storageKey = 'cahnon-theme';
 
-        <!-- Closing CTA -->
-        <section class="border-t border-border" aria-labelledby="cta-heading">
-          <div class="mx-auto max-w-[700px] px-6 py-16 text-center sm:py-20">
-            <h2 id="cta-heading" class="font-serif text-[1.25rem] font-normal leading-[1.4] text-foreground">
-              Ready to start writing?
-            </h2>
-            <div class="mt-6">
-              <a href="https://github.com/Leigh-Chr/cahnon/releases" class="btn btn-primary">
-                Download Cahnon
-              </a>
-            </div>
-            <p class="mt-4 text-sm text-muted-foreground">
-              Free. Open source. Windows, macOS, and Linux.
-            </p>
-          </div>
-        </section>
+			// Get initial theme
+			function getTheme() {
+				const stored = localStorage.getItem(storageKey);
+				if (stored) return stored;
+				return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+			}
 
-      </main>
+			// Apply theme
+			function applyTheme(theme) {
+				root.classList.remove('light', 'dark');
+				if (theme === 'system') {
+					const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+						? 'dark'
+						: 'light';
+					root.classList.add(systemTheme);
+				} else {
+					root.classList.add(theme);
+				}
+			}
 
-      <!-- Footer -->
-      <footer class="border-t border-border">
-        <div class="mx-auto max-w-[700px] px-6 py-8">
-          <div class="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <span class="font-serif text-sm text-muted-foreground">Cahnon</span>
-            <nav class="flex flex-wrap items-center gap-5" aria-label="Footer navigation">
-              <a href="https://github.com/Leigh-Chr/cahnon" target="_blank" rel="noopener noreferrer" class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                GitHub<span class="sr-only"> (opens in new tab)</span>
-              </a>
-              <a href="https://github.com/Leigh-Chr/cahnon/releases" target="_blank" rel="noopener noreferrer" class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                Releases<span class="sr-only"> (opens in new tab)</span>
-              </a>
-              <a href="https://ko-fi.com/leigh_chr" target="_blank" rel="noopener noreferrer" class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                Ko-fi<span class="sr-only"> (opens in new tab)</span>
-              </a>
-              <a href="https://github.com/Leigh-Chr/cahnon/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="rounded-sm text-sm text-muted-foreground transition-colors duration-120 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                License<span class="sr-only"> (opens in new tab)</span>
-              </a>
-            </nav>
-          </div>
-          <p class="mt-6 text-center text-xs text-muted-foreground">
-            &copy; <span id="current-year"></span> Cahnon
-          </p>
-        </div>
-      </footer>
+			// Initialize
+			applyTheme(getTheme());
 
-    </div>
-
-    <!-- Minimal JS for dark mode toggle and current year -->
-    <script>
-      // Set current year
-      document.getElementById('current-year').textContent = new Date().getFullYear();
-
-      // Theme toggle
-      const themeToggle = document.getElementById('theme-toggle');
-      const root = document.documentElement;
-      const storageKey = 'cahnon-theme';
-
-      // Get initial theme
-      function getTheme() {
-        const stored = localStorage.getItem(storageKey);
-        if (stored) return stored;
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
-
-      // Apply theme
-      function applyTheme(theme) {
-        root.classList.remove('light', 'dark');
-        if (theme === 'system') {
-          const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          root.classList.add(systemTheme);
-        } else {
-          root.classList.add(theme);
-        }
-      }
-
-      // Initialize
-      applyTheme(getTheme());
-
-      // Toggle handler
-      themeToggle.addEventListener('click', () => {
-        const current = localStorage.getItem(storageKey) ||
-          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        const next = current === 'dark' ? 'light' : 'dark';
-        localStorage.setItem(storageKey, next);
-        applyTheme(next);
-      });
-    </script>
-  </body>
+			// Toggle handler
+			themeToggle.addEventListener('click', () => {
+				const current =
+					localStorage.getItem(storageKey) ||
+					(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+				const next = current === 'dark' ? 'light' : 'dark';
+				localStorage.setItem(storageKey, next);
+				applyTheme(next);
+			});
+		</script>
+	</body>
 </html>
